@@ -340,20 +340,28 @@ class FormationEnemy extends Enemy {
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.9;
         this.speed = this.baseSpeed;
         
-        // Grid dimensions increase with level
-        // Start with 1 row, 3 columns, gradually increase
-        const baseCols = 3;
-        const baseRows = 1;
-        // Columns increase: +1 every 2 levels (max 8)
-        const colBonus = Math.floor((level - 1) / 2);
-        this.cols = Math.min(8, baseCols + colBonus);
-        // Rows increase: +1 every 3 levels (max 4)
-        const rowBonus = Math.floor((level - 1) / 3);
-        this.rows = Math.min(4, baseRows + rowBonus);
+        // New generation system: fixed total health, random rows/cols
+        // Total health increases with level: level²/4 + level + 3
+        const totalHealth = Math.floor((level * level) / 4 + level + 3);
         
-        // Health per unit: increases slowly with level
-        // Base 1, +1 every 4 levels (slower than before)
-        this.healthPerUnit = 1 + Math.floor((level - 1) / 4);
+        // Randomly determine rows and columns within reasonable ranges
+        // Rows: 1-4, Columns: 2-8
+        const minRows = 1;
+        const maxRows = Math.min(4, 1 + Math.floor((level - 1) / 3));
+        const minCols = 2;
+        const maxCols = Math.min(8, 3 + Math.floor((level - 1) / 2));
+        
+        // Randomly select rows and columns
+        this.rows = randomInt(minRows, maxRows);
+        this.cols = randomInt(minCols, maxCols);
+        
+        // Calculate health per unit: totalHealth / (rows * cols)
+        // Ensure at least 1 health per unit
+        const totalUnits = this.rows * this.cols;
+        this.healthPerUnit = Math.max(1, Math.floor(totalHealth / totalUnits));
+        
+        // Recalculate actual total health (may be slightly different due to rounding)
+        const actualTotalHealth = this.healthPerUnit * totalUnits;
         
         // Initialize units grid - each unit has individual health
         this.units = [];
@@ -372,14 +380,14 @@ class FormationEnemy extends Enemy {
         this.enemyCount = this.maxUnits;
         this.maxEnemies = this.maxUnits;
         
-        // Calculate total health for score calculation
-        this.maxHealth = this.units.length * this.healthPerUnit;
-        this.health = this.maxHealth;
+        // Store actual total health
+        this.maxHealth = actualTotalHealth;
+        this.health = actualTotalHealth;
         
-        // Score increases with count
-        const totalUnitsCount = this.units.length;
+        // Score increases with total health and unit count
+        const baseTotalHealth = 3; // Base total health at level 1 (level²/4 + level + 3 = 3.25 ≈ 3)
         const baseScoreMultiplier = 1.5;
-        const scoreBonus = (totalUnitsCount - baseCols * baseRows) * 0.3;
+        const scoreBonus = (actualTotalHealth - baseTotalHealth) * 0.1 + (this.maxUnits - 3) * 0.2;
         this.scoreValue = CONFIG.SCORE_PER_ENEMY * (baseScoreMultiplier + scoreBonus);
         this.enemyWidth = 35; // Width of each enemy
         this.enemyHeight = 35; // Height of each enemy
@@ -558,33 +566,43 @@ class SwarmEnemy extends Enemy {
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.8;
         this.speed = this.baseSpeed;
         
-        // Unit count increases with level: start with 3 units in 1 row, gradually increase
-        const baseUnitsPerRow = 3;
-        const baseRows = 1;
-        // Units per row increase: +1 every 2 levels (max 5)
-        const unitsPerRowBonus = Math.floor((level - 1) / 2);
-        const unitsPerRow = Math.min(5, baseUnitsPerRow + unitsPerRowBonus);
-        // Rows increase: +1 every 3 levels (max 3)
-        const rowBonus = Math.floor((level - 1) / 3);
-        const rows = Math.min(3, baseRows + rowBonus);
-        const totalUnits = unitsPerRow * rows;
+        // New generation system: fixed total health, random rows/cols
+        // Total health increases with level: level²/4 + level + 3
+        const totalHealth = Math.floor((level * level) / 4 + level + 3);
         
-        // Health per unit: increases slowly with level
-        // Base 1, +1 every 4 levels (slower than before)
-        this.healthPerUnit = 1 + Math.floor((level - 1) / 4);
+        // Randomly determine rows and columns within reasonable ranges
+        // Rows: 1-3, Columns: 3-5
+        const minRows = 1;
+        const maxRows = Math.min(3, 1 + Math.floor((level - 1) / 3));
+        const minCols = 3;
+        const maxCols = Math.min(5, 3 + Math.floor((level - 1) / 2));
+        
+        // Randomly select rows and columns
+        this.rows = randomInt(minRows, maxRows);
+        const unitsPerRow = randomInt(minCols, maxCols);
+        this.unitsPerRow = unitsPerRow;
+        const totalUnits = this.rows * unitsPerRow;
+        
+        // Calculate health per unit: totalHealth / (rows * cols)
+        // Ensure at least 1 health per unit
+        this.healthPerUnit = Math.max(1, Math.floor(totalHealth / totalUnits));
+        
+        // Recalculate actual total health (may be slightly different due to rounding)
+        const actualTotalHealth = this.healthPerUnit * totalUnits;
         
         // Initialize units - each unit has individual health and position
         this.units = [];
-        this.unitsPerRow = unitsPerRow;
-        this.rows = rows;
         this.unitSize = 15; // Size of each unit
-        this.spread = 30; // Spread between units
+        // Increased spread for wider distribution, especially for first row to allow multishot to hit all units
+        this.spread = 80; // Spread between units (increased significantly for wider distribution)
         
-        let unitIndex = 0;
-        for (let row = 0; row < rows && unitIndex < totalUnits; row++) {
-            for (let col = 0; col < unitsPerRow && unitIndex < totalUnits; col++) {
-                const offsetX = (col - (unitsPerRow - 1) / 2) * (this.spread / unitsPerRow);
-                const offsetY = (row - (rows - 1) / 2) * (this.spread / unitsPerRow);
+        for (let row = 0; row < this.rows; row++) {
+            for (let col = 0; col < unitsPerRow; col++) {
+                // Use larger spacing for first row to allow multishot coverage
+                // First row uses full spread, other rows use slightly less
+                const rowSpread = row === 0 ? this.spread : this.spread * 0.8;
+                const offsetX = (col - (unitsPerRow - 1) / 2) * (rowSpread / unitsPerRow);
+                const offsetY = (row - (this.rows - 1) / 2) * (this.spread / unitsPerRow);
                 
                 this.units.push({
                     row: row,
@@ -594,22 +612,21 @@ class SwarmEnemy extends Enemy {
                     health: this.healthPerUnit,
                     maxHealth: this.healthPerUnit
                 });
-                unitIndex++;
             }
         }
         
         this.maxUnits = this.units.length;
         this.unitCount = this.maxUnits;
-        this.initialCount = baseUnitsPerRow * baseRows;
+        this.initialCount = 3; // Base count for reference
         
-        // Calculate total health for score calculation
-        this.maxHealth = this.units.length * this.healthPerUnit;
-        this.health = this.maxHealth;
+        // Store actual total health
+        this.maxHealth = actualTotalHealth;
+        this.health = actualTotalHealth;
         
-        // Score increases with count
-        const totalUnitsCount = this.units.length;
+        // Score increases with total health and unit count
+        const baseTotalHealth = 5; // Base total health at level 1
         const baseScoreMultiplier = 2;
-        const scoreBonus = (totalUnitsCount - baseUnitsPerRow * baseRows) * 0.3;
+        const scoreBonus = (actualTotalHealth - baseTotalHealth) * 0.1 + (this.maxUnits - 3) * 0.2;
         this.scoreValue = CONFIG.SCORE_PER_ENEMY * (baseScoreMultiplier + scoreBonus);
         
         // Base color (for shadow)
