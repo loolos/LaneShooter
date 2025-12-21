@@ -37,17 +37,35 @@ class Enemy {
     draw(ctx) {
         if (!this.active) return;
 
-        ctx.fillStyle = this.color;
+        ctx.save();
         ctx.shadowColor = this.color;
         ctx.shadowBlur = 10;
         
-        // Draw enemy as a rectangle
-        ctx.fillRect(
-            this.x - this.width / 2,
-            this.y - this.height / 2,
-            this.width,
-            this.height
-        );
+        // Draw enemy as a spaceship (triangle pointing down)
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y + this.height / 2); // Bottom point
+        ctx.lineTo(this.x - this.width / 2, this.y - this.height / 2); // Top left
+        ctx.lineTo(this.x, this.y - this.height / 2 + 5); // Center notch
+        ctx.lineTo(this.x + this.width / 2, this.y - this.height / 2); // Top right
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw cockpit/cannon detail
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - this.height / 4, this.width / 6, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw wing details
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.width / 3, this.y);
+        ctx.lineTo(this.x - this.width / 2, this.y - this.height / 3);
+        ctx.moveTo(this.x + this.width / 3, this.y);
+        ctx.lineTo(this.x + this.width / 2, this.y - this.height / 3);
+        ctx.stroke();
         
         // Draw health bar if enemy has more than 1 health
         if (this.maxHealth > 1) {
@@ -66,7 +84,7 @@ class Enemy {
             ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
         }
         
-        ctx.shadowBlur = 0;
+        ctx.restore();
     }
 
     /**
@@ -106,6 +124,35 @@ class BasicEnemy extends Enemy {
         this.color = '#ff4757';
         this.speed = CONFIG.ENEMY_BASE_SPEED;
     }
+    
+    /**
+     * Draw basic enemy as a simple fighter
+     */
+    draw(ctx) {
+        if (!this.active) return;
+
+        ctx.save();
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 8;
+        
+        // Draw main body (triangle)
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y + this.height / 2);
+        ctx.lineTo(this.x - this.width / 2, this.y - this.height / 2);
+        ctx.lineTo(this.x, this.y - this.height / 2 + 3);
+        ctx.lineTo(this.x + this.width / 2, this.y - this.height / 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw cockpit
+        ctx.fillStyle = 'rgba(255, 200, 200, 0.6)';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - this.height / 4, this.width / 8, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore();
+    }
 }
 
 /**
@@ -119,6 +166,48 @@ class FastEnemy extends Enemy {
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 1.5; // Override base speed
         this.speed = this.baseSpeed;
         this.scoreValue = CONFIG.SCORE_PER_ENEMY * 2;
+        this.width = 35; // Slightly smaller, more agile
+        this.height = 35;
+    }
+    
+    /**
+     * Draw fast enemy as a sleek interceptor
+     */
+    draw(ctx) {
+        if (!this.active) return;
+
+        ctx.save();
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 10;
+        
+        // Draw sleek pointed fighter
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y + this.height / 2);
+        ctx.lineTo(this.x - this.width / 2.5, this.y - this.height / 2);
+        ctx.lineTo(this.x - this.width / 6, this.y - this.height / 4);
+        ctx.lineTo(this.x, this.y - this.height / 2 + 2);
+        ctx.lineTo(this.x + this.width / 6, this.y - this.height / 4);
+        ctx.lineTo(this.x + this.width / 2.5, this.y - this.height / 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw afterburner effect
+        ctx.fillStyle = 'rgba(255, 200, 0, 0.6)';
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.width / 8, this.y + this.height / 2);
+        ctx.lineTo(this.x, this.y + this.height / 2 + 3);
+        ctx.lineTo(this.x + this.width / 8, this.y + this.height / 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw cockpit
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - this.height / 5, this.width / 10, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore();
     }
 }
 
@@ -164,6 +253,62 @@ class TankEnemy extends Enemy {
             // Red
             this.color = '#ff0000';
         }
+    }
+    
+    /**
+     * Draw tank enemy as a heavy battleship
+     */
+    draw(ctx) {
+        if (!this.active) return;
+
+        ctx.save();
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 12;
+        
+        // Draw main body (wider, more armored)
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y + this.height / 2);
+        ctx.lineTo(this.x - this.width / 2, this.y - this.height / 3);
+        ctx.lineTo(this.x - this.width / 3, this.y - this.height / 2);
+        ctx.lineTo(this.x, this.y - this.height / 2 + 5);
+        ctx.lineTo(this.x + this.width / 3, this.y - this.height / 2);
+        ctx.lineTo(this.x + this.width / 2, this.y - this.height / 3);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw armor plates
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.width / 3, this.y - this.height / 4);
+        ctx.lineTo(this.x + this.width / 3, this.y - this.height / 4);
+        ctx.moveTo(this.x - this.width / 4, this.y);
+        ctx.lineTo(this.x + this.width / 4, this.y);
+        ctx.stroke();
+        
+        // Draw cannon/weapon mount
+        ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - this.height / 3, this.width / 8, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw health bar
+        const barWidth = this.width;
+        const barHeight = 5;
+        const barX = this.x - barWidth / 2;
+        const barY = this.y - this.height / 2 - 10;
+        
+        // Background
+        ctx.fillStyle = '#333';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+        
+        // Health
+        const healthPercent = this.health / this.maxHealth;
+        ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
+        ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+        
+        ctx.restore();
     }
 }
 
@@ -222,6 +367,7 @@ class FormationEnemy extends Enemy {
     draw(ctx) {
         if (!this.active) return;
 
+        ctx.save();
         ctx.shadowColor = this.color;
         ctx.shadowBlur = 10;
         
@@ -229,31 +375,38 @@ class FormationEnemy extends Enemy {
         const totalWidth = (this.enemyCount * this.enemyWidth) + ((this.enemyCount - 1) * this.spacing);
         const startX = this.x - totalWidth / 2;
         
-        // Draw enemies in a row
+        // Draw enemies in a row as small fighters
         for (let i = 0; i < this.enemyCount; i++) {
             const enemyX = startX + (i * (this.enemyWidth + this.spacing)) + (this.enemyWidth / 2);
             
+            // Draw fighter shape
             ctx.fillStyle = this.color;
-            // Draw enemy as a rectangle
-            ctx.fillRect(
-                enemyX - this.enemyWidth / 2,
-                this.y - this.enemyHeight / 2,
-                this.enemyWidth,
-                this.enemyHeight
-            );
-            
-            // Draw a simple "X" pattern on each enemy
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(enemyX - this.enemyWidth / 4, this.y - this.enemyHeight / 4);
-            ctx.lineTo(enemyX + this.enemyWidth / 4, this.y + this.enemyHeight / 4);
-            ctx.moveTo(enemyX + this.enemyWidth / 4, this.y - this.enemyHeight / 4);
-            ctx.lineTo(enemyX - this.enemyWidth / 4, this.y + this.enemyHeight / 4);
+            ctx.moveTo(enemyX, this.y + this.enemyHeight / 2);
+            ctx.lineTo(enemyX - this.enemyWidth / 2, this.y - this.enemyHeight / 2);
+            ctx.lineTo(enemyX, this.y - this.enemyHeight / 2 + 2);
+            ctx.lineTo(enemyX + this.enemyWidth / 2, this.y - this.enemyHeight / 2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Draw wing details
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(enemyX - this.enemyWidth / 4, this.y);
+            ctx.lineTo(enemyX - this.enemyWidth / 2, this.y - this.enemyHeight / 3);
+            ctx.moveTo(enemyX + this.enemyWidth / 4, this.y);
+            ctx.lineTo(enemyX + this.enemyWidth / 2, this.y - this.enemyHeight / 3);
             ctx.stroke();
+            
+            // Draw cockpit
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.beginPath();
+            ctx.arc(enemyX, this.y - this.enemyHeight / 4, this.enemyWidth / 10, 0, Math.PI * 2);
+            ctx.fill();
         }
         
-        ctx.shadowBlur = 0;
+        ctx.restore();
     }
 
     /**
@@ -341,10 +494,11 @@ class SwarmEnemy extends Enemy {
     draw(ctx) {
         if (!this.active) return;
 
+        ctx.save();
         ctx.shadowColor = this.color;
         ctx.shadowBlur = 8;
         
-        // Draw units in a formation
+        // Draw units in a formation as small drones
         const unitsPerRow = Math.ceil(Math.sqrt(this.unitCount));
         const spacing = this.spread / unitsPerRow;
         let unitIndex = 0;
@@ -353,22 +507,30 @@ class SwarmEnemy extends Enemy {
             for (let col = 0; col < unitsPerRow && unitIndex < this.unitCount; col++) {
                 const offsetX = (col - (unitsPerRow - 1) / 2) * spacing;
                 const offsetY = (row - (unitsPerRow - 1) / 2) * spacing;
+                const unitX = this.x + offsetX;
+                const unitY = this.y + offsetY;
                 
+                // Draw drone body (small triangle)
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
-                ctx.arc(
-                    this.x + offsetX,
-                    this.y + offsetY,
-                    this.unitSize / 2,
-                    0,
-                    Math.PI * 2
-                );
+                ctx.moveTo(unitX, unitY + this.unitSize / 2);
+                ctx.lineTo(unitX - this.unitSize / 2, unitY - this.unitSize / 2);
+                ctx.lineTo(unitX, unitY - this.unitSize / 2 + 1);
+                ctx.lineTo(unitX + this.unitSize / 2, unitY - this.unitSize / 2);
+                ctx.closePath();
                 ctx.fill();
+                
+                // Draw small glow/eye
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.beginPath();
+                ctx.arc(unitX, unitY - this.unitSize / 4, this.unitSize / 6, 0, Math.PI * 2);
+                ctx.fill();
+                
                 unitIndex++;
             }
         }
         
-        ctx.shadowBlur = 0;
+        ctx.restore();
     }
 
     /**

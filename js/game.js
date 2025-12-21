@@ -210,8 +210,9 @@ class Game {
      * Spawn enemies
      */
     spawnEnemies() {
-        // Increase spawn rate with level
-        const spawnRate = CONFIG.ENEMY_SPAWN_RATE * (1 + (this.level - 1) * 0.1);
+        // Increase spawn rate with level - slow gradual increase
+        // Uses square root for smoother progression: level 1 = 1.0x, level 5 = 1.4x, level 10 = 1.73x
+        const spawnRate = CONFIG.ENEMY_SPAWN_RATE * (1 + Math.sqrt(this.level - 1) * 0.15);
         
         if (Math.random() < spawnRate) {
             const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
