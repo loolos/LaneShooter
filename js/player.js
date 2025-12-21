@@ -79,16 +79,17 @@ class Player {
         // Get bullet count from multishot upgrade
         const bulletCount = 1 + this.upgrades.multishot;
         const bulletSpeed = this.getEffectiveBulletSpeed();
+        const speedboostLevel = this.upgrades.speedboost; // Pass to bullet for color
 
         // Create bullets
         if (bulletCount === 1) {
-            this.bullets.push(new Bullet(this.x, this.y - this.height / 2, bulletSpeed));
+            this.bullets.push(new Bullet(this.x, this.y - this.height / 2, bulletSpeed, speedboostLevel));
         } else {
             // Multi-shot: spread bullets evenly
             const spread = 15;
             for (let i = 0; i < bulletCount; i++) {
                 const offset = (i - (bulletCount - 1) / 2) * spread;
-                this.bullets.push(new Bullet(this.x + offset, this.y - this.height / 2, bulletSpeed));
+                this.bullets.push(new Bullet(this.x + offset, this.y - this.height / 2, bulletSpeed, speedboostLevel));
             }
         }
 
@@ -146,9 +147,27 @@ class Player {
      * @param {CanvasRenderingContext2D} ctx
      */
     draw(ctx) {
-        // Draw player as a triangle (ship)
-        ctx.fillStyle = '#00d4ff';
-        ctx.shadowColor = '#00d4ff';
+        // Draw thrusters based on lane speed upgrade
+        this.drawThrusters(ctx);
+        
+        // Determine triangle color based on rapidfire upgrade
+        const rapidfireLevel = this.upgrades.rapidfire;
+        let triangleColor = '#00d4ff';
+        if (rapidfireLevel > 0) {
+            // Color changes from cyan to yellow to red as level increases
+            if (rapidfireLevel <= 3) {
+                triangleColor = `rgb(0, ${212 + rapidfireLevel * 14}, 255)`;
+            } else if (rapidfireLevel <= 6) {
+                const intensity = (rapidfireLevel - 3) * 85;
+                triangleColor = `rgb(${intensity}, 255, ${255 - intensity})`;
+            } else {
+                triangleColor = `rgb(255, ${255 - (rapidfireLevel - 6) * 30}, 0)`;
+            }
+        }
+        
+        // Draw main triangle (ship)
+        ctx.fillStyle = triangleColor;
+        ctx.shadowColor = triangleColor;
         ctx.shadowBlur = 15;
         
         ctx.beginPath();
@@ -159,9 +178,105 @@ class Player {
         ctx.fill();
         
         ctx.shadowBlur = 0;
+        
+        // Draw additional triangles for multishot upgrade
+        const multishotLevel = this.upgrades.multishot;
+        if (multishotLevel > 0) {
+            this.drawAdditionalTriangles(ctx, multishotLevel, triangleColor);
+        }
 
         // Draw lane indicators
         this.drawLaneIndicators(ctx);
+    }
+    
+    /**
+     * Draw thrusters based on lane speed upgrade
+     * @param {CanvasRenderingContext2D} ctx
+     */
+    drawThrusters(ctx) {
+        const lanespeedLevel = this.upgrades.lanespeed;
+        if (lanespeedLevel > 0) {
+            const thrusterCount = Math.min(3, lanespeedLevel); // Max 3 thrusters
+            const thrusterSpacing = 8;
+            const startX = this.x - (thrusterCount - 1) * thrusterSpacing / 2;
+            
+            for (let i = 0; i < thrusterCount; i++) {
+                const thrusterX = startX + i * thrusterSpacing;
+                const thrusterY = this.y + this.height / 2;
+                
+                // Draw thruster flame
+                ctx.fillStyle = `rgba(255, ${100 + lanespeedLevel * 10}, 0, 0.8)`;
+                ctx.shadowColor = '#ff6b00';
+                ctx.shadowBlur = 10;
+                
+                // Draw flame shape
+                ctx.beginPath();
+                ctx.moveTo(thrusterX, thrusterY);
+                ctx.lineTo(thrusterX - 4, thrusterY + 8 + lanespeedLevel * 2);
+                ctx.lineTo(thrusterX + 4, thrusterY + 8 + lanespeedLevel * 2);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Inner flame
+                ctx.fillStyle = `rgba(255, 255, 0, 0.6)`;
+                ctx.beginPath();
+                ctx.moveTo(thrusterX, thrusterY);
+                ctx.lineTo(thrusterX - 2, thrusterY + 5 + lanespeedLevel);
+                ctx.lineTo(thrusterX + 2, thrusterY + 5 + lanespeedLevel);
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+            ctx.shadowBlur = 0;
+        }
+    }
+    
+    /**
+     * Draw additional triangles for multishot upgrade
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {number} level - Multishot level
+     * @param {string} color - Triangle color
+     */
+    drawAdditionalTriangles(ctx, level, color) {
+        const smallTriangleSize = this.width * 0.6;
+        const offset = this.width * 0.8;
+        
+        // Draw small triangles on sides
+        for (let i = 0; i < Math.min(level, 2); i++) {
+            const side = i === 0 ? -1 : 1; // Left or right
+            const triangleX = this.x + side * offset;
+            const triangleY = this.y;
+            
+            ctx.fillStyle = color;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 10;
+            
+            ctx.beginPath();
+            ctx.moveTo(triangleX, triangleY - smallTriangleSize / 2);
+            ctx.lineTo(triangleX - smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
+            ctx.lineTo(triangleX + smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        // If level 3+, draw one more triangle above
+        if (level >= 3) {
+            const triangleX = this.x;
+            const triangleY = this.y - this.height * 0.8;
+            
+            ctx.fillStyle = color;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 10;
+            
+            ctx.beginPath();
+            ctx.moveTo(triangleX, triangleY - smallTriangleSize / 2);
+            ctx.lineTo(triangleX - smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
+            ctx.lineTo(triangleX + smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        ctx.shadowBlur = 0;
     }
 
     /**

@@ -27,30 +27,58 @@ class Powerup {
     }
 
     /**
-     * Draw powerup
+     * Draw powerup as icon (matching side panel)
      * @param {CanvasRenderingContext2D} ctx
      */
     draw(ctx) {
         if (!this.active) return;
 
+        // Get icon for this powerup type (matching side panel)
+        const iconMap = {
+            'rapidfire': '⚡',
+            'multishot': '🔫',
+            'speedboost': '💨',
+            'lanespeed': '🚀',
+            'default': '⭐'
+        };
+        const icon = iconMap[this.type] || iconMap['default'];
+        
+        // Draw background circle with glow
         ctx.fillStyle = this.color;
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = 15;
-        
-        // Draw as a rotating diamond shape
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(Date.now() * 0.005);
+        ctx.shadowBlur = 20;
         
         ctx.beginPath();
-        ctx.moveTo(0, -this.height / 2);
-        ctx.lineTo(this.width / 2, 0);
-        ctx.lineTo(0, this.height / 2);
-        ctx.lineTo(-this.width / 2, 0);
-        ctx.closePath();
+        ctx.arc(this.x, this.y, this.width / 2, 0, Math.PI * 2);
         ctx.fill();
         
+        // Draw outer ring
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        
+        // Draw icon text (emoji)
+        ctx.save();
+        const fontSize = this.width * 1.2;
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.shadowBlur = 3;
+        ctx.fillText(icon, this.x, this.y);
         ctx.restore();
+        
+        // Add pulsing glow effect
+        const pulse = Math.sin(Date.now() * 0.008) * 0.15 + 1;
+        ctx.shadowBlur = 20 * pulse;
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.width / 2 * pulse, 0, Math.PI * 2);
+        ctx.stroke();
+        
         ctx.shadowBlur = 0;
     }
 

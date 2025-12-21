@@ -2,7 +2,7 @@
  * Bullet class - Represents player projectiles
  */
 class Bullet {
-    constructor(x, y, speed = CONFIG.BULLET_SPEED) {
+    constructor(x, y, speed = CONFIG.BULLET_SPEED, speedboostLevel = 0) {
         this.x = x;
         this.y = y;
         this.width = 5;
@@ -10,6 +10,7 @@ class Bullet {
         this.speed = speed;
         this.active = true;
         this.damage = 1;
+        this.speedboostLevel = speedboostLevel; // Store upgrade level for color
     }
 
     /**
@@ -31,12 +32,36 @@ class Bullet {
     draw(ctx) {
         if (!this.active) return;
 
-        ctx.fillStyle = '#00ffff';
-        ctx.shadowColor = '#00ffff';
-        ctx.shadowBlur = 10;
+        // Change color based on speedboost level (attack power)
+        let bulletColor = '#00ffff'; // Default cyan
+        if (this.speedboostLevel > 0) {
+            if (this.speedboostLevel <= 2) {
+                // Cyan to green
+                bulletColor = `rgb(0, ${255 - this.speedboostLevel * 50}, 255)`;
+            } else if (this.speedboostLevel <= 5) {
+                // Green to yellow
+                const intensity = (this.speedboostLevel - 2) * 85;
+                bulletColor = `rgb(${intensity}, 255, 0)`;
+            } else {
+                // Yellow to red
+                const redIntensity = 255;
+                const greenIntensity = 255 - (this.speedboostLevel - 5) * 50;
+                bulletColor = `rgb(${redIntensity}, ${Math.max(0, greenIntensity)}, 0)`;
+            }
+        }
+        
+        ctx.fillStyle = bulletColor;
+        ctx.shadowColor = bulletColor;
+        ctx.shadowBlur = 10 + this.speedboostLevel * 2; // Stronger glow with higher level
         
         // Draw bullet as a rectangle with glow
         ctx.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
+        
+        // Add extra glow effect for high levels
+        if (this.speedboostLevel >= 3) {
+            ctx.shadowBlur = 15 + this.speedboostLevel * 3;
+            ctx.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
+        }
         
         // Reset shadow
         ctx.shadowBlur = 0;

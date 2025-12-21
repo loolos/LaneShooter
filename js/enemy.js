@@ -141,6 +141,97 @@ class TankEnemy extends Enemy {
 }
 
 /**
+ * Formation Enemy - Multiple enemies in a row that decrease when shot
+ */
+class FormationEnemy extends Enemy {
+    constructor(x, y, laneIndex) {
+        super(x, y, laneIndex);
+        this.type = 'formation';
+        this.color = '#ff3838';
+        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.9;
+        this.speed = this.baseSpeed;
+        this.enemyCount = 4; // Number of enemies in formation
+        this.maxEnemies = 4;
+        this.health = this.enemyCount; // Health equals enemy count
+        this.maxHealth = this.maxEnemies;
+        this.scoreValue = CONFIG.SCORE_PER_ENEMY * 1.5;
+        this.enemyWidth = 35; // Width of each enemy
+        this.enemyHeight = 35; // Height of each enemy
+        this.spacing = 10; // Spacing between enemies
+    }
+
+    /**
+     * Draw formation as multiple enemies in a row
+     * @param {CanvasRenderingContext2D} ctx
+     */
+    draw(ctx) {
+        if (!this.active) return;
+
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 10;
+        
+        // Calculate total width
+        const totalWidth = (this.enemyCount * this.enemyWidth) + ((this.enemyCount - 1) * this.spacing);
+        const startX = this.x - totalWidth / 2;
+        
+        // Draw enemies in a row
+        for (let i = 0; i < this.enemyCount; i++) {
+            const enemyX = startX + (i * (this.enemyWidth + this.spacing)) + (this.enemyWidth / 2);
+            
+            ctx.fillStyle = this.color;
+            // Draw enemy as a rectangle
+            ctx.fillRect(
+                enemyX - this.enemyWidth / 2,
+                this.y - this.enemyHeight / 2,
+                this.enemyWidth,
+                this.enemyHeight
+            );
+            
+            // Draw a simple "X" pattern on each enemy
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(enemyX - this.enemyWidth / 4, this.y - this.enemyHeight / 4);
+            ctx.lineTo(enemyX + this.enemyWidth / 4, this.y + this.enemyHeight / 4);
+            ctx.moveTo(enemyX + this.enemyWidth / 4, this.y - this.enemyHeight / 4);
+            ctx.lineTo(enemyX - this.enemyWidth / 4, this.y + this.enemyHeight / 4);
+            ctx.stroke();
+        }
+        
+        ctx.shadowBlur = 0;
+    }
+
+    /**
+     * Take damage - reduces enemy count
+     * @param {number} damage
+     * @returns {boolean} - Returns true if enemy is destroyed
+     */
+    takeDamage(damage) {
+        this.health -= damage;
+        this.enemyCount = Math.max(1, Math.ceil(this.health));
+        
+        if (this.health <= 0) {
+            this.active = false;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Get collision bounds - based on formation size
+     */
+    getBounds() {
+        const totalWidth = (this.enemyCount * this.enemyWidth) + ((this.enemyCount - 1) * this.spacing);
+        return {
+            x: this.x - totalWidth / 2,
+            y: this.y - this.enemyHeight / 2,
+            width: totalWidth,
+            height: this.enemyHeight
+        };
+    }
+}
+
+/**
  * Swarm Enemy - Multiple small units that decrease when shot
  */
 class SwarmEnemy extends Enemy {
@@ -243,7 +334,8 @@ class EnemyFactory {
             'basic': BasicEnemy,
             'fast': FastEnemy,
             'tank': TankEnemy,
-            'swarm': SwarmEnemy
+            'swarm': SwarmEnemy,
+            'formation': FormationEnemy
         };
 
         const EnemyClass = enemyClasses[type];
@@ -265,10 +357,11 @@ class EnemyFactory {
      */
     static createRandom(x, y, laneIndex, level = 1) {
         const weights = {
-            'basic': 60,
+            'basic': 50,
             'fast': 15 + (level - 1) * 4,
             'tank': 10 + (level - 1) * 3,
-            'swarm': 15 + (level - 1) * 2
+            'swarm': 12 + (level - 1) * 2,
+            'formation': 13 + (level - 1) * 2
         };
 
         // Calculate total weight

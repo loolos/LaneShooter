@@ -9,18 +9,21 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div class="game-container">
-        <div class="ui-overlay">
-            <div class="score-panel">
-                <div class="score">Score: <span id="score">0</span></div>
-                <div class="level">Level: <span id="level">1</span></div>
+    <div class="game-wrapper">
+        <div class="game-container">
+            <div class="ui-overlay">
+                <div class="score-panel">
+                    <div class="score">Score: <span id="score">0</span></div>
+                    <div class="level">Level: <span id="level">1</span></div>
+                </div>
             </div>
-            <div class="game-info">
-                <div class="powerup-indicator" id="powerup-indicator"></div>
-            </div>
+            
+            <canvas id="gameCanvas"></canvas>
         </div>
         
-        <canvas id="gameCanvas"></canvas>
+        <!-- Side upgrade panel - outside game container -->
+        <div class="upgrade-panel" id="upgradePanel"></div>
+    </div>
         
         <!-- Touch/Click areas for mobile -->
         <div class="touch-area touch-left" id="touchLeft"></div>

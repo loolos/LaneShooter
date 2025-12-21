@@ -30,7 +30,7 @@ class Game {
         // UI elements
         this.scoreElement = document.getElementById('score');
         this.levelElement = document.getElementById('level');
-        this.powerupIndicator = document.getElementById('powerup-indicator');
+        this.upgradePanel = document.getElementById('upgradePanel');
         this.menuScreen = document.getElementById('menuScreen');
         this.gameOverScreen = document.getElementById('gameOverScreen');
         this.finalScoreElement = document.getElementById('finalScore');
@@ -396,30 +396,80 @@ class Game {
         this.scoreElement.textContent = this.score;
         this.levelElement.textContent = this.level;
 
-        // Update upgrade indicator
+        // Update side upgrade panel with descriptions
         if (this.player) {
             const upgrades = this.player.getAllUpgrades();
-            const upgradeNames = {
-                'rapidfire': 'Rapid Fire',
-                'multishot': 'Multi Shot',
-                'speedboost': 'Bullet Speed',
-                'lanespeed': 'Lane Speed'
+            const upgradeConfig = {
+                'rapidfire': { 
+                    icon: '⚡', 
+                    name: 'Fire Rate', 
+                    desc: 'Shooting Speed',
+                    color: '#ff6b6b' 
+                },
+                'multishot': { 
+                    icon: '🔫', 
+                    name: 'Multi Shot', 
+                    desc: 'Bullet Count',
+                    color: '#4ecdc4' 
+                },
+                'speedboost': { 
+                    icon: '💨', 
+                    name: 'Bullet Power', 
+                    desc: 'Attack Power',
+                    color: '#ffe66d' 
+                },
+                'lanespeed': { 
+                    icon: '🚀', 
+                    name: 'Lane Speed', 
+                    desc: 'Movement Speed',
+                    color: '#a29bfe' 
+                }
             };
             
-            const upgradeTexts = [];
-            for (const [type, level] of Object.entries(upgrades)) {
-                if (level > 0) {
-                    upgradeTexts.push(`${upgradeNames[type] || type}: Lv.${level}`);
-                }
-            }
+            // Clear existing display
+            this.upgradePanel.innerHTML = '';
             
-            if (upgradeTexts.length > 0) {
-                this.powerupIndicator.textContent = `Upgrades: ${upgradeTexts.join(' | ')}`;
-            } else {
-                this.powerupIndicator.textContent = '';
+            // Add title
+            const title = document.createElement('div');
+            title.className = 'upgrade-panel-title';
+            title.textContent = 'UPGRADES';
+            this.upgradePanel.appendChild(title);
+            
+            // Create upgrade items for all types
+            for (const [type, config] of Object.entries(upgradeConfig)) {
+                const level = upgrades[type] || 0;
+                const upgradeItem = document.createElement('div');
+                upgradeItem.className = 'upgrade-item' + (level > 0 ? ' has-upgrade' : '');
+                
+                const icon = document.createElement('div');
+                icon.className = `upgrade-icon ${type}`;
+                icon.textContent = config.icon;
+                
+                const info = document.createElement('div');
+                info.className = 'upgrade-info';
+                
+                const name = document.createElement('div');
+                name.className = 'upgrade-name';
+                name.textContent = config.name;
+                
+                const desc = document.createElement('div');
+                desc.className = 'upgrade-desc';
+                desc.textContent = config.desc;
+                
+                info.appendChild(name);
+                info.appendChild(desc);
+                
+                const levelDisplay = document.createElement('div');
+                levelDisplay.className = 'upgrade-level';
+                levelDisplay.textContent = level;
+                
+                upgradeItem.appendChild(icon);
+                upgradeItem.appendChild(info);
+                upgradeItem.appendChild(levelDisplay);
+                this.upgradePanel.appendChild(upgradeItem);
             }
         } else {
-            this.powerupIndicator.textContent = '';
+            this.upgradePanel.innerHTML = '';
         }
     }
 

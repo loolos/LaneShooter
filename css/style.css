@@ -18,6 +18,13 @@ body {
     user-select: none;
 }
 
+.game-wrapper {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    position: relative;
+}
+
 .game-container {
     position: relative;
     width: 800px;
@@ -32,10 +39,22 @@ body {
 
 /* Mobile responsive */
 @media (max-width: 900px) {
+    .game-wrapper {
+        flex-direction: column;
+        width: 100vw;
+    }
+    
     .game-container {
         width: 100vw;
         height: 100vh;
         border-radius: 0;
+    }
+    
+    .upgrade-panel {
+        width: 100%;
+        margin: 10px;
+        position: relative;
+        order: -1; /* Show above game on mobile */
     }
     
     .menu-screen h1,
@@ -88,6 +107,130 @@ body {
     font-weight: bold;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
     min-height: 20px;
+}
+
+/* Side Upgrade Panel - Outside game container */
+.upgrade-panel {
+    width: 200px;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 10px;
+    padding: 15px;
+    pointer-events: none;
+    z-index: 10;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    flex-shrink: 0;
+}
+
+.upgrade-panel-title {
+    color: #ffd700;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-align: center;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.upgrade-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 5px;
+    border-left: 3px solid transparent;
+}
+
+.upgrade-item.has-upgrade {
+    border-left-color: #ffd700;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.upgrade-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+    flex-shrink: 0;
+}
+
+.upgrade-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.upgrade-name {
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.upgrade-desc {
+    color: #ccc;
+    font-size: 10px;
+}
+
+.upgrade-level {
+    color: #ffd700;
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+    min-width: 30px;
+    text-align: center;
+}
+
+/* Upgrade icon colors */
+.upgrade-icon.rapidfire {
+    background: #ff6b6b;
+}
+
+.upgrade-icon.multishot {
+    background: #4ecdc4;
+}
+
+.upgrade-icon.speedboost {
+    background: #ffe66d;
+}
+
+.upgrade-icon.lanespeed {
+    background: #a29bfe;
+}
+
+/* Mobile responsive */
+@media (max-width: 900px) {
+    .upgrade-panel {
+        right: 10px;
+        top: 70px;
+        width: 150px;
+        padding: 10px;
+        font-size: 12px;
+    }
+    
+    .upgrade-icon {
+        width: 25px;
+        height: 25px;
+        font-size: 14px;
+    }
+    
+    .upgrade-name {
+        font-size: 11px;
+    }
+    
+    .upgrade-desc {
+        font-size: 9px;
+    }
+    
+    .upgrade-level {
+        font-size: 16px;
+    }
 }
 
 .menu-screen,
