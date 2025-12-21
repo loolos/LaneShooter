@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lane Shooter</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="ui-overlay">
+            <div class="score-panel">
+                <div class="score">Score: <span id="score">0</span></div>
+                <div class="level">Level: <span id="level">1</span></div>
+            </div>
+            <div class="game-info">
+                <div class="powerup-indicator" id="powerup-indicator"></div>
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas"></canvas>
+        
+        <div class="menu-screen" id="menuScreen">
+            <h1>LANE SHOOTER</h1>
+            <p class="instructions">
+                Use <strong>A/D</strong> or <strong>Arrow Keys</strong> to switch lanes<br>
+                Press <strong>SPACE</strong> to shoot<br>
+                Avoid enemies and collect powerups!
+            </p>
+            <button id="startButton" class="game-button">START GAME</button>
+        </div>
+        
+        <div class="game-over-screen" id="gameOverScreen" style="display: none;">
+            <h1>GAME OVER</h1>
+            <p class="final-score">Final Score: <span id="finalScore">0</span></p>
+            <button id="restartButton" class="game-button">RESTART</button>
+        </div>
+    </div>
+    
+    <script src="js/utils.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/bullet.js"></script>
+    <script src="js/powerup.js"></script>
+    <script src="js/enemy.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
+
