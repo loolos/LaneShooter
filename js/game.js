@@ -125,10 +125,7 @@ class Game {
             this.keysPressed['arrowright'] = false;
         }
 
-        // Shooting - can be held down
-        if (this.keys[' '] || this.keys['space']) {
-            this.player.shoot(this.audioManager);
-        }
+        // Shooting is now automatic - removed manual shooting
     }
 
     /**
@@ -168,6 +165,11 @@ class Game {
 
         // Update player
         this.player.update();
+        
+        // Auto-shoot
+        if (this.player) {
+            this.player.shoot(this.audioManager);
+        }
 
         // Spawn enemies and powerups
         this.spawnEnemies();
