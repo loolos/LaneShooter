@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Lane Shooter</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -20,10 +22,14 @@
         
         <canvas id="gameCanvas"></canvas>
         
+        <!-- Touch/Click areas for mobile -->
+        <div class="touch-area touch-left" id="touchLeft"></div>
+        <div class="touch-area touch-right" id="touchRight"></div>
+        
         <div class="menu-screen" id="menuScreen">
             <h1>LANE SHOOTER</h1>
             <p class="instructions">
-                Use <strong>A/D</strong> or <strong>Arrow Keys</strong> to switch lanes<br>
+                Use <strong>A/D</strong>, <strong>Arrow Keys</strong>, or <strong>tap sides</strong> to switch lanes<br>
                 Shooting is <strong>automatic</strong><br>
                 Avoid enemies and collect powerups!
             </p>

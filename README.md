@@ -2,28 +2,34 @@
 
 A professional web-based lane shooter game where enemies descend from above and players must shoot them while avoiding collisions. Features a dual-lane system, power-ups, and an extensible architecture for easy expansion.
 
+## 🎮 Play Online
+
+**[Play the game here](https://loolos.github.io/LaneShooter/)**
+
 ## Features
 
 - **Dual Lane System**: Two lanes for strategic gameplay
-- **Enemy Types**: Multiple enemy types with different behaviors (Basic, Fast, Tank)
-- **Power-up System**: Collect power-ups for enhanced abilities (Rapid Fire, Multi Shot, Speed Boost)
+- **Enemy Types**: Multiple enemy types with different behaviors (Basic, Fast, Tank, Swarm)
+- **Permanent Upgrade System**: Collect power-ups for permanent upgrades that stack and level up (Rapid Fire, Multi Shot, Speed Boost, Lane Speed)
+- **Mobile Support**: Touch controls and responsive design for mobile devices
 - **Extensible Architecture**: Easy to add new enemies, power-ups, and sound effects
 - **Level Progression**: Difficulty increases with score
 - **Modern UI**: Clean, responsive interface with smooth animations
 
 ## Controls
 
-- **A / Left Arrow**: Move to left lane
-- **D / Right Arrow**: Move to right lane
-- **Space**: Shoot
+- **A / Left Arrow / Tap Left Side**: Move to left lane
+- **D / Right Arrow / Tap Right Side**: Move to right lane
+- **Shooting**: Automatic (no need to press any key)
 
 ## Game Mechanics
 
 - Enemies spawn from the top and move downward
 - Player must avoid enemy collisions (game over on contact)
 - Shooting enemies awards points
-- Collect power-ups for temporary advantages
+- Collect power-ups for **permanent upgrades** that stack and level up
 - Game difficulty increases with each level
+- **Swarm Enemies**: Visual units decrease as you shoot them
 
 ## Architecture
 

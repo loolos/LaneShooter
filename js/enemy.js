@@ -141,6 +141,92 @@ class TankEnemy extends Enemy {
 }
 
 /**
+ * Swarm Enemy - Multiple small units that decrease when shot
+ */
+class SwarmEnemy extends Enemy {
+    constructor(x, y, laneIndex) {
+        super(x, y, laneIndex);
+        this.type = 'swarm';
+        this.color = '#ffa502';
+        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.8;
+        this.speed = this.baseSpeed;
+        this.unitCount = 5; // Number of visual units
+        this.maxUnits = 5;
+        this.health = this.unitCount; // Health equals unit count
+        this.maxHealth = this.maxUnits;
+        this.scoreValue = CONFIG.SCORE_PER_ENEMY * 2;
+        this.unitSize = 15; // Size of each unit
+        this.spread = 30; // Spread between units
+    }
+
+    /**
+     * Draw swarm as multiple small units
+     * @param {CanvasRenderingContext2D} ctx
+     */
+    draw(ctx) {
+        if (!this.active) return;
+
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 8;
+        
+        // Draw units in a formation
+        const unitsPerRow = Math.ceil(Math.sqrt(this.unitCount));
+        const spacing = this.spread / unitsPerRow;
+        let unitIndex = 0;
+        
+        for (let row = 0; row < unitsPerRow && unitIndex < this.unitCount; row++) {
+            for (let col = 0; col < unitsPerRow && unitIndex < this.unitCount; col++) {
+                const offsetX = (col - (unitsPerRow - 1) / 2) * spacing;
+                const offsetY = (row - (unitsPerRow - 1) / 2) * spacing;
+                
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(
+                    this.x + offsetX,
+                    this.y + offsetY,
+                    this.unitSize / 2,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+                unitIndex++;
+            }
+        }
+        
+        ctx.shadowBlur = 0;
+    }
+
+    /**
+     * Take damage - reduces unit count
+     * @param {number} damage
+     * @returns {boolean} - Returns true if enemy is destroyed
+     */
+    takeDamage(damage) {
+        this.health -= damage;
+        this.unitCount = Math.max(1, Math.ceil(this.health));
+        
+        if (this.health <= 0) {
+            this.active = false;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Get collision bounds - based on swarm size
+     */
+    getBounds() {
+        const swarmRadius = (this.spread / 2) + (this.unitSize / 2);
+        return {
+            x: this.x - swarmRadius,
+            y: this.y - swarmRadius,
+            width: swarmRadius * 2,
+            height: swarmRadius * 2
+        };
+    }
+}
+
+/**
  * Enemy Factory - Creates enemies by type
  */
 class EnemyFactory {
@@ -156,7 +242,8 @@ class EnemyFactory {
         const enemyClasses = {
             'basic': BasicEnemy,
             'fast': FastEnemy,
-            'tank': TankEnemy
+            'tank': TankEnemy,
+            'swarm': SwarmEnemy
         };
 
         const EnemyClass = enemyClasses[type];
@@ -178,9 +265,10 @@ class EnemyFactory {
      */
     static createRandom(x, y, laneIndex, level = 1) {
         const weights = {
-            'basic': 70,
-            'fast': 20 + (level - 1) * 5,
-            'tank': 10 + (level - 1) * 3
+            'basic': 60,
+            'fast': 15 + (level - 1) * 4,
+            'tank': 10 + (level - 1) * 3,
+            'swarm': 15 + (level - 1) * 2
         };
 
         // Calculate total weight

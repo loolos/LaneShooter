@@ -78,58 +78,62 @@ class Powerup {
 }
 
 /**
- * Rapid Fire Powerup - Increases shooting rate
+ * Rapid Fire Powerup - Permanent upgrade: Increases shooting rate
  */
 class RapidFirePowerup extends Powerup {
     constructor(x, y) {
         super(x, y);
         this.type = 'rapidfire';
         this.color = '#ff6b6b';
-        this.duration = 10000; // 10 seconds
-        this.shootCooldownReduction = 0.5; // Reduce cooldown by 50%
     }
 
     apply(player) {
-        player.activatePowerup('rapidfire', this.duration, {
-            shootCooldown: player.shootCooldown * this.shootCooldownReduction
-        });
+        player.upgrade('rapidfire');
     }
 }
 
 /**
- * Multi Shot Powerup - Shoots multiple bullets
+ * Multi Shot Powerup - Permanent upgrade: Shoots multiple bullets
  */
 class MultiShotPowerup extends Powerup {
     constructor(x, y) {
         super(x, y);
         this.type = 'multishot';
         this.color = '#4ecdc4';
-        this.duration = 8000; // 8 seconds
     }
 
     apply(player) {
-        player.activatePowerup('multishot', this.duration, {
-            bulletCount: 3
-        });
+        player.upgrade('multishot');
     }
 }
 
 /**
- * Speed Boost Powerup - Increases bullet speed
+ * Speed Boost Powerup - Permanent upgrade: Increases bullet speed
  */
 class SpeedBoostPowerup extends Powerup {
     constructor(x, y) {
         super(x, y);
         this.type = 'speedboost';
         this.color = '#ffe66d';
-        this.duration = 12000; // 12 seconds
-        this.speedMultiplier = 1.5;
     }
 
     apply(player) {
-        player.activatePowerup('speedboost', this.duration, {
-            bulletSpeed: CONFIG.BULLET_SPEED * this.speedMultiplier
-        });
+        player.upgrade('speedboost');
+    }
+}
+
+/**
+ * Lane Speed Powerup - Permanent upgrade: Increases lane switching speed
+ */
+class LaneSpeedPowerup extends Powerup {
+    constructor(x, y) {
+        super(x, y);
+        this.type = 'lanespeed';
+        this.color = '#a29bfe';
+    }
+
+    apply(player) {
+        player.upgrade('lanespeed');
     }
 }
 
@@ -141,7 +145,8 @@ class PowerupFactory {
         const powerupClasses = {
             'rapidfire': RapidFirePowerup,
             'multishot': MultiShotPowerup,
-            'speedboost': SpeedBoostPowerup
+            'speedboost': SpeedBoostPowerup,
+            'lanespeed': LaneSpeedPowerup
         };
 
         const PowerupClass = powerupClasses[type];
@@ -154,7 +159,7 @@ class PowerupFactory {
     }
 
     static createRandom(x, y) {
-        const types = ['rapidfire', 'multishot', 'speedboost'];
+        const types = ['rapidfire', 'multishot', 'speedboost', 'lanespeed'];
         const randomType = types[randomInt(0, types.length - 1)];
         return this.create(randomType, x, y);
     }

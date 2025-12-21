@@ -12,16 +12,44 @@ body {
     align-items: center;
     min-height: 100vh;
     overflow: hidden;
+    touch-action: none; /* Prevent default touch behaviors */
+    -webkit-touch-callout: none; /* Disable callout on iOS */
+    -webkit-user-select: none; /* Disable text selection */
+    user-select: none;
 }
 
 .game-container {
     position: relative;
     width: 800px;
+    max-width: 100vw;
     height: 600px;
+    max-height: 100vh;
     background: #1a1a2e;
     border-radius: 10px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
     overflow: hidden;
+}
+
+/* Mobile responsive */
+@media (max-width: 900px) {
+    .game-container {
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+    }
+    
+    .menu-screen h1,
+    .game-over-screen h1 {
+        font-size: 36px;
+    }
+    
+    .instructions {
+        font-size: 14px;
+    }
+    
+    .score-panel {
+        font-size: 16px;
+    }
 }
 
 #gameCanvas {
@@ -130,5 +158,39 @@ body {
 #finalScore {
     font-size: 32px;
     font-weight: bold;
+}
+
+/* Touch/Click areas for mobile */
+.touch-area {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 50%;
+    z-index: 5;
+    cursor: pointer;
+    /* Visual feedback for debugging - remove in production if desired */
+    /* background: rgba(255, 0, 0, 0.1); */
+}
+
+.touch-left {
+    left: 0;
+}
+
+.touch-right {
+    right: 0;
+}
+
+/* Hide touch areas on desktop when not needed */
+@media (min-width: 901px) {
+    .touch-area {
+        display: none;
+    }
+}
+
+/* Show touch areas on mobile */
+@media (max-width: 900px) {
+    .touch-area {
+        display: block;
+    }
 }
 

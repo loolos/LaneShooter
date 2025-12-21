@@ -12,17 +12,22 @@ class Player {
         this.moveSpeed = 25; // Increased for faster lane switching
         
         // Shooting
-        this.shootCooldown = 300; // milliseconds
+        this.baseShootCooldown = 300; // Base cooldown in milliseconds
+        this.shootCooldown = this.baseShootCooldown;
         this.lastShootTime = 0;
         this.bullets = [];
         
-        // Powerups
-        this.activePowerups = {};
-        this.powerupEffects = {
-            rapidfire: null,
-            multishot: null,
-            speedboost: null
+        // Permanent Upgrades System
+        this.upgrades = {
+            rapidfire: 0,      // Level 0 = no upgrade, each level reduces cooldown by 10%
+            multishot: 0,      // Level 0 = 1 bullet, each level adds 1 bullet
+            speedboost: 0,    // Level 0 = base speed, each level increases by 20%
+            lanespeed: 0      // Level 0 = base speed, each level increases by 30%
         };
+        
+        // Base values
+        this.baseMoveSpeed = 25;
+        this.baseBulletSpeed = CONFIG.BULLET_SPEED;
     }
 
     /**
@@ -41,6 +46,9 @@ class Player {
      * Update player position and bullets
      */
     update() {
+        // Update move speed based on upgrades
+        this.moveSpeed = this.baseMoveSpeed * (1 + this.upgrades.lanespeed * 0.3);
+        
         // Fast lane switching
         const dx = this.targetX - this.x;
         if (Math.abs(dx) > 0.5) {
@@ -52,9 +60,6 @@ class Player {
         // Update bullets
         this.bullets.forEach(bullet => bullet.update());
         this.bullets = this.bullets.filter(bullet => bullet.active);
-
-        // Update powerups
-        this.updatePowerups();
     }
 
     /**
@@ -71,16 +76,15 @@ class Player {
 
         this.lastShootTime = now;
         
-        // Check for multishot powerup
-        const multishotActive = this.powerupEffects.multishot !== null;
-        const bulletCount = multishotActive ? 3 : 1;
+        // Get bullet count from multishot upgrade
+        const bulletCount = 1 + this.upgrades.multishot;
         const bulletSpeed = this.getEffectiveBulletSpeed();
 
         // Create bullets
         if (bulletCount === 1) {
             this.bullets.push(new Bullet(this.x, this.y - this.height / 2, bulletSpeed));
         } else {
-            // Multi-shot: center, left, right
+            // Multi-shot: spread bullets evenly
             const spread = 15;
             for (let i = 0; i < bulletCount; i++) {
                 const offset = (i - (bulletCount - 1) / 2) * spread;
@@ -92,57 +96,49 @@ class Player {
     }
 
     /**
-     * Get effective shoot cooldown (affected by powerups)
+     * Get effective shoot cooldown (affected by upgrades)
      */
     getEffectiveShootCooldown() {
-        if (this.powerupEffects.rapidfire !== null) {
-            return this.shootCooldown * 0.5; // 50% reduction
-        }
-        return this.shootCooldown;
+        // Each level reduces cooldown by 10% (max 90% reduction at level 9)
+        const reduction = Math.min(0.9, this.upgrades.rapidfire * 0.1);
+        return this.baseShootCooldown * (1 - reduction);
     }
 
     /**
-     * Get effective bullet speed (affected by powerups)
+     * Get effective bullet speed (affected by upgrades)
      */
     getEffectiveBulletSpeed() {
-        if (this.powerupEffects.speedboost !== null) {
-            return CONFIG.BULLET_SPEED * 1.5;
+        // Each level increases speed by 20%
+        return this.baseBulletSpeed * (1 + this.upgrades.speedboost * 0.2);
+    }
+
+    /**
+     * Upgrade a permanent stat
+     * @param {string} type - Upgrade type
+     */
+    upgrade(type) {
+        if (this.upgrades.hasOwnProperty(type)) {
+            this.upgrades[type]++;
+            return true;
         }
-        return CONFIG.BULLET_SPEED;
+        return false;
     }
 
     /**
-     * Activate a powerup
-     * @param {string} type - Powerup type
-     * @param {number} duration - Duration in milliseconds
-     * @param {object} effects - Powerup effects
+     * Get upgrade level
+     * @param {string} type - Upgrade type
+     * @returns {number} - Upgrade level
      */
-    activatePowerup(type, duration, effects = {}) {
-        this.activePowerups[type] = {
-            endTime: Date.now() + duration,
-            effects: effects
-        };
-        this.powerupEffects[type] = this.activePowerups[type];
+    getUpgradeLevel(type) {
+        return this.upgrades[type] || 0;
     }
 
     /**
-     * Update active powerups
+     * Get all upgrades info
+     * @returns {object} - Copy of upgrades object
      */
-    updatePowerups() {
-        const now = Date.now();
-        for (const [type, powerup] of Object.entries(this.activePowerups)) {
-            if (now >= powerup.endTime) {
-                delete this.activePowerups[type];
-                this.powerupEffects[type] = null;
-            }
-        }
-    }
-
-    /**
-     * Get active powerup names
-     */
-    getActivePowerups() {
-        return Object.keys(this.activePowerups);
+    getAllUpgrades() {
+        return { ...this.upgrades };
     }
 
     /**
