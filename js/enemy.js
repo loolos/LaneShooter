@@ -67,23 +67,6 @@ class Enemy {
         ctx.lineTo(this.x + this.width / 2, this.y - this.height / 3);
         ctx.stroke();
         
-        // Draw health bar if enemy has more than 1 health
-        if (this.maxHealth > 1) {
-            const barWidth = this.width;
-            const barHeight = 4;
-            const barX = this.x - barWidth / 2;
-            const barY = this.y - this.height / 2 - 8;
-            
-            // Background
-            ctx.fillStyle = '#333';
-            ctx.fillRect(barX, barY, barWidth, barHeight);
-            
-            // Health
-            const healthPercent = this.health / this.maxHealth;
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
-        }
-        
         ctx.restore();
     }
 
@@ -118,11 +101,46 @@ class Enemy {
  * Basic Enemy - Standard enemy type
  */
 class BasicEnemy extends Enemy {
-    constructor(x, y, laneIndex) {
+    constructor(x, y, laneIndex, level = 1) {
         super(x, y, laneIndex);
         this.type = 'basic';
-        this.color = '#ff4757';
         this.speed = CONFIG.ENEMY_BASE_SPEED;
+        
+        // Health increases with level: base 1, +1 every 2 levels
+        this.maxHealth = 1 + Math.floor((level - 1) / 2);
+        this.health = this.maxHealth;
+        this.initialHealth = 1; // Base health for color calculation
+        
+        // Update color based on health
+        this.updateColor();
+    }
+    
+    /**
+     * Update color based on remaining health
+     */
+    updateColor() {
+        const healthPercent = this.health / this.maxHealth;
+        
+        // Color changes from bright red (healthy) to dark red (damaged)
+        // Bright red: rgb(255, 71, 87) -> Dark red: rgb(100, 0, 0)
+        const r = Math.floor(100 + (255 - 100) * healthPercent);
+        const g = Math.floor(0 + 71 * healthPercent);
+        const b = Math.floor(0 + 87 * healthPercent);
+        this.color = `rgb(${r}, ${g}, ${b})`;
+    }
+    
+    /**
+     * Take damage and update color
+     */
+    takeDamage(damage) {
+        this.health -= damage;
+        this.updateColor();
+        
+        if (this.health <= 0) {
+            this.active = false;
+            return { destroyed: true, unitsKilled: 1 };
+        }
+        return { destroyed: false, unitsKilled: 0 };
     }
     
     /**
@@ -313,7 +331,7 @@ class TankEnemy extends Enemy {
 }
 
 /**
- * Formation Enemy - Multiple enemies in a row that decrease when shot, count increases with level
+ * Formation Enemy - Multiple enemies in a grid formation, each unit has individual health
  */
 class FormationEnemy extends Enemy {
     constructor(x, y, laneIndex, level = 1) {
@@ -322,70 +340,111 @@ class FormationEnemy extends Enemy {
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.9;
         this.speed = this.baseSpeed;
         
-        // Enemy count increases with level: base 4, +1 every 2 levels (max 8)
-        const baseCount = 4;
-        const levelBonus = Math.floor((level - 1) / 2);
-        this.enemyCount = Math.min(8, baseCount + levelBonus);
-        this.maxEnemies = this.enemyCount;
-        this.maxUnits = this.enemyCount; // Alias for consistency
-        this.initialCount = baseCount;
-        this.health = this.enemyCount; // Health equals enemy count
-        this.maxHealth = this.maxEnemies;
+        // Grid dimensions increase with level
+        // Start with 1 row, 3 columns, gradually increase
+        const baseCols = 3;
+        const baseRows = 1;
+        // Columns increase: +1 every 2 levels (max 8)
+        const colBonus = Math.floor((level - 1) / 2);
+        this.cols = Math.min(8, baseCols + colBonus);
+        // Rows increase: +1 every 3 levels (max 4)
+        const rowBonus = Math.floor((level - 1) / 3);
+        this.rows = Math.min(4, baseRows + rowBonus);
+        
+        // Health per unit: increases slowly with level
+        // Base 1, +1 every 4 levels (slower than before)
+        this.healthPerUnit = 1 + Math.floor((level - 1) / 4);
+        
+        // Initialize units grid - each unit has individual health
+        this.units = [];
+        for (let row = 0; row < this.rows; row++) {
+            for (let col = 0; col < this.cols; col++) {
+                this.units.push({
+                    row: row,
+                    col: col,
+                    health: this.healthPerUnit,
+                    maxHealth: this.healthPerUnit
+                });
+            }
+        }
+        
+        this.maxUnits = this.units.length;
+        this.enemyCount = this.maxUnits;
+        this.maxEnemies = this.maxUnits;
+        
+        // Calculate total health for score calculation
+        this.maxHealth = this.units.length * this.healthPerUnit;
+        this.health = this.maxHealth;
         
         // Score increases with count
-        this.scoreValue = CONFIG.SCORE_PER_ENEMY * (1.5 + levelBonus * 0.3);
+        const totalUnitsCount = this.units.length;
+        const baseScoreMultiplier = 1.5;
+        const scoreBonus = (totalUnitsCount - baseCols * baseRows) * 0.3;
+        this.scoreValue = CONFIG.SCORE_PER_ENEMY * (baseScoreMultiplier + scoreBonus);
         this.enemyWidth = 35; // Width of each enemy
         this.enemyHeight = 35; // Height of each enemy
         this.spacing = 10; // Spacing between enemies
+        this.rowSpacing = 12; // Vertical spacing between rows
         
-        // Update color based on count
-        this.updateColor();
+        // Base color (for shadow)
+        this.color = '#ff4757';
     }
     
     /**
-     * Update color based on enemy count
+     * Get color for a unit based on its health
      */
-    updateColor() {
-        const countRatio = this.maxEnemies / this.initialCount;
+    getUnitColor(unit) {
+        const healthPercent = unit.health / unit.maxHealth;
         
-        // Color changes from red to orange to yellow as count increases
-        if (countRatio <= 1.5) {
-            // Red to orange
-            const intensity = (countRatio - 1) * 2;
-            this.color = `rgb(${255}, ${56 + intensity * 100}, ${56 - intensity * 56})`;
+        // Color changes from bright red/orange (healthy) to dark red (damaged)
+        if (healthPercent > 0.6) {
+            // Bright red to orange
+            const intensity = (healthPercent - 0.6) / 0.4;
+            return `rgb(${255}, ${Math.floor(56 + intensity * 100)}, ${Math.floor(56 - intensity * 56)})`;
+        } else if (healthPercent > 0.3) {
+            // Orange to dark orange
+            const intensity = (healthPercent - 0.3) / 0.3;
+            return `rgb(${Math.floor(255 - intensity * 100)}, ${Math.floor(156 - intensity * 100)}, ${0})`;
         } else {
-            // Orange to yellow
-            const intensity = (countRatio - 1.5);
-            this.color = `rgb(${255}, ${156 + intensity * 99}, ${0})`;
+            // Dark orange to dark red
+            const intensity = healthPercent / 0.3;
+            return `rgb(${Math.floor(155 + intensity * 100)}, ${Math.floor(56 - intensity * 56)}, ${0})`;
         }
     }
 
     /**
-     * Draw formation as multiple enemies in a row
+     * Draw formation as a grid of enemies, each with individual color
      * @param {CanvasRenderingContext2D} ctx
      */
     draw(ctx) {
         if (!this.active) return;
 
         ctx.save();
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
         
-        // Calculate total width
-        const totalWidth = (this.enemyCount * this.enemyWidth) + ((this.enemyCount - 1) * this.spacing);
+        // Calculate total width and height
+        const totalWidth = (this.cols * this.enemyWidth) + ((this.cols - 1) * this.spacing);
+        const totalHeight = (this.rows * this.enemyHeight) + ((this.rows - 1) * this.rowSpacing);
         const startX = this.x - totalWidth / 2;
+        const startY = this.y - totalHeight / 2;
         
-        // Draw enemies in a row as small fighters
-        for (let i = 0; i < this.enemyCount; i++) {
-            const enemyX = startX + (i * (this.enemyWidth + this.spacing)) + (this.enemyWidth / 2);
+        // Draw each unit
+        for (const unit of this.units) {
+            if (unit.health <= 0) continue; // Skip destroyed units
+            
+            const unitX = startX + (unit.col * (this.enemyWidth + this.spacing)) + (this.enemyWidth / 2);
+            const unitY = startY + (unit.row * (this.enemyHeight + this.rowSpacing)) + (this.enemyHeight / 2);
+            const unitColor = this.getUnitColor(unit);
+            
+            ctx.shadowColor = unitColor;
+            ctx.shadowBlur = 10;
             
             // Draw fighter shape
-            ctx.fillStyle = this.color;
+            ctx.fillStyle = unitColor;
             ctx.beginPath();
-            ctx.moveTo(enemyX, this.y + this.enemyHeight / 2);
-            ctx.lineTo(enemyX - this.enemyWidth / 2, this.y - this.enemyHeight / 2);
-            ctx.lineTo(enemyX, this.y - this.enemyHeight / 2 + 2);
-            ctx.lineTo(enemyX + this.enemyWidth / 2, this.y - this.enemyHeight / 2);
+            ctx.moveTo(unitX, unitY + this.enemyHeight / 2);
+            ctx.lineTo(unitX - this.enemyWidth / 2, unitY - this.enemyHeight / 2);
+            ctx.lineTo(unitX, unitY - this.enemyHeight / 2 + 2);
+            ctx.lineTo(unitX + this.enemyWidth / 2, unitY - this.enemyHeight / 2);
             ctx.closePath();
             ctx.fill();
             
@@ -393,16 +452,16 @@ class FormationEnemy extends Enemy {
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(enemyX - this.enemyWidth / 4, this.y);
-            ctx.lineTo(enemyX - this.enemyWidth / 2, this.y - this.enemyHeight / 3);
-            ctx.moveTo(enemyX + this.enemyWidth / 4, this.y);
-            ctx.lineTo(enemyX + this.enemyWidth / 2, this.y - this.enemyHeight / 3);
+            ctx.moveTo(unitX - this.enemyWidth / 4, unitY);
+            ctx.lineTo(unitX - this.enemyWidth / 2, unitY - this.enemyHeight / 3);
+            ctx.moveTo(unitX + this.enemyWidth / 4, unitY);
+            ctx.lineTo(unitX + this.enemyWidth / 2, unitY - this.enemyHeight / 3);
             ctx.stroke();
             
             // Draw cockpit
             ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
             ctx.beginPath();
-            ctx.arc(enemyX, this.y - this.enemyHeight / 4, this.enemyWidth / 10, 0, Math.PI * 2);
+            ctx.arc(unitX, unitY - this.enemyHeight / 4, this.enemyWidth / 10, 0, Math.PI * 2);
             ctx.fill();
         }
         
@@ -410,20 +469,67 @@ class FormationEnemy extends Enemy {
     }
 
     /**
-     * Take damage - reduces enemy count
+     * Take damage - bottom row units take damage first, randomly distributed
+     * If bottom row is destroyed, next bottom row takes damage, and so on
      * @param {number} damage
      * @returns {object} - Returns {destroyed: boolean, unitsKilled: number}
      */
     takeDamage(damage) {
-        const oldCount = this.enemyCount;
-        this.health -= damage;
-        this.enemyCount = Math.max(1, Math.ceil(this.health));
-        const unitsKilled = oldCount - this.enemyCount;
+        const oldAliveCount = this.units.filter(u => u.health > 0).length;
+        let remainingDamage = damage;
         
-        if (this.health <= 0) {
+        // Keep applying damage until no damage remains or all units are destroyed
+        while (remainingDamage > 0) {
+            // Get all alive units
+            const aliveUnits = this.units.filter(u => u.health > 0);
+            
+            if (aliveUnits.length === 0) {
+                // All units destroyed
+                this.active = false;
+                return { destroyed: true, unitsKilled: this.maxUnits };
+            }
+            
+            // Find the bottommost row (highest row number)
+            const maxRow = Math.max(...aliveUnits.map(u => u.row));
+            
+            // Get units in the bottommost row
+            const bottomRowUnits = aliveUnits.filter(u => u.row === maxRow);
+            
+            if (bottomRowUnits.length === 0) {
+                // Should not happen, but break to avoid infinite loop
+                break;
+            }
+            
+            // Distribute damage randomly among bottom row units
+            while (remainingDamage > 0 && bottomRowUnits.length > 0) {
+                // Randomly select a unit from bottom row
+                const randomIndex = randomInt(0, bottomRowUnits.length - 1);
+                const unit = bottomRowUnits[randomIndex];
+                
+                // Apply damage
+                const damageToApply = Math.min(remainingDamage, unit.health);
+                unit.health -= damageToApply;
+                remainingDamage -= damageToApply;
+                
+                // Remove unit from bottom row list if destroyed
+                if (unit.health <= 0) {
+                    bottomRowUnits.splice(randomIndex, 1);
+                }
+            }
+        }
+        
+        // Update total health
+        this.health = this.units.reduce((sum, u) => sum + Math.max(0, u.health), 0);
+        this.enemyCount = this.units.filter(u => u.health > 0).length;
+        
+        const newAliveCount = this.enemyCount;
+        const unitsKilled = oldAliveCount - newAliveCount;
+        
+        if (this.health <= 0 || this.enemyCount === 0) {
             this.active = false;
             return { destroyed: true, unitsKilled: unitsKilled };
         }
+        
         return { destroyed: false, unitsKilled: unitsKilled };
     }
 
@@ -431,18 +537,19 @@ class FormationEnemy extends Enemy {
      * Get collision bounds - based on formation size
      */
     getBounds() {
-        const totalWidth = (this.enemyCount * this.enemyWidth) + ((this.enemyCount - 1) * this.spacing);
+        const totalWidth = (this.cols * this.enemyWidth) + ((this.cols - 1) * this.spacing);
+        const totalHeight = (this.rows * this.enemyHeight) + ((this.rows - 1) * this.rowSpacing);
         return {
             x: this.x - totalWidth / 2,
-            y: this.y - this.enemyHeight / 2,
+            y: this.y - totalHeight / 2,
             width: totalWidth,
-            height: this.enemyHeight
+            height: totalHeight
         };
     }
 }
 
 /**
- * Swarm Enemy - Multiple small units that decrease when shot, count increases with level
+ * Swarm Enemy - Multiple small units in a formation, each unit has individual health
  */
 class SwarmEnemy extends Enemy {
     constructor(x, y, laneIndex, level = 1) {
@@ -451,103 +558,188 @@ class SwarmEnemy extends Enemy {
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.8;
         this.speed = this.baseSpeed;
         
-        // Unit count increases with level: base 5, +1 every 2 levels (max 10)
-        const baseCount = 5;
-        const levelBonus = Math.floor((level - 1) / 2);
-        this.unitCount = Math.min(10, baseCount + levelBonus);
-        this.maxUnits = this.unitCount;
-        this.initialCount = baseCount;
-        this.health = this.unitCount; // Health equals unit count
-        this.maxHealth = this.maxUnits;
+        // Unit count increases with level: start with 3 units in 1 row, gradually increase
+        const baseUnitsPerRow = 3;
+        const baseRows = 1;
+        // Units per row increase: +1 every 2 levels (max 5)
+        const unitsPerRowBonus = Math.floor((level - 1) / 2);
+        const unitsPerRow = Math.min(5, baseUnitsPerRow + unitsPerRowBonus);
+        // Rows increase: +1 every 3 levels (max 3)
+        const rowBonus = Math.floor((level - 1) / 3);
+        const rows = Math.min(3, baseRows + rowBonus);
+        const totalUnits = unitsPerRow * rows;
         
-        // Score increases with count
-        this.scoreValue = CONFIG.SCORE_PER_ENEMY * (2 + levelBonus * 0.3);
+        // Health per unit: increases slowly with level
+        // Base 1, +1 every 4 levels (slower than before)
+        this.healthPerUnit = 1 + Math.floor((level - 1) / 4);
+        
+        // Initialize units - each unit has individual health and position
+        this.units = [];
+        this.unitsPerRow = unitsPerRow;
+        this.rows = rows;
         this.unitSize = 15; // Size of each unit
         this.spread = 30; // Spread between units
         
-        // Update color based on count
-        this.updateColor();
+        let unitIndex = 0;
+        for (let row = 0; row < rows && unitIndex < totalUnits; row++) {
+            for (let col = 0; col < unitsPerRow && unitIndex < totalUnits; col++) {
+                const offsetX = (col - (unitsPerRow - 1) / 2) * (this.spread / unitsPerRow);
+                const offsetY = (row - (rows - 1) / 2) * (this.spread / unitsPerRow);
+                
+                this.units.push({
+                    row: row,
+                    col: col,
+                    offsetX: offsetX,
+                    offsetY: offsetY,
+                    health: this.healthPerUnit,
+                    maxHealth: this.healthPerUnit
+                });
+                unitIndex++;
+            }
+        }
+        
+        this.maxUnits = this.units.length;
+        this.unitCount = this.maxUnits;
+        this.initialCount = baseUnitsPerRow * baseRows;
+        
+        // Calculate total health for score calculation
+        this.maxHealth = this.units.length * this.healthPerUnit;
+        this.health = this.maxHealth;
+        
+        // Score increases with count
+        const totalUnitsCount = this.units.length;
+        const baseScoreMultiplier = 2;
+        const scoreBonus = (totalUnitsCount - baseUnitsPerRow * baseRows) * 0.3;
+        this.scoreValue = CONFIG.SCORE_PER_ENEMY * (baseScoreMultiplier + scoreBonus);
+        
+        // Base color (for shadow)
+        this.color = '#ffa500';
     }
     
     /**
-     * Update color based on unit count
+     * Get color for a unit based on its health
      */
-    updateColor() {
-        const countRatio = this.maxUnits / this.initialCount;
+    getUnitColor(unit) {
+        const healthPercent = unit.health / unit.maxHealth;
         
-        // Color changes from orange to yellow to white as count increases
-        if (countRatio <= 1.5) {
-            // Orange to yellow
-            const intensity = (countRatio - 1) * 2;
-            this.color = `rgb(${255}, ${165 + intensity * 90}, ${2 - intensity * 2})`;
+        // Color changes from bright orange/yellow (healthy) to dark orange (damaged)
+        if (healthPercent > 0.6) {
+            // Bright orange to yellow
+            const intensity = (healthPercent - 0.6) / 0.4;
+            return `rgb(${255}, ${Math.floor(165 + intensity * 90)}, ${Math.floor(2 - intensity * 2)})`;
+        } else if (healthPercent > 0.3) {
+            // Yellow to orange
+            const intensity = (healthPercent - 0.3) / 0.3;
+            return `rgb(${255}, ${Math.floor(255 - intensity * 90)}, ${Math.floor(92 - intensity * 90)})`;
         } else {
-            // Yellow to white
-            const intensity = (countRatio - 1.5);
-            this.color = `rgb(${255}, ${255}, ${92 + intensity * 163})`;
+            // Orange to dark orange
+            const intensity = healthPercent / 0.3;
+            return `rgb(${Math.floor(255 - intensity * 100)}, ${Math.floor(165 - intensity * 100)}, ${Math.floor(2)})`;
         }
     }
 
     /**
-     * Draw swarm as multiple small units
+     * Draw swarm as multiple small units, each with individual color
      * @param {CanvasRenderingContext2D} ctx
      */
     draw(ctx) {
         if (!this.active) return;
 
         ctx.save();
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = 8;
         
-        // Draw units in a formation as small drones
-        const unitsPerRow = Math.ceil(Math.sqrt(this.unitCount));
-        const spacing = this.spread / unitsPerRow;
-        let unitIndex = 0;
-        
-        for (let row = 0; row < unitsPerRow && unitIndex < this.unitCount; row++) {
-            for (let col = 0; col < unitsPerRow && unitIndex < this.unitCount; col++) {
-                const offsetX = (col - (unitsPerRow - 1) / 2) * spacing;
-                const offsetY = (row - (unitsPerRow - 1) / 2) * spacing;
-                const unitX = this.x + offsetX;
-                const unitY = this.y + offsetY;
-                
-                // Draw drone body (small triangle)
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.moveTo(unitX, unitY + this.unitSize / 2);
-                ctx.lineTo(unitX - this.unitSize / 2, unitY - this.unitSize / 2);
-                ctx.lineTo(unitX, unitY - this.unitSize / 2 + 1);
-                ctx.lineTo(unitX + this.unitSize / 2, unitY - this.unitSize / 2);
-                ctx.closePath();
-                ctx.fill();
-                
-                // Draw small glow/eye
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-                ctx.beginPath();
-                ctx.arc(unitX, unitY - this.unitSize / 4, this.unitSize / 6, 0, Math.PI * 2);
-                ctx.fill();
-                
-                unitIndex++;
-            }
+        // Draw each unit
+        for (const unit of this.units) {
+            if (unit.health <= 0) continue; // Skip destroyed units
+            
+            const unitX = this.x + unit.offsetX;
+            const unitY = this.y + unit.offsetY;
+            const unitColor = this.getUnitColor(unit);
+            
+            ctx.shadowColor = unitColor;
+            ctx.shadowBlur = 8;
+            
+            // Draw drone body (small triangle)
+            ctx.fillStyle = unitColor;
+            ctx.beginPath();
+            ctx.moveTo(unitX, unitY + this.unitSize / 2);
+            ctx.lineTo(unitX - this.unitSize / 2, unitY - this.unitSize / 2);
+            ctx.lineTo(unitX, unitY - this.unitSize / 2 + 1);
+            ctx.lineTo(unitX + this.unitSize / 2, unitY - this.unitSize / 2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Draw small glow/eye
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.beginPath();
+            ctx.arc(unitX, unitY - this.unitSize / 4, this.unitSize / 6, 0, Math.PI * 2);
+            ctx.fill();
         }
         
         ctx.restore();
     }
 
     /**
-     * Take damage - reduces unit count
+     * Take damage - bottom row units take damage first, randomly distributed
+     * If bottom row is destroyed, next bottom row takes damage, and so on
      * @param {number} damage
      * @returns {object} - Returns {destroyed: boolean, unitsKilled: number}
      */
     takeDamage(damage) {
-        const oldCount = this.unitCount;
-        this.health -= damage;
-        this.unitCount = Math.max(1, Math.ceil(this.health));
-        const unitsKilled = oldCount - this.unitCount;
+        const oldAliveCount = this.units.filter(u => u.health > 0).length;
+        let remainingDamage = damage;
         
-        if (this.health <= 0) {
+        // Keep applying damage until no damage remains or all units are destroyed
+        while (remainingDamage > 0) {
+            // Get all alive units
+            const aliveUnits = this.units.filter(u => u.health > 0);
+            
+            if (aliveUnits.length === 0) {
+                // All units destroyed
+                this.active = false;
+                return { destroyed: true, unitsKilled: this.maxUnits };
+            }
+            
+            // Find the bottommost row (highest row number)
+            const maxRow = Math.max(...aliveUnits.map(u => u.row));
+            
+            // Get units in the bottommost row
+            const bottomRowUnits = aliveUnits.filter(u => u.row === maxRow);
+            
+            if (bottomRowUnits.length === 0) {
+                // Should not happen, but break to avoid infinite loop
+                break;
+            }
+            
+            // Distribute damage randomly among bottom row units
+            while (remainingDamage > 0 && bottomRowUnits.length > 0) {
+                // Randomly select a unit from bottom row
+                const randomIndex = randomInt(0, bottomRowUnits.length - 1);
+                const unit = bottomRowUnits[randomIndex];
+                
+                // Apply damage
+                const damageToApply = Math.min(remainingDamage, unit.health);
+                unit.health -= damageToApply;
+                remainingDamage -= damageToApply;
+                
+                // Remove unit from bottom row list if destroyed
+                if (unit.health <= 0) {
+                    bottomRowUnits.splice(randomIndex, 1);
+                }
+            }
+        }
+        
+        // Update total health and count
+        this.health = this.units.reduce((sum, u) => sum + Math.max(0, u.health), 0);
+        this.unitCount = this.units.filter(u => u.health > 0).length;
+        
+        const newAliveCount = this.unitCount;
+        const unitsKilled = oldAliveCount - newAliveCount;
+        
+        if (this.health <= 0 || this.unitCount === 0) {
             this.active = false;
             return { destroyed: true, unitsKilled: unitsKilled };
         }
+        
         return { destroyed: false, unitsKilled: unitsKilled };
     }
 
@@ -590,11 +782,11 @@ class EnemyFactory {
         const EnemyClass = enemyClasses[type];
         if (!EnemyClass) {
             console.warn(`Unknown enemy type: ${type}`);
-            return new BasicEnemy(x, y, laneIndex);
+            return new BasicEnemy(x, y, laneIndex, level);
         }
 
-        // Pass level to enemies that need it
-        if (type === 'tank' || type === 'swarm' || type === 'formation') {
+        // Pass level to enemies that need it (all enemies now use level for health scaling)
+        if (type === 'tank' || type === 'swarm' || type === 'formation' || type === 'basic') {
             return new EnemyClass(x, y, laneIndex, level);
         }
 
