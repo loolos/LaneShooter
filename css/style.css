@@ -16,6 +16,8 @@ body {
     -webkit-touch-callout: none; /* Disable callout on iOS */
     -webkit-user-select: none; /* Disable text selection */
     user-select: none;
+    margin: 0;
+    padding: 0;
 }
 
 .game-wrapper {
@@ -23,6 +25,7 @@ body {
     align-items: flex-start;
     gap: 20px;
     position: relative;
+    justify-content: center;
 }
 
 .game-container {
@@ -39,22 +42,40 @@ body {
 
 /* Mobile responsive */
 @media (max-width: 900px) {
+    body {
+        align-items: flex-start;
+        padding: 0;
+        overflow-y: auto;
+    }
+    
     .game-wrapper {
-        flex-direction: column;
+        flex-direction: row;
         width: 100vw;
+        height: 100vh;
+        gap: 0;
+        align-items: stretch;
+        justify-content: flex-start;
     }
     
     .game-container {
-        width: 100vw;
+        width: calc(100vw - 180px);
+        min-width: 0;
         height: 100vh;
         border-radius: 0;
+        flex: 1;
     }
     
     .upgrade-panel {
-        width: 100%;
-        margin: 10px;
-        position: relative;
-        order: -1; /* Show above game on mobile */
+        width: 180px;
+        height: 100vh;
+        margin: 0;
+        position: fixed;
+        right: 0;
+        top: 0;
+        border-radius: 0;
+        border-left: 2px solid rgba(255, 255, 255, 0.2);
+        overflow-y: auto;
+        order: 0; /* Keep on right side */
     }
     
     .menu-screen h1,
@@ -68,6 +89,51 @@ body {
     
     .score-panel {
         font-size: 16px;
+    }
+}
+
+/* Very small mobile screens */
+@media (max-width: 600px) {
+    .game-wrapper {
+        flex-direction: column;
+    }
+    
+    .game-container {
+        width: 100vw;
+        height: calc(100vh - 200px);
+    }
+    
+    .upgrade-panel {
+        width: 100vw;
+        height: 200px;
+        position: fixed;
+        bottom: 0;
+        top: auto;
+        right: 0;
+        border-left: none;
+        border-top: 2px solid rgba(255, 255, 255, 0.2);
+        display: flex;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+    
+    .upgrade-panel-title {
+        display: none;
+    }
+    
+    .upgrade-item {
+        min-width: 80px;
+        margin-bottom: 0;
+        margin-right: 8px;
+    }
+    
+    .upgrade-info {
+        display: none;
+    }
+    
+    .upgrade-level {
+        font-size: 14px;
     }
 }
 
@@ -204,12 +270,9 @@ body {
     background: #a29bfe;
 }
 
-/* Mobile responsive */
-@media (max-width: 900px) {
+/* Mobile responsive - upgrade panel adjustments */
+@media (max-width: 900px) and (min-width: 601px) {
     .upgrade-panel {
-        right: 10px;
-        top: 70px;
-        width: 150px;
         padding: 10px;
         font-size: 12px;
     }
@@ -230,6 +293,11 @@ body {
     
     .upgrade-level {
         font-size: 16px;
+    }
+    
+    .upgrade-panel-title {
+        font-size: 14px;
+        margin-bottom: 8px;
     }
 }
 
@@ -336,4 +404,5 @@ body {
         display: block;
     }
 }
+
 

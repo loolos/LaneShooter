@@ -185,8 +185,7 @@ class Player {
             this.drawAdditionalTriangles(ctx, multishotLevel, triangleColor);
         }
 
-        // Draw lane indicators
-        this.drawLaneIndicators(ctx);
+        // Lane indicators removed - no lines between lanes
     }
     
     /**
