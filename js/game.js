@@ -17,6 +17,7 @@ class Game {
         this.player = null;
         this.enemies = [];
         this.powerups = [];
+        this.xpTexts = []; // Floating XP text
 
         // Systems
         this.audioManager = new AudioManager();
@@ -121,8 +122,6 @@ class Game {
      * Setup touch and click handlers for mobile
      */
     setupTouchHandlers() {
-        const touchLeft = document.getElementById('touchLeft');
-        const touchRight = document.getElementById('touchRight');
         const canvas = this.canvas;
 
         // Prevent default touch behaviors
@@ -130,66 +129,24 @@ class Game {
         canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
         canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
 
-        // Left area handlers
-        const handleLeft = () => {
-            if (this.state === 'playing' && this.player) {
-                this.player.switchLane(-1);
-            }
-        };
-
-        // Right area handlers
-        const handleRight = () => {
-            if (this.state === 'playing' && this.player) {
-                this.player.switchLane(1);
-            }
-        };
-
-        // Click events
-        touchLeft.addEventListener('click', handleLeft);
-        touchRight.addEventListener('click', handleRight);
-
-        // Touch events
-        touchLeft.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            handleLeft();
-        }, { passive: false });
-
-        touchRight.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            handleRight();
-        }, { passive: false });
-
-        // Also handle touch on canvas (for direct canvas interaction)
-        let touchStartX = 0;
+        // Handle touch on canvas - toggle lane on any tap
         canvas.addEventListener('touchstart', (e) => {
             if (this.state !== 'playing' || !this.player) return;
             e.preventDefault();
-            const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            touchStartX = touch.clientX - rect.left;
+            // Toggle to next lane (cycle through lanes)
+            const nextLaneIndex = (this.player.laneIndex + 1) % CONFIG.LANE_COUNT;
+            this.player.laneIndex = nextLaneIndex;
+            this.player.targetX = CONFIG.LANE_POSITIONS[this.player.laneIndex];
         }, { passive: false });
 
-        canvas.addEventListener('touchend', (e) => {
+        // Also handle click on canvas for desktop testing
+        canvas.addEventListener('click', (e) => {
             if (this.state !== 'playing' || !this.player) return;
-            e.preventDefault();
-            const touch = e.changedTouches[0];
-            const rect = canvas.getBoundingClientRect();
-            const touchEndX = touch.clientX - rect.left;
-            const touchDeltaX = touchEndX - touchStartX;
-
-            // Swipe detection (optional - for swipe gestures)
-            // For now, just use tap position
-            const canvasWidth = rect.width;
-            const tapX = touchEndX;
-
-            if (tapX < canvasWidth / 2) {
-                // Left half
-                this.player.switchLane(-1);
-            } else {
-                // Right half
-                this.player.switchLane(1);
-            }
-        }, { passive: false });
+            // Toggle to next lane (cycle through lanes)
+            const nextLaneIndex = (this.player.laneIndex + 1) % CONFIG.LANE_COUNT;
+            this.player.laneIndex = nextLaneIndex;
+            this.player.targetX = CONFIG.LANE_POSITIONS[this.player.laneIndex];
+        });
     }
 
     /**
@@ -205,6 +162,7 @@ class Game {
         this.frameCount = 0;
         this.enemies = [];
         this.powerups = [];
+        this.xpTexts = [];
 
         // Create player in center of first lane
         const startX = CONFIG.LANE_POSITIONS[0];
@@ -307,6 +265,10 @@ class Game {
         this.powerups.forEach(powerup => powerup.update());
         this.powerups = this.powerups.filter(powerup => powerup.active);
 
+        // Update XP texts
+        this.xpTexts.forEach(xpText => xpText.update());
+        this.xpTexts = this.xpTexts.filter(xpText => xpText.active);
+
         // Check bullet-enemy collisions
         if (this.player) {
             this.player.bullets.forEach(bullet => {
@@ -317,9 +279,40 @@ class Game {
                     
                     if (checkCollision(bullet.getBounds(), enemy.getBounds())) {
                         bullet.active = false;
-                        const destroyed = enemy.takeDamage(bullet.damage);
-                        if (destroyed) {
+                        const result = enemy.takeDamage(bullet.damage);
+                        const unitsKilled = result.unitsKilled || 0;
+                        
+                        // Give experience for each unit killed
+                        if (unitsKilled > 0) {
+                            // Calculate experience chance based on enemy strength
+                            // Stronger enemies have higher chance, weaker enemies have lower chance
+                            const maxUnits = enemy.maxUnits || enemy.maxEnemies || 1;
+                            const baseScore = enemy.scoreValue / maxUnits; // Score per unit
+                            const baseChance = 0.3; // Base 30% chance
+                            
+                            // Adjust chance: stronger units (higher score) = higher chance
+                            // Weak units (score < 5) have reduced chance
+                            let experienceChance = baseChance;
+                            if (baseScore < 5) {
+                                experienceChance = baseChance * (baseScore / 5); // Scale down for weak enemies
+                            } else if (baseScore > 10) {
+                                experienceChance = Math.min(0.5, baseChance * (baseScore / 10)); // Scale up for strong enemies
+                            }
+                            
+                            for (let i = 0; i < unitsKilled; i++) {
+                                // Chance to gain experience from each unit (adjusted based on strength)
+                                if (Math.random() < experienceChance) {
+                                    this.gainExperienceFromEnemy(enemy, i);
+                                }
+                            }
+                        }
+                        
+                        if (result.destroyed) {
                             this.score += enemy.scoreValue;
+                            this.audioManager.play('hit');
+                            this.updateUI();
+                        } else if (unitsKilled > 0) {
+                            // Play hit sound even if not fully destroyed
                             this.audioManager.play('hit');
                             this.updateUI();
                         }
@@ -340,16 +333,41 @@ class Game {
         this.powerups.forEach(powerup => {
             if (checkCollision(this.player.getBounds(), powerup.getBounds())) {
                 powerup.active = false;
+                const oldLevel = this.player.getUpgradeLevel(powerup.type);
                 powerup.apply(this.player);
+                const newLevel = this.player.getUpgradeLevel(powerup.type);
+                
+                // Show XP text for powerup
+                this.xpTexts.push(new XPText(powerup.x, powerup.y, 5, powerup.type));
+                
+                // If leveled up, show level up effect
+                if (newLevel > oldLevel) {
+                    // Could add level up effect here
+                }
+                
                 this.audioManager.play('powerup');
                 this.updateUI();
             }
         });
 
-        // Level up
-        const newLevel = Math.floor(this.score / CONFIG.LEVEL_UP_SCORE) + 1;
-        if (newLevel > this.level) {
-            this.level = newLevel;
+        // Level up - progressive score requirement
+        // Level 1->2: 200, Level 2->3: 250, Level 3->4: 300, etc.
+        // Formula: baseScore + (level-1) * increment
+        let calculatedLevel = 1;
+        let totalRequired = 0;
+        
+        while (true) {
+            const requiredForNext = CONFIG.LEVEL_UP_SCORE + (calculatedLevel - 1) * CONFIG.LEVEL_UP_SCORE_INCREMENT;
+            if (this.score >= totalRequired + requiredForNext) {
+                totalRequired += requiredForNext;
+                calculatedLevel++;
+            } else {
+                break;
+            }
+        }
+        
+        if (calculatedLevel > this.level) {
+            this.level = calculatedLevel;
             this.updateUI();
         }
     }
@@ -380,6 +398,9 @@ class Game {
 
         // Draw powerups
         this.powerups.forEach(powerup => powerup.draw(this.ctx));
+
+        // Draw XP texts
+        this.xpTexts.forEach(xpText => xpText.draw(this.ctx));
     }
 
     /**
@@ -387,6 +408,60 @@ class Game {
      */
     drawLaneDividers() {
         // Already drawn by player.drawLaneIndicators, but can add more visual elements here
+    }
+
+    /**
+     * Gain experience from defeated enemy unit
+     * @param {Enemy} enemy - The enemy
+     * @param {number} unitIndex - Index of the unit (for positioning multiple XP texts)
+     */
+    gainExperienceFromEnemy(enemy, unitIndex = 0) {
+        if (!this.player) return;
+
+        // Calculate XP based on enemy strength (scoreValue) and game level
+        // Base XP = enemy scoreValue / 2, scaled by level, then halved
+        // For multi-unit enemies, divide by max units to get per-unit XP
+        // Increased XP for stronger enemies (tank with more health, formations/swarms with more units)
+        const maxUnits = enemy.maxUnits || enemy.maxEnemies || 1;
+        const baseXP = Math.max(1, Math.floor(enemy.scoreValue / 2 / maxUnits));
+        const levelMultiplier = 1 + (this.level - 1) * 0.2; // 20% increase per level
+        
+        // Bonus XP for enhanced enemies (tank with more health, or multi-unit with more units)
+        let bonusMultiplier = 1.0;
+        if (enemy.type === 'tank' && enemy.maxHealth > 3) {
+            bonusMultiplier = 1.0 + (enemy.maxHealth - 3) * 0.1; // +10% per extra health
+        } else if ((enemy.type === 'formation' || enemy.type === 'swarm')) {
+            const initialCount = enemy.initialCount || (enemy.type === 'formation' ? 4 : 5);
+            if (maxUnits > initialCount) {
+                bonusMultiplier = 1.0 + (maxUnits - initialCount) * 0.1; // +10% per extra unit
+            }
+        }
+        
+        let xpAmount = Math.floor((baseXP * levelMultiplier * bonusMultiplier) / 2); // Reduced to half, but with bonus
+        xpAmount = Math.max(1, xpAmount); // Ensure at least 1 XP
+
+        // Randomly select which upgrade type to gain XP for
+        const upgradeTypes = ['rapidfire', 'multishot', 'speedboost', 'lanespeed'];
+        const randomType = upgradeTypes[randomInt(0, upgradeTypes.length - 1)];
+
+        // Add experience
+        const oldLevel = this.player.getUpgradeLevel(randomType);
+        this.player.addExperience(randomType, xpAmount);
+        const newLevel = this.player.getUpgradeLevel(randomType);
+
+        // Calculate position offset for multiple units
+        const offsetX = (unitIndex % 3 - 1) * 20; // Spread horizontally
+        const offsetY = Math.floor(unitIndex / 3) * 15; // Stack vertically
+        
+        // Show XP text at enemy position with offset
+        this.xpTexts.push(new XPText(enemy.x + offsetX, enemy.y - offsetY, xpAmount, randomType));
+
+        // If leveled up, show level up effect
+        if (newLevel > oldLevel) {
+            // Could add level up effect here
+        }
+
+        this.updateUI();
     }
 
     /**
@@ -435,9 +510,14 @@ class Game {
             title.textContent = 'UPGRADES';
             this.upgradePanel.appendChild(title);
             
-            // Create upgrade items for all types
+            // Create upgrade items for all types with progress bars
+            const experience = this.player.getAllExperience();
             for (const [type, config] of Object.entries(upgradeConfig)) {
                 const level = upgrades[type] || 0;
+                const currentExp = experience[type] || 0;
+                const requiredExp = this.player.getRequiredExperience(type);
+                const progress = this.player.getExperienceProgress(type);
+                
                 const upgradeItem = document.createElement('div');
                 upgradeItem.className = 'upgrade-item' + (level > 0 ? ' has-upgrade' : '');
                 
@@ -456,12 +536,28 @@ class Game {
                 desc.className = 'upgrade-desc';
                 desc.textContent = config.desc;
                 
+                // Progress bar container
+                const progressContainer = document.createElement('div');
+                progressContainer.className = 'upgrade-progress-container';
+                
+                const progressBar = document.createElement('div');
+                progressBar.className = 'upgrade-progress-bar';
+                progressBar.style.width = `${progress * 100}%`;
+                
+                const progressText = document.createElement('div');
+                progressText.className = 'upgrade-progress-text';
+                progressText.textContent = `${currentExp}/${requiredExp}`;
+                
+                progressContainer.appendChild(progressBar);
+                progressContainer.appendChild(progressText);
+                
                 info.appendChild(name);
                 info.appendChild(desc);
+                info.appendChild(progressContainer);
                 
                 const levelDisplay = document.createElement('div');
                 levelDisplay.className = 'upgrade-level';
-                levelDisplay.textContent = level;
+                levelDisplay.textContent = `Lv.${level}`;
                 
                 upgradeItem.appendChild(icon);
                 upgradeItem.appendChild(info);

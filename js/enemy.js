@@ -72,15 +72,15 @@ class Enemy {
     /**
      * Take damage
      * @param {number} damage
-     * @returns {boolean} - Returns true if enemy is destroyed
+     * @returns {object} - Returns {destroyed: boolean, unitsKilled: number}
      */
     takeDamage(damage) {
         this.health -= damage;
         if (this.health <= 0) {
             this.active = false;
-            return true;
+            return { destroyed: true, unitsKilled: 1 };
         }
-        return false;
+        return { destroyed: false, unitsKilled: 0 };
     }
 
     /**
@@ -123,41 +123,96 @@ class FastEnemy extends Enemy {
 }
 
 /**
- * Tank Enemy - Slower but has more health
+ * Tank Enemy - Slower but has more health, health increases with level
  */
 class TankEnemy extends Enemy {
-    constructor(x, y, laneIndex) {
+    constructor(x, y, laneIndex, level = 1) {
         super(x, y, laneIndex);
         this.type = 'tank';
-        this.color = '#5352ed';
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.7; // Override base speed
         this.speed = this.baseSpeed;
-        this.health = 3;
-        this.maxHealth = 3;
-        this.scoreValue = CONFIG.SCORE_PER_ENEMY * 3;
+        
+        // Health increases with level: base 3, +1 per level
+        this.maxHealth = 3 + (level - 1);
+        this.health = this.maxHealth;
+        this.initialHealth = 3; // Base health for color calculation
+        
+        this.scoreValue = CONFIG.SCORE_PER_ENEMY * (3 + (level - 1) * 0.5); // Slightly more score
         this.width = 50;
         this.height = 50;
+        
+        // Update color based on health
+        this.updateColor();
+    }
+    
+    /**
+     * Update color based on health
+     */
+    updateColor() {
+        const healthRatio = this.maxHealth / this.initialHealth;
+        
+        // Color changes from blue to purple to red as health increases
+        if (healthRatio <= 1.5) {
+            // Blue to purple
+            const intensity = (healthRatio - 1) * 2;
+            this.color = `rgb(${83 + intensity * 50}, ${82 - intensity * 50}, ${237 - intensity * 100})`;
+        } else if (healthRatio <= 2.5) {
+            // Purple to red
+            const intensity = (healthRatio - 1.5);
+            this.color = `rgb(${133 + intensity * 122}, ${32 - intensity * 32}, ${137 - intensity * 137})`;
+        } else {
+            // Red
+            this.color = '#ff0000';
+        }
     }
 }
 
 /**
- * Formation Enemy - Multiple enemies in a row that decrease when shot
+ * Formation Enemy - Multiple enemies in a row that decrease when shot, count increases with level
  */
 class FormationEnemy extends Enemy {
-    constructor(x, y, laneIndex) {
+    constructor(x, y, laneIndex, level = 1) {
         super(x, y, laneIndex);
         this.type = 'formation';
-        this.color = '#ff3838';
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.9;
         this.speed = this.baseSpeed;
-        this.enemyCount = 4; // Number of enemies in formation
-        this.maxEnemies = 4;
+        
+        // Enemy count increases with level: base 4, +1 every 2 levels (max 8)
+        const baseCount = 4;
+        const levelBonus = Math.floor((level - 1) / 2);
+        this.enemyCount = Math.min(8, baseCount + levelBonus);
+        this.maxEnemies = this.enemyCount;
+        this.maxUnits = this.enemyCount; // Alias for consistency
+        this.initialCount = baseCount;
         this.health = this.enemyCount; // Health equals enemy count
         this.maxHealth = this.maxEnemies;
-        this.scoreValue = CONFIG.SCORE_PER_ENEMY * 1.5;
+        
+        // Score increases with count
+        this.scoreValue = CONFIG.SCORE_PER_ENEMY * (1.5 + levelBonus * 0.3);
         this.enemyWidth = 35; // Width of each enemy
         this.enemyHeight = 35; // Height of each enemy
         this.spacing = 10; // Spacing between enemies
+        
+        // Update color based on count
+        this.updateColor();
+    }
+    
+    /**
+     * Update color based on enemy count
+     */
+    updateColor() {
+        const countRatio = this.maxEnemies / this.initialCount;
+        
+        // Color changes from red to orange to yellow as count increases
+        if (countRatio <= 1.5) {
+            // Red to orange
+            const intensity = (countRatio - 1) * 2;
+            this.color = `rgb(${255}, ${56 + intensity * 100}, ${56 - intensity * 56})`;
+        } else {
+            // Orange to yellow
+            const intensity = (countRatio - 1.5);
+            this.color = `rgb(${255}, ${156 + intensity * 99}, ${0})`;
+        }
     }
 
     /**
@@ -204,17 +259,19 @@ class FormationEnemy extends Enemy {
     /**
      * Take damage - reduces enemy count
      * @param {number} damage
-     * @returns {boolean} - Returns true if enemy is destroyed
+     * @returns {object} - Returns {destroyed: boolean, unitsKilled: number}
      */
     takeDamage(damage) {
+        const oldCount = this.enemyCount;
         this.health -= damage;
         this.enemyCount = Math.max(1, Math.ceil(this.health));
+        const unitsKilled = oldCount - this.enemyCount;
         
         if (this.health <= 0) {
             this.active = false;
-            return true;
+            return { destroyed: true, unitsKilled: unitsKilled };
         }
-        return false;
+        return { destroyed: false, unitsKilled: unitsKilled };
     }
 
     /**
@@ -232,22 +289,49 @@ class FormationEnemy extends Enemy {
 }
 
 /**
- * Swarm Enemy - Multiple small units that decrease when shot
+ * Swarm Enemy - Multiple small units that decrease when shot, count increases with level
  */
 class SwarmEnemy extends Enemy {
-    constructor(x, y, laneIndex) {
+    constructor(x, y, laneIndex, level = 1) {
         super(x, y, laneIndex);
         this.type = 'swarm';
-        this.color = '#ffa502';
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.8;
         this.speed = this.baseSpeed;
-        this.unitCount = 5; // Number of visual units
-        this.maxUnits = 5;
+        
+        // Unit count increases with level: base 5, +1 every 2 levels (max 10)
+        const baseCount = 5;
+        const levelBonus = Math.floor((level - 1) / 2);
+        this.unitCount = Math.min(10, baseCount + levelBonus);
+        this.maxUnits = this.unitCount;
+        this.initialCount = baseCount;
         this.health = this.unitCount; // Health equals unit count
         this.maxHealth = this.maxUnits;
-        this.scoreValue = CONFIG.SCORE_PER_ENEMY * 2;
+        
+        // Score increases with count
+        this.scoreValue = CONFIG.SCORE_PER_ENEMY * (2 + levelBonus * 0.3);
         this.unitSize = 15; // Size of each unit
         this.spread = 30; // Spread between units
+        
+        // Update color based on count
+        this.updateColor();
+    }
+    
+    /**
+     * Update color based on unit count
+     */
+    updateColor() {
+        const countRatio = this.maxUnits / this.initialCount;
+        
+        // Color changes from orange to yellow to white as count increases
+        if (countRatio <= 1.5) {
+            // Orange to yellow
+            const intensity = (countRatio - 1) * 2;
+            this.color = `rgb(${255}, ${165 + intensity * 90}, ${2 - intensity * 2})`;
+        } else {
+            // Yellow to white
+            const intensity = (countRatio - 1.5);
+            this.color = `rgb(${255}, ${255}, ${92 + intensity * 163})`;
+        }
     }
 
     /**
@@ -290,17 +374,19 @@ class SwarmEnemy extends Enemy {
     /**
      * Take damage - reduces unit count
      * @param {number} damage
-     * @returns {boolean} - Returns true if enemy is destroyed
+     * @returns {object} - Returns {destroyed: boolean, unitsKilled: number}
      */
     takeDamage(damage) {
+        const oldCount = this.unitCount;
         this.health -= damage;
         this.unitCount = Math.max(1, Math.ceil(this.health));
+        const unitsKilled = oldCount - this.unitCount;
         
         if (this.health <= 0) {
             this.active = false;
-            return true;
+            return { destroyed: true, unitsKilled: unitsKilled };
         }
-        return false;
+        return { destroyed: false, unitsKilled: unitsKilled };
     }
 
     /**
@@ -327,9 +413,10 @@ class EnemyFactory {
      * @param {number} x - X position
      * @param {number} y - Y position
      * @param {number} laneIndex - Lane index
+     * @param {number} level - Current game level
      * @returns {Enemy}
      */
-    static create(type, x, y, laneIndex) {
+    static create(type, x, y, laneIndex, level = 1) {
         const enemyClasses = {
             'basic': BasicEnemy,
             'fast': FastEnemy,
@@ -342,6 +429,11 @@ class EnemyFactory {
         if (!EnemyClass) {
             console.warn(`Unknown enemy type: ${type}`);
             return new BasicEnemy(x, y, laneIndex);
+        }
+
+        // Pass level to enemies that need it
+        if (type === 'tank' || type === 'swarm' || type === 'formation') {
+            return new EnemyClass(x, y, laneIndex, level);
         }
 
         return new EnemyClass(x, y, laneIndex);
@@ -372,12 +464,12 @@ class EnemyFactory {
         for (const [type, weight] of Object.entries(weights)) {
             random -= weight;
             if (random <= 0) {
-                return this.create(type, x, y, laneIndex);
+                return this.create(type, x, y, laneIndex, level);
             }
         }
 
         // Fallback to basic
-        return this.create('basic', x, y, laneIndex);
+        return this.create('basic', x, y, laneIndex, level);
     }
 }
 

@@ -17,12 +17,20 @@ class Player {
         this.lastShootTime = 0;
         this.bullets = [];
         
-        // Permanent Upgrades System
+        // Experience-based Upgrades System
         this.upgrades = {
-            rapidfire: 0,      // Level 0 = no upgrade, each level reduces cooldown by 10%
-            multishot: 0,      // Level 0 = 1 bullet, each level adds 1 bullet
-            speedboost: 0,    // Level 0 = base speed, each level increases by 20%
-            lanespeed: 0      // Level 0 = base speed, each level increases by 30%
+            rapidfire: 0,      // Current level
+            multishot: 0,
+            speedboost: 0,
+            lanespeed: 0
+        };
+        
+        // Experience points for each upgrade type
+        this.experience = {
+            rapidfire: 0,
+            multishot: 0,
+            speedboost: 0,
+            lanespeed: 0
         };
         
         // Base values
@@ -114,15 +122,43 @@ class Player {
     }
 
     /**
-     * Upgrade a permanent stat
+     * Get required experience for next level
      * @param {string} type - Upgrade type
+     * @returns {number} - Required experience for next level
      */
-    upgrade(type) {
-        if (this.upgrades.hasOwnProperty(type)) {
-            this.upgrades[type]++;
-            return true;
+    getRequiredExperience(type) {
+        const currentLevel = this.upgrades[type] || 0;
+        // Formula: level^2 + level*5 + 10
+        // Level 0->1: 0^2 + 0*5 + 10 = 10
+        // Level 1->2: 1^2 + 1*5 + 10 = 16
+        // Level 2->3: 2^2 + 2*5 + 10 = 24
+        // Level 3->4: 3^2 + 3*5 + 10 = 34
+        return (currentLevel * currentLevel) + (currentLevel * 5) + 10;
+    }
+
+    /**
+     * Add experience to an upgrade type
+     * @param {string} type - Upgrade type
+     * @param {number} amount - Experience amount to add
+     * @returns {boolean} - Returns true if level up occurred
+     */
+    addExperience(type, amount) {
+        if (!this.experience.hasOwnProperty(type)) {
+            return false;
         }
-        return false;
+
+        this.experience[type] += amount;
+        let leveledUp = false;
+
+        // Check if enough experience to level up
+        while (this.experience[type] >= this.getRequiredExperience(type)) {
+            const required = this.getRequiredExperience(type);
+            this.experience[type] -= required;
+            this.upgrades[type]++;
+            leveledUp = true;
+        }
+
+        return leveledUp;
     }
 
     /**
@@ -135,11 +171,39 @@ class Player {
     }
 
     /**
+     * Get experience for upgrade type
+     * @param {string} type - Upgrade type
+     * @returns {number} - Current experience
+     */
+    getExperience(type) {
+        return this.experience[type] || 0;
+    }
+
+    /**
+     * Get experience progress (0-1)
+     * @param {string} type - Upgrade type
+     * @returns {number} - Progress from 0 to 1
+     */
+    getExperienceProgress(type) {
+        const current = this.getExperience(type);
+        const required = this.getRequiredExperience(type);
+        return required > 0 ? current / required : 0;
+    }
+
+    /**
      * Get all upgrades info
      * @returns {object} - Copy of upgrades object
      */
     getAllUpgrades() {
         return { ...this.upgrades };
+    }
+
+    /**
+     * Get all experience info
+     * @returns {object} - Copy of experience object
+     */
+    getAllExperience() {
+        return { ...this.experience };
     }
 
     /**

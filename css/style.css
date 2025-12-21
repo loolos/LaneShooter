@@ -125,7 +125,28 @@ body {
     }
     
     .upgrade-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        margin-top: 5px;
+    }
+    
+    .upgrade-name {
         display: none;
+    }
+    
+    .upgrade-desc {
+        display: none;
+    }
+    
+    .upgrade-progress-container {
+        width: 100%;
+        margin-top: 3px;
+    }
+    
+    .upgrade-progress-text {
+        font-size: 9px;
     }
     
     .upgrade-icon {
@@ -135,8 +156,8 @@ body {
     }
     
     .upgrade-level {
-        font-size: 18px;
-        margin-top: 5px;
+        font-size: 16px;
+        margin-top: 3px;
         text-align: center;
     }
     
@@ -291,12 +312,45 @@ body {
     font-size: 10px;
 }
 
+.upgrade-progress-container {
+    width: 100%;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    margin-top: 5px;
+    position: relative;
+    overflow: hidden;
+}
+
+.upgrade-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #4ecdc4 0%, #00ff88 100%);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.upgrade-progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 8px;
+    color: #fff;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+    z-index: 1;
+    white-space: nowrap;
+}
+
 .upgrade-level {
     color: #ffd700;
     font-size: 18px;
     font-weight: bold;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
-    min-width: 30px;
+    min-width: 40px;
     text-align: center;
 }
 
@@ -418,38 +472,9 @@ body {
     font-weight: bold;
 }
 
-/* Touch/Click areas for mobile */
+/* Touch/Click areas for mobile - now hidden, using canvas click instead */
 .touch-area {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 50%;
-    z-index: 5;
-    cursor: pointer;
-    /* Visual feedback for debugging - remove in production if desired */
-    /* background: rgba(255, 0, 0, 0.1); */
-}
-
-.touch-left {
-    left: 0;
-}
-
-.touch-right {
-    right: 0;
-}
-
-/* Hide touch areas on desktop when not needed */
-@media (min-width: 901px) {
-    .touch-area {
-        display: none;
-    }
-}
-
-/* Show touch areas on mobile */
-@media (max-width: 900px) {
-    .touch-area {
-        display: block;
-    }
+    display: none;
 }
 
 

@@ -13,11 +13,12 @@ const CONFIG = {
     PLAYER_SIZE: 30,
     BULLET_SPEED: 8,
     ENEMY_SPAWN_RATE: 0.02, // Probability per frame
-    POWERUP_SPAWN_RATE: 0.005, // Probability per frame
+    POWERUP_SPAWN_RATE: 0.002, // Probability per frame (reduced from 0.005)
     ENEMY_BASE_SPEED: 2,
     ENEMY_SPEED_INCREMENT: 0.1,
     SCORE_PER_ENEMY: 10,
-    LEVEL_UP_SCORE: 100
+    LEVEL_UP_SCORE: 200, // Increased from 100 to make levels longer
+    LEVEL_UP_SCORE_INCREMENT: 50 // Additional score needed per level
 };
 
 /**

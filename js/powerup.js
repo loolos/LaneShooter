@@ -116,7 +116,8 @@ class RapidFirePowerup extends Powerup {
     }
 
     apply(player) {
-        player.upgrade('rapidfire');
+        // Add experience instead of direct upgrade (5 XP per powerup)
+        player.addExperience('rapidfire', 5);
     }
 }
 
@@ -131,7 +132,8 @@ class MultiShotPowerup extends Powerup {
     }
 
     apply(player) {
-        player.upgrade('multishot');
+        // Add experience instead of direct upgrade (5 XP per powerup)
+        player.addExperience('multishot', 5);
     }
 }
 
@@ -146,7 +148,8 @@ class SpeedBoostPowerup extends Powerup {
     }
 
     apply(player) {
-        player.upgrade('speedboost');
+        // Add experience instead of direct upgrade (5 XP per powerup)
+        player.addExperience('speedboost', 5);
     }
 }
 
@@ -161,7 +164,8 @@ class LaneSpeedPowerup extends Powerup {
     }
 
     apply(player) {
-        player.upgrade('lanespeed');
+        // Add experience instead of direct upgrade (5 XP per powerup)
+        player.addExperience('lanespeed', 5);
     }
 }
 
