@@ -104,10 +104,15 @@ class BasicEnemy extends Enemy {
     constructor(x, y, laneIndex, level = 1) {
         super(x, y, laneIndex);
         this.type = 'basic';
-        this.speed = CONFIG.ENEMY_BASE_SPEED;
+        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.6; // Reduced to 60% of original
+        this.speed = this.baseSpeed;
         
         // Health increases with level: base 1, +1 every 2 levels
-        this.maxHealth = 1 + Math.floor((level - 1) / 2);
+        // Late game: additional health boost (after level 10, health increases faster)
+        // Calculate health with late game boost integrated into formula
+        this.maxHealth = level > 10
+            ? 1 + Math.floor((10 + (level - 10) * 1.2 - 1) / 2)
+            : 1 + Math.floor((level - 1) / 2);
         this.health = this.maxHealth;
         this.initialHealth = 1; // Base health for color calculation
         
@@ -236,19 +241,29 @@ class TankEnemy extends Enemy {
     constructor(x, y, laneIndex, level = 1) {
         super(x, y, laneIndex);
         this.type = 'tank';
-        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.5; // Slower movement (reduced from 0.7)
+        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.5 * 0.6; // Slower movement, reduced to 60% (0.3x total)
         this.speed = this.baseSpeed;
         
-        // Health increases with level: base 3, +1 per level, then multiplied by 1.5
+        // Health increases with level: base 3, +1 per level, then multiplied by 2.25 (1.5x of previous 1.5x)
+        // Late game: additional health boost (after level 10, 10% more health)
+        let healthMultiplier = 2.25;
+        if (level > 10) {
+            healthMultiplier = 2.25 * (1 + (level - 10) * 0.01); // Additional 1% per level after 10
+        }
         const baseHealth = 3 + (level - 1);
-        this.maxHealth = Math.floor(baseHealth * 1.5); // 1.5x health
+        this.maxHealth = Math.floor(baseHealth * healthMultiplier);
         this.health = this.maxHealth;
-        this.initialHealth = Math.floor(3 * 1.5); // Base health for color calculation (4.5 -> 4)
+        this.initialHealth = Math.floor(3 * 2.25); // Base health for color calculation (6.75 -> 6)
         
         // Increased score value for more experience
         this.scoreValue = CONFIG.SCORE_PER_ENEMY * (5 + (level - 1) * 1); // More score (increased from 3 + 0.5)
-        this.width = 50;
-        this.height = 50;
+        
+        // Size increases with health: base 50x50, scales with maxHealth
+        // Base health at level 1 is 6.75 (rounded to 6), so we scale from there
+        const baseHealthForSize = 6; // Base health at level 1
+        const sizeMultiplier = 1 + (this.maxHealth - baseHealthForSize) / baseHealthForSize * 0.5; // Up to 50% larger
+        this.width = Math.floor(50 * sizeMultiplier);
+        this.height = Math.floor(50 * sizeMultiplier);
         
         // Update color based on health
         this.updateColor();
@@ -339,12 +354,12 @@ class FormationEnemy extends Enemy {
     constructor(x, y, laneIndex, level = 1) {
         super(x, y, laneIndex);
         this.type = 'formation';
-        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.9;
+        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.9 * 0.6; // Reduced to 60% (0.54x total)
         this.speed = this.baseSpeed;
         
         // New generation system: fixed total health, random rows/cols
-        // Total health increases with level: level²/4 + level + 3
-        const totalHealth = Math.floor((level * level) / 4 + level + 3);
+        // Total health increases with level: lvl³/8 + level²/2 + level + 3
+        const totalHealth = Math.floor((level * level * level / 8) + (level * level / 2) + level + 3);
         
         // Randomly determine rows and columns within reasonable ranges
         // Rows: 1-4, Columns: 2-8
@@ -565,12 +580,12 @@ class SwarmEnemy extends Enemy {
     constructor(x, y, laneIndex, level = 1) {
         super(x, y, laneIndex);
         this.type = 'swarm';
-        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.8;
+        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.8 * 0.6; // Reduced to 60% (0.48x total)
         this.speed = this.baseSpeed;
         
         // New generation system: fixed total health, random rows/cols
-        // Total health increases with level: level²/4 + level + 3
-        const totalHealth = Math.floor((level * level) / 4 + level + 3);
+        // Total health increases with level: lvl³/8 + level²/2 + level + 3
+        const totalHealth = Math.floor((level * level * level / 8) + (level * level / 2) + level + 3);
         
         // Randomly determine rows and columns within reasonable ranges
         // Rows: 1-3, Columns: 3-5

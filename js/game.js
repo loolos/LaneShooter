@@ -296,9 +296,18 @@ class Game {
 
         // Update enemies
         this.enemies.forEach(enemy => {
-            // Increase speed with level based on enemy's base speed (carrier doesn't move)
-            if (enemy.type !== 'carrier') {
-                enemy.speed = enemy.baseSpeed + (this.level - 1) * CONFIG.ENEMY_SPEED_INCREMENT;
+            // Only fast enemies' speed increases with level, all others stay at base speed
+            if (enemy.type === 'fast') {
+                // Fast enemies speed increases with level
+                let speedIncrement = CONFIG.ENEMY_SPEED_INCREMENT;
+                if (this.level > 10) {
+                    // Additional speed boost for late game (20% more per level after level 10)
+                    speedIncrement = CONFIG.ENEMY_SPEED_INCREMENT * (1 + (this.level - 10) * 0.02);
+                }
+                enemy.speed = enemy.baseSpeed + (this.level - 1) * speedIncrement;
+            } else if (enemy.type !== 'carrier') {
+                // All other enemies (except carrier) stay at base speed, no level scaling
+                enemy.speed = enemy.baseSpeed;
             }
             enemy.update();
             
@@ -392,7 +401,8 @@ class Game {
                         
                         if (result.destroyed) {
                             this.score += enemy.scoreValue;
-                            this.audioManager.play('hit');
+                            // Play enemy-specific death sound
+                            this.playEnemyDeathSound(enemy.type);
                             
                             // Create destruction effect
                             const effect = EffectManager.createEffect(enemy.x, enemy.y, enemy.type);
@@ -568,6 +578,25 @@ class Game {
      */
     drawLaneDividers() {
         // Already drawn by player.drawLaneIndicators, but can add more visual elements here
+    }
+
+    /**
+     * Play enemy-specific death sound
+     * @param {string} enemyType - Type of enemy
+     */
+    playEnemyDeathSound(enemyType) {
+        // Map enemy types to their death sounds
+        const soundMap = {
+            'basic': 'basic',
+            'fast': 'fast',
+            'tank': 'tank',
+            'formation': 'formation',
+            'swarm': 'swarm',
+            'carrier': 'carrier'
+        };
+        
+        const soundName = soundMap[enemyType] || 'hit';
+        this.audioManager.play(soundName);
     }
 
     /**
