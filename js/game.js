@@ -12,12 +12,15 @@ class Game {
         this.score = 0;
         this.level = 1;
         this.frameCount = 0;
+        this.gameStartTime = 0; // Game start time in milliseconds
+        this.elapsedTime = 0; // Elapsed time in seconds
 
         // Game entities
         this.player = null;
         this.enemies = [];
         this.powerups = [];
         this.xpTexts = []; // Floating XP text
+        this.effects = []; // Visual effects
 
         // Systems
         this.audioManager = new AudioManager();
@@ -31,6 +34,7 @@ class Game {
         // UI elements
         this.scoreElement = document.getElementById('score');
         this.levelElement = document.getElementById('level');
+        this.timeElement = document.getElementById('time');
         this.upgradePanel = document.getElementById('upgradePanel');
         this.menuScreen = document.getElementById('menuScreen');
         this.gameOverScreen = document.getElementById('gameOverScreen');
@@ -160,9 +164,12 @@ class Game {
         this.score = 0;
         this.level = 1;
         this.frameCount = 0;
+        this.gameStartTime = Date.now();
+        this.elapsedTime = 0;
         this.enemies = [];
         this.powerups = [];
         this.xpTexts = [];
+        this.effects = [];
 
         // Create player in center of first lane
         const startX = CONFIG.LANE_POSITIONS[0];
@@ -179,10 +186,22 @@ class Game {
      * Game over
      */
     gameOver() {
-        this.state = 'gameover';
-        this.audioManager.play('gameover');
-        this.finalScoreElement.textContent = this.score;
-        this.gameOverScreen.style.display = 'flex';
+        // Don't trigger multiple times
+        if (this.state === 'gameover') return;
+        
+        // Create player death explosion effect
+        if (this.player) {
+            const explosion = new ExplosionEffect(this.player.x, this.player.y, 'large');
+            this.effects.push(explosion);
+        }
+        
+        // Delay game over screen to show explosion
+        setTimeout(() => {
+            this.state = 'gameover';
+            this.audioManager.play('gameover');
+            this.finalScoreElement.textContent = this.score;
+            this.gameOverScreen.style.display = 'flex';
+        }, 500); // 500ms delay for explosion animation
     }
 
     /**
@@ -238,9 +257,18 @@ class Game {
      * Update game entities
      */
     update() {
+        // Always update effects even after game over to show death animation
+        this.effects.forEach(effect => effect.update());
+        this.effects = this.effects.filter(effect => effect.active);
+        
         if (this.state !== 'playing') return;
 
         this.frameCount++;
+        
+        // Update elapsed time
+        if (this.gameStartTime > 0) {
+            this.elapsedTime = Math.floor((Date.now() - this.gameStartTime) / 1000); // Convert to seconds
+        }
 
         // Update player
         this.player.update();
@@ -280,6 +308,30 @@ class Game {
                     
                     if (checkCollision(bullet.getBounds(), enemy.getBounds())) {
                         bullet.active = false;
+                        
+                        // Store unit positions before damage for formation/swarm enemies
+                        let destroyedUnitPositions = [];
+                        if ((enemy.type === 'formation' || enemy.type === 'swarm') && enemy.units) {
+                            // Store positions of units that are about to be destroyed
+                            enemy.units.forEach(unit => {
+                                if (unit.health > 0 && unit.health <= bullet.damage) {
+                                    let unitX, unitY;
+                                    if (enemy.type === 'formation') {
+                                        const totalWidth = (enemy.cols * enemy.enemyWidth) + ((enemy.cols - 1) * enemy.spacing);
+                                        const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
+                                        const startX = enemy.x - totalWidth / 2;
+                                        const startY = enemy.y - totalHeight / 2;
+                                        unitX = startX + (unit.col * (enemy.enemyWidth + enemy.spacing)) + (enemy.enemyWidth / 2);
+                                        unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
+                                    } else { // swarm
+                                        unitX = enemy.x + unit.offsetX;
+                                        unitY = enemy.y + unit.offsetY;
+                                    }
+                                    destroyedUnitPositions.push({ x: unitX, y: unitY });
+                                }
+                            });
+                        }
+                        
                         const result = enemy.takeDamage(bullet.damage);
                         const unitsKilled = result.unitsKilled || 0;
                         
@@ -311,10 +363,24 @@ class Game {
                         if (result.destroyed) {
                             this.score += enemy.scoreValue;
                             this.audioManager.play('hit');
+                            
+                            // Create destruction effect
+                            const effect = EffectManager.createEffect(enemy.x, enemy.y, enemy.type);
+                            this.effects.push(effect);
+                            
                             this.updateUI();
                         } else if (unitsKilled > 0) {
                             // Play hit sound even if not fully destroyed
                             this.audioManager.play('hit');
+                            
+                            // Create effects for destroyed units
+                            destroyedUnitPositions.forEach((pos, index) => {
+                                if (index < unitsKilled) {
+                                    const effect = EffectManager.createEffect(pos.x, pos.y, enemy.type === 'formation' ? 'formation' : 'swarm');
+                                    this.effects.push(effect);
+                                }
+                            });
+                            
                             this.updateUI();
                         }
                         return; // Bullet hit, no need to check other enemies
@@ -400,21 +466,32 @@ class Game {
             }
         });
 
-        // Level up - progressive score requirement
-        // Level 1->2: 200, Level 2->3: 250, Level 3->4: 300, etc.
-        // Formula: baseScore + (level-1) * increment
-        let calculatedLevel = 1;
+        // Level up - based on both score and time
+        // Score contribution: same as before
+        // Time contribution: +1 level every 30 seconds
+        let scoreBasedLevel = 1;
         let totalRequired = 0;
         
+        // Calculate level based on score
         while (true) {
-            const requiredForNext = CONFIG.LEVEL_UP_SCORE + (calculatedLevel - 1) * CONFIG.LEVEL_UP_SCORE_INCREMENT;
+            const requiredForNext = CONFIG.LEVEL_UP_SCORE + (scoreBasedLevel - 1) * CONFIG.LEVEL_UP_SCORE_INCREMENT;
             if (this.score >= totalRequired + requiredForNext) {
                 totalRequired += requiredForNext;
-                calculatedLevel++;
+                scoreBasedLevel++;
             } else {
                 break;
             }
         }
+        
+        // Calculate level based on time (1 level per 30 seconds)
+        const timeBasedLevel = 1 + Math.floor(this.elapsedTime / 30);
+        
+        // Combined level: take the higher of score-based or time-based, but also consider both
+        // Formula: max(scoreLevel, timeLevel) + bonus from having both
+        const baseLevel = Math.max(scoreBasedLevel, timeBasedLevel);
+        // Bonus: if both score and time contribute, add a small bonus
+        const bothContribute = scoreBasedLevel > 1 && timeBasedLevel > 1;
+        const calculatedLevel = baseLevel + (bothContribute ? Math.floor(Math.min(scoreBasedLevel, timeBasedLevel) / 3) : 0);
         
         if (calculatedLevel > this.level) {
             this.level = calculatedLevel;
@@ -429,6 +506,9 @@ class Game {
         // Clear canvas
         this.ctx.fillStyle = '#0f0f1e';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Draw effects even after game over to show death animation
+        this.effects.forEach(effect => effect.draw(this.ctx));
 
         if (this.state !== 'playing') return;
 
@@ -520,6 +600,13 @@ class Game {
     updateUI() {
         this.scoreElement.textContent = this.score;
         this.levelElement.textContent = this.level;
+        
+        // Update time display
+        if (this.timeElement) {
+            const minutes = Math.floor(this.elapsedTime / 60);
+            const seconds = this.elapsedTime % 60;
+            this.timeElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
 
         // Update side upgrade panel with descriptions
         if (this.player) {

@@ -108,9 +108,12 @@ class Player {
      * Get effective shoot cooldown (affected by upgrades)
      */
     getEffectiveShootCooldown() {
-        // Each level reduces cooldown by 10% (max 90% reduction at level 9)
-        const reduction = Math.min(0.9, this.upgrades.rapidfire * 0.1);
-        return this.baseShootCooldown * (1 - reduction);
+        // Each level reduces current cooldown by 15% (compound reduction)
+        let cooldown = this.baseShootCooldown;
+        for (let i = 0; i < this.upgrades.rapidfire; i++) {
+            cooldown = cooldown * 0.85; // Reduce by 15%
+        }
+        return cooldown;
     }
 
     /**
