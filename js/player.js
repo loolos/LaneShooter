@@ -131,12 +131,13 @@ class Player {
      */
     getRequiredExperience(type) {
         const currentLevel = this.upgrades[type] || 0;
-        // Formula: level^2 + level*5 + 10
-        // Level 0->1: 0^2 + 0*5 + 10 = 10
-        // Level 1->2: 1^2 + 1*5 + 10 = 16
-        // Level 2->3: 2^2 + 2*5 + 10 = 24
-        // Level 3->4: 3^2 + 3*5 + 10 = 34
-        return (currentLevel * currentLevel) + (currentLevel * 5) + 10;
+        // Formula: level^2 × 2 + level × 7 + 1 + level^3 / 3
+        // Level 0->1: 0^2 × 2 + 0 × 7 + 1 + 0^3/3 = 1
+        // Level 1->2: 1^2 × 2 + 1 × 7 + 1 + 1^3/3 = 2 + 7 + 1 + 0.33 = 10
+        // Level 2->3: 2^2 × 2 + 2 × 7 + 1 + 2^3/3 = 8 + 14 + 1 + 2.67 = 25
+        // Level 3->4: 3^2 × 2 + 3 × 7 + 1 + 3^3/3 = 18 + 21 + 1 + 9 = 49
+        // Level 4->5: 4^2 × 2 + 4 × 7 + 1 + 4^3/3 = 32 + 28 + 1 + 21.33 = 82
+        return Math.floor((currentLevel * currentLevel * 2) + (currentLevel * 7) + 1 + (currentLevel * currentLevel * currentLevel / 3));
     }
 
     /**

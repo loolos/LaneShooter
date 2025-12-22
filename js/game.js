@@ -239,6 +239,18 @@ class Game {
             const enemy = EnemyFactory.createRandom(x, -40, laneIndex, this.level);
             this.enemies.push(enemy);
         }
+        
+        // Spawn carrier enemy occasionally at level 5+
+        if (this.level >= 5) {
+            // Check if there's already a carrier in this lane
+            const hasCarrier = this.enemies.some(e => e.type === 'carrier' && e.active);
+            if (!hasCarrier && Math.random() < 0.001) { // Very low spawn rate for carrier
+                const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
+                const x = CONFIG.LANE_POSITIONS[laneIndex];
+                const carrier = EnemyFactory.create('carrier', x, 100, laneIndex, this.level); // Spawn near top
+                this.enemies.push(carrier);
+            }
+        }
     }
 
     /**
@@ -284,9 +296,24 @@ class Game {
 
         // Update enemies
         this.enemies.forEach(enemy => {
-            // Increase speed with level based on enemy's base speed
-            enemy.speed = enemy.baseSpeed + (this.level - 1) * CONFIG.ENEMY_SPEED_INCREMENT;
+            // Increase speed with level based on enemy's base speed (carrier doesn't move)
+            if (enemy.type !== 'carrier') {
+                enemy.speed = enemy.baseSpeed + (this.level - 1) * CONFIG.ENEMY_SPEED_INCREMENT;
+            }
             enemy.update();
+            
+            // Handle carrier enemy spawning
+            if (enemy.type === 'carrier' && enemy.shouldSpawnEnemy()) {
+                // Spawn a random enemy from the carrier (equal probability, no carrier)
+                const spawnX = enemy.x;
+                const spawnY = enemy.y + enemy.height / 2 + 20; // Spawn below the carrier
+                // Randomly select from non-carrier enemy types with equal probability
+                const enemyTypes = ['basic', 'fast', 'tank', 'swarm', 'formation'];
+                const randomType = enemyTypes[randomInt(0, enemyTypes.length - 1)];
+                const spawnedEnemy = EnemyFactory.create(randomType, spawnX, spawnY, enemy.laneIndex, this.level);
+                this.enemies.push(spawnedEnemy);
+                enemy.resetSpawnCooldown();
+            }
         });
         this.enemies = this.enemies.filter(enemy => enemy.active);
 
@@ -309,12 +336,15 @@ class Game {
                     if (checkCollision(bullet.getBounds(), enemy.getBounds())) {
                         bullet.active = false;
                         
+                        // Calculate actual damage based on bullet power and enemy type
+                        const actualDamage = bullet.getDamage(enemy);
+                        
                         // Store unit positions before damage for formation/swarm enemies
                         let destroyedUnitPositions = [];
                         if ((enemy.type === 'formation' || enemy.type === 'swarm') && enemy.units) {
                             // Store positions of units that are about to be destroyed
                             enemy.units.forEach(unit => {
-                                if (unit.health > 0 && unit.health <= bullet.damage) {
+                                if (unit.health > 0 && unit.health <= actualDamage) {
                                     let unitX, unitY;
                                     if (enemy.type === 'formation') {
                                         const totalWidth = (enemy.cols * enemy.enemyWidth) + ((enemy.cols - 1) * enemy.spacing);
@@ -332,7 +362,7 @@ class Game {
                             });
                         }
                         
-                        const result = enemy.takeDamage(bullet.damage);
+                        const result = enemy.takeDamage(actualDamage);
                         const unitsKilled = result.unitsKilled || 0;
                         
                         // Give experience for each unit killed
@@ -554,12 +584,19 @@ class Game {
         // Increased XP for stronger enemies (tank with more health, formations/swarms with more units)
         const maxUnits = enemy.maxUnits || enemy.maxEnemies || 1;
         const baseXP = Math.max(1, Math.floor(enemy.scoreValue / 2 / maxUnits));
-        const levelMultiplier = 1 + (this.level - 1) * 0.2; // 20% increase per level
+        // Level multiplier: diminishing returns - growth slows significantly as level increases
+        // Uses cube root for much slower growth: level 1 = 1.0x, level 5 = 1.12x, level 10 = 1.19x, level 20 = 1.26x
+        // Further reduced by using a smaller coefficient and adding a cap
+        const levelMultiplier = 1 + Math.min(Math.pow(this.level - 1, 1/3) * 0.08, 0.3); // Much slower growth with cap at 0.3
         
         // Bonus XP for enhanced enemies (tank with more health, or multi-unit with more units)
         let bonusMultiplier = 1.0;
-        if (enemy.type === 'tank' && enemy.maxHealth > 3) {
-            bonusMultiplier = 1.0 + (enemy.maxHealth - 3) * 0.1; // +10% per extra health
+        if (enemy.type === 'tank') {
+            // Tank enemies give reduced XP (1/4 of previous bonus)
+            // Base bonus reduced from 1.5x to 0.375x, additional bonus reduced from 15% to 3.75% per extra health
+            const baseTankHealth = 4; // Base tank health after 1.5x multiplier
+            const originalBonus = 1.5 + (enemy.maxHealth - baseTankHealth) * 0.15;
+            bonusMultiplier = originalBonus * 0.25; // 1/4 of original bonus
         } else if ((enemy.type === 'formation' || enemy.type === 'swarm')) {
             const initialCount = enemy.initialCount || (enemy.type === 'formation' ? 4 : 5);
             if (maxUnits > initialCount) {

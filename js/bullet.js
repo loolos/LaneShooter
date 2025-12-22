@@ -9,8 +9,27 @@ class Bullet {
         this.height = 15;
         this.speed = speed;
         this.active = true;
-        this.damage = 1;
         this.speedboostLevel = speedboostLevel; // Store upgrade level for color
+        // Base damage is 1, will be calculated based on enemy type when hitting
+        this.baseDamage = 1;
+    }
+    
+    /**
+     * Get damage for this bullet against a specific enemy
+     * For enemies with health bars (maxHealth > 1), each speedboost level adds 0.5 damage
+     * @param {Enemy} enemy - The enemy being hit
+     * @returns {number} - Damage amount
+     */
+    getDamage(enemy) {
+        // Base damage
+        let damage = this.baseDamage;
+        
+        // For enemies with health bars (maxHealth > 1), add bonus damage from speedboost
+        if (enemy.maxHealth > 1) {
+            damage += this.speedboostLevel * 0.5;
+        }
+        
+        return damage;
     }
 
     /**

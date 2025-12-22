@@ -236,15 +236,17 @@ class TankEnemy extends Enemy {
     constructor(x, y, laneIndex, level = 1) {
         super(x, y, laneIndex);
         this.type = 'tank';
-        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.7; // Override base speed
+        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.5; // Slower movement (reduced from 0.7)
         this.speed = this.baseSpeed;
         
-        // Health increases with level: base 3, +1 per level
-        this.maxHealth = 3 + (level - 1);
+        // Health increases with level: base 3, +1 per level, then multiplied by 1.5
+        const baseHealth = 3 + (level - 1);
+        this.maxHealth = Math.floor(baseHealth * 1.5); // 1.5x health
         this.health = this.maxHealth;
-        this.initialHealth = 3; // Base health for color calculation
+        this.initialHealth = Math.floor(3 * 1.5); // Base health for color calculation (4.5 -> 4)
         
-        this.scoreValue = CONFIG.SCORE_PER_ENEMY * (3 + (level - 1) * 0.5); // Slightly more score
+        // Increased score value for more experience
+        this.scoreValue = CONFIG.SCORE_PER_ENEMY * (5 + (level - 1) * 1); // More score (increased from 3 + 0.5)
         this.width = 50;
         this.height = 50;
         
@@ -594,14 +596,16 @@ class SwarmEnemy extends Enemy {
         this.units = [];
         this.unitSize = 15; // Size of each unit
         // Increased spread for wider distribution, especially for first row to allow multishot to hit all units
-        this.spread = 80; // Spread between units (increased significantly for wider distribution)
+        this.spread = 150; // Spread between units (increased significantly for wider distribution)
         
         for (let row = 0; row < this.rows; row++) {
             for (let col = 0; col < unitsPerRow; col++) {
                 // Use larger spacing for first row to allow multishot coverage
                 // First row uses full spread, other rows use slightly less
-                const rowSpread = row === 0 ? this.spread : this.spread * 0.8;
-                const offsetX = (col - (unitsPerRow - 1) / 2) * (rowSpread / unitsPerRow);
+                const rowSpread = row === 0 ? this.spread : this.spread * 0.85;
+                // Use a multiplier to ensure units are spread out enough for multishot bullets
+                const spacingMultiplier = row === 0 ? 1.2 : 1.0; // First row extra spread
+                const offsetX = (col - (unitsPerRow - 1) / 2) * (rowSpread / unitsPerRow) * spacingMultiplier;
                 const offsetY = (row - (this.rows - 1) / 2) * (this.spread / unitsPerRow);
                 
                 this.units.push({
@@ -775,6 +779,137 @@ class SwarmEnemy extends Enemy {
 }
 
 /**
+ * Carrier Enemy - Stationary enemy that spawns other enemies, appears after level 5
+ */
+class CarrierEnemy extends Enemy {
+    constructor(x, y, laneIndex, level = 1) {
+        super(x, y, laneIndex);
+        this.type = 'carrier';
+        this.baseSpeed = 0; // Stationary - doesn't move
+        this.speed = 0;
+        
+        // Very high health that increases with level (4x original)
+        // Base health: 200 (4x of 50), increases by 80 per level (4x of 20)
+        this.maxHealth = 200 + (level - 5) * 80; // Only appears at level 5+, 4x health
+        this.health = this.maxHealth;
+        this.initialHealth = 200;
+        
+        // High score value
+        this.scoreValue = CONFIG.SCORE_PER_ENEMY * (10 + (level - 5) * 2);
+        this.width = 80;
+        this.height = 60;
+        
+        // Spawning system
+        this.spawnCooldown = 0;
+        this.spawnInterval = 180; // Spawn every 180 frames (3 seconds at 60fps)
+        this.spawnedEnemies = []; // Track spawned enemies for reference
+        
+        // Color - dark gray/blue for carrier
+        this.color = '#4a5568';
+    }
+    
+    /**
+     * Update carrier - spawn enemies periodically
+     */
+    update() {
+        // Don't move (speed = 0)
+        // Just update spawn cooldown
+        this.spawnCooldown++;
+        
+        // Carrier doesn't go off screen, so no need to check bounds
+    }
+    
+    /**
+     * Check if carrier should spawn an enemy
+     * @returns {boolean} - True if should spawn
+     */
+    shouldSpawnEnemy() {
+        return this.spawnCooldown >= this.spawnInterval;
+    }
+    
+    /**
+     * Reset spawn cooldown after spawning
+     */
+    resetSpawnCooldown() {
+        this.spawnCooldown = 0;
+    }
+    
+    /**
+     * Draw carrier as a large stationary ship
+     */
+    draw(ctx) {
+        if (!this.active) return;
+
+        ctx.save();
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 15;
+        
+        // Draw main carrier body (large rectangular shape)
+        ctx.fillStyle = this.color;
+        ctx.fillRect(
+            this.x - this.width / 2,
+            this.y - this.height / 2,
+            this.width,
+            this.height
+        );
+        
+        // Draw carrier deck details
+        ctx.fillStyle = 'rgba(100, 100, 120, 0.8)';
+        ctx.fillRect(
+            this.x - this.width / 2 + 5,
+            this.y - this.height / 2 + 5,
+            this.width - 10,
+            this.height / 3
+        );
+        
+        // Draw launch bay (opening at front)
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(
+            this.x - this.width / 2,
+            this.y - this.height / 4,
+            this.width / 4,
+            this.height / 2
+        );
+        
+        // Draw side details
+        ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.width / 2, this.y);
+        ctx.lineTo(this.x + this.width / 2, this.y);
+        ctx.stroke();
+        
+        // Draw health bar (always visible for carrier)
+        const barWidth = this.width + 10;
+        const barHeight = 6;
+        const barX = this.x - barWidth / 2;
+        const barY = this.y - this.height / 2 - 15;
+        
+        // Background
+        ctx.fillStyle = '#333';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+        
+        // Health
+        const healthPercent = this.health / this.maxHealth;
+        ctx.fillStyle = healthPercent > 0.6 ? '#00ff00' : healthPercent > 0.3 ? '#ffff00' : '#ff0000';
+        ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+        
+        // Health text
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(
+            `${Math.ceil(this.health)}/${this.maxHealth}`,
+            this.x,
+            barY - 8
+        );
+        
+        ctx.restore();
+    }
+}
+
+/**
  * Enemy Factory - Creates enemies by type
  */
 class EnemyFactory {
@@ -793,7 +928,8 @@ class EnemyFactory {
             'fast': FastEnemy,
             'tank': TankEnemy,
             'swarm': SwarmEnemy,
-            'formation': FormationEnemy
+            'formation': FormationEnemy,
+            'carrier': CarrierEnemy
         };
 
         const EnemyClass = enemyClasses[type];
@@ -803,7 +939,7 @@ class EnemyFactory {
         }
 
         // Pass level to enemies that need it (all enemies now use level for health scaling)
-        if (type === 'tank' || type === 'swarm' || type === 'formation' || type === 'basic') {
+        if (type === 'tank' || type === 'swarm' || type === 'formation' || type === 'basic' || type === 'carrier') {
             return new EnemyClass(x, y, laneIndex, level);
         }
 
@@ -824,7 +960,8 @@ class EnemyFactory {
             'fast': 15 + (level - 1) * 4,
             'tank': 10 + (level - 1) * 3,
             'swarm': 12 + (level - 1) * 2,
-            'formation': 13 + (level - 1) * 2
+            'formation': 13 + (level - 1) * 2,
+            'carrier': level >= 5 ? 5 + (level - 5) * 2 : 0 // Only appears at level 5+
         };
 
         // Calculate total weight
