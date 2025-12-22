@@ -403,7 +403,8 @@ body {
 }
 
 .menu-screen,
-.game-over-screen {
+.game-over-screen,
+.victory-screen {
     position: absolute;
     top: 0;
     left: 0;
@@ -419,7 +420,8 @@ body {
 }
 
 .menu-screen h1,
-.game-over-screen h1 {
+.game-over-screen h1,
+.victory-screen h1 {
     font-size: 48px;
     margin-bottom: 30px;
     text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.8);
@@ -432,6 +434,22 @@ body {
     margin-bottom: 30px;
     line-height: 1.8;
     color: #ccc;
+}
+
+.victory-message {
+    text-align: center;
+    font-size: 24px;
+    margin-bottom: 20px;
+    color: #ffd700;
+    font-weight: bold;
+}
+
+.continue-message {
+    text-align: center;
+    font-size: 18px;
+    margin-bottom: 30px;
+    color: #4ecdc4;
+    font-style: italic;
 }
 
 .instructions strong {

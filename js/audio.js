@@ -489,5 +489,101 @@ class AudioManager {
             this.stopMusic();
         }
     }
+
+    /**
+     * Start victory music - epic and triumphant
+     */
+    startVictoryMusic() {
+        if (!this.musicEnabled || !this.musicContext) return;
+        
+        this.stopMusic();
+        
+        try {
+            if (this.musicContext.state === 'suspended') {
+                this.musicContext.resume();
+            }
+
+            // Epic victory tempo: 100 BPM
+            const tempo = 100;
+            const beatDuration = 60 / tempo;
+
+            this.musicOscillators = [];
+            
+            // Triumphant bass (low frequency, strong)
+            const bassOsc = this.musicContext.createOscillator();
+            bassOsc.type = 'sawtooth';
+            bassOsc.frequency.value = 110; // A2
+            const bassGain = this.musicContext.createGain();
+            bassGain.gain.value = 0.25;
+            bassOsc.connect(bassGain);
+            bassGain.connect(this.musicGainNode);
+            this.musicOscillators.push({osc: bassOsc, gain: bassGain});
+
+            // Victory melody (bright and uplifting)
+            const melodyOsc = this.musicContext.createOscillator();
+            melodyOsc.type = 'sine';
+            melodyOsc.frequency.value = 440; // A4
+            const melodyGain = this.musicContext.createGain();
+            melodyGain.gain.value = 0.2;
+            melodyOsc.connect(melodyGain);
+            melodyGain.connect(this.musicGainNode);
+            this.musicOscillators.push({osc: melodyOsc, gain: melodyGain});
+
+            // High frequency layer for epic feel
+            const highOsc = this.musicContext.createOscillator();
+            highOsc.type = 'triangle';
+            highOsc.frequency.value = 880; // A5
+            const highGain = this.musicContext.createGain();
+            highGain.gain.value = 0.15;
+            highOsc.connect(highGain);
+            highGain.connect(this.musicGainNode);
+            this.musicOscillators.push({osc: highOsc, gain: highGain});
+
+            // Start oscillators
+            bassOsc.start();
+            melodyOsc.start();
+            highOsc.start();
+
+            // Create triumphant melody pattern
+            let noteIndex = 0;
+            const bassNotes = [110, 123, 131, 147, 165, 147, 131, 123];
+            const melodyNotes = [440, 494, 523, 587, 659, 587, 523, 494]; // Ascending then descending - triumphant
+            const highNotes = [880, 988, 1047, 1175, 1319, 1175, 1047, 988];
+
+            const playNextNote = () => {
+                if (!this.musicOscillators.length) return;
+
+                this.musicOscillators[0].osc.frequency.setTargetAtTime(
+                    bassNotes[noteIndex], 
+                    this.musicContext.currentTime, 
+                    0.1
+                );
+                this.musicOscillators[1].osc.frequency.setTargetAtTime(
+                    melodyNotes[noteIndex], 
+                    this.musicContext.currentTime, 
+                    0.1
+                );
+                this.musicOscillators[2].osc.frequency.setTargetAtTime(
+                    highNotes[noteIndex], 
+                    this.musicContext.currentTime, 
+                    0.1
+                );
+
+                noteIndex = (noteIndex + 1) % bassNotes.length;
+                
+                setTimeout(() => {
+                    if (this.musicOscillators.length) {
+                        playNextNote();
+                    }
+                }, beatDuration * 1000);
+            };
+
+            playNextNote();
+
+            this.currentMusic = 'victory';
+        } catch (err) {
+            console.debug('Victory music start failed:', err);
+        }
+    }
 }
 

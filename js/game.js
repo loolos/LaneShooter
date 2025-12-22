@@ -8,7 +8,7 @@ class Game {
         this.setupCanvas();
 
         // Game state
-        this.state = 'menu'; // menu, playing, gameover
+        this.state = 'menu'; // menu, playing, gameover, victory
         this.score = 0;
         this.level = 1;
         this.frameCount = 0;
@@ -41,7 +41,9 @@ class Game {
         this.upgradePanel = document.getElementById('upgradePanel');
         this.menuScreen = document.getElementById('menuScreen');
         this.gameOverScreen = document.getElementById('gameOverScreen');
+        this.victoryScreen = document.getElementById('victoryScreen');
         this.finalScoreElement = document.getElementById('finalScore');
+        this.victoryScoreElement = document.getElementById('victoryScore');
 
         // Setup UI handlers
         document.getElementById('startButton').addEventListener('click', () => this.start());
@@ -193,6 +195,41 @@ class Game {
     /**
      * Game over
      */
+    victory() {
+        if (this.state === 'victory') return; // Prevent multiple calls
+        
+        this.state = 'victory';
+        this.victoryScoreElement.textContent = this.score;
+        this.victoryScreen.style.display = 'flex';
+        
+        // Play epic victory music
+        this.audioManager.startVictoryMusic();
+        
+        // Setup continue handler - any key press continues the game
+        const continueHandler = (e) => {
+            this.continueAfterVictory();
+            document.removeEventListener('keydown', continueHandler);
+            document.removeEventListener('click', continueHandler);
+            document.removeEventListener('touchstart', continueHandler);
+        };
+        
+        document.addEventListener('keydown', continueHandler);
+        document.addEventListener('click', continueHandler);
+        document.addEventListener('touchstart', continueHandler);
+    }
+
+    continueAfterVictory() {
+        this.state = 'playing';
+        this.victoryScreen.style.display = 'none';
+        // Resume music
+        if (this.hasCarrier) {
+            this.audioManager.startCarrierMusic();
+        } else {
+            this.audioManager.startBackgroundMusic(this.level);
+        }
+        // Game continues normally, can play infinitely until death
+    }
+
     gameOver() {
         // Don't trigger multiple times
         if (this.state === 'gameover') return;
@@ -530,8 +567,11 @@ class Game {
         let totalRequired = 0;
         
         // Calculate level based on score
+        // Formula: requiredForLevel(n) = (200 + (n - 1) × 50) + n² × 10
         while (true) {
-            const requiredForNext = CONFIG.LEVEL_UP_SCORE + (scoreBasedLevel - 1) * CONFIG.LEVEL_UP_SCORE_INCREMENT;
+            const baseRequired = CONFIG.LEVEL_UP_SCORE + (scoreBasedLevel - 1) * CONFIG.LEVEL_UP_SCORE_INCREMENT;
+            const squaredBonus = scoreBasedLevel * scoreBasedLevel * 10;
+            const requiredForNext = baseRequired + squaredBonus;
             if (this.score >= totalRequired + requiredForNext) {
                 totalRequired += requiredForNext;
                 scoreBasedLevel++;
@@ -553,6 +593,11 @@ class Game {
         if (calculatedLevel > this.level) {
             this.level = calculatedLevel;
             this.updateUI();
+            
+            // Check for victory at level 20
+            if (this.level >= 20 && this.state === 'playing') {
+                this.victory();
+            }
         }
     }
 
