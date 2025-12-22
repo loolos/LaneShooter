@@ -73,10 +73,10 @@ class Game {
     setupCanvas() {
         const container = this.canvas.parentElement;
         const containerRect = container.getBoundingClientRect();
-        
+
         // Use container size for mobile, or fixed size for desktop
         const isMobile = window.innerWidth <= 900;
-        
+
         if (isMobile) {
             // Mobile: use full container size
             this.canvas.width = containerRect.width;
@@ -96,7 +96,7 @@ class Game {
             // Reset to original lane positions
             CONFIG.LANE_POSITIONS = [200, 600];
         }
-        
+
         // Update player position if game is running
         if (this.player && this.state === 'playing') {
             this.player.targetX = CONFIG.LANE_POSITIONS[this.player.laneIndex];
@@ -111,7 +111,7 @@ class Game {
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
             const code = e.code.toLowerCase();
-            
+
             // Track if key was just pressed (not already held)
             if (!this.keys[key]) {
                 this.keysPressed[key] = true;
@@ -119,7 +119,7 @@ class Game {
             if (!this.keys[code]) {
                 this.keysPressed[code] = true;
             }
-            
+
             this.keys[key] = true;
             this.keys[code] = true;
         });
@@ -174,7 +174,7 @@ class Game {
     start() {
         // Ensure canvas is properly sized
         this.setupCanvas();
-        
+
         this.state = 'playing';
         this.score = 0;
         this.level = 1;
@@ -190,7 +190,7 @@ class Game {
         this.victoryShown = false; // Reset victory flag on new game
         this.victoryLocked = false; // Reset victory lock on new game
         this.carrierSpawnedAtLevels = new Set(); // Reset carrier spawn tracking
-        
+
         // Start background music
         this.audioManager.startBackgroundMusic(this.level);
 
@@ -210,31 +210,31 @@ class Game {
      */
     victory() {
         if (this.state === 'victory') return; // Prevent multiple calls
-        
+
         this.state = 'victory';
         this.victoryScoreElement.textContent = this.score;
         this.victoryScreen.style.display = 'flex';
-        
+
         // Play epic victory music
         this.audioManager.startVictoryMusic();
-        
+
         // Lock screen for 3 seconds to prevent quick skipping
         this.victoryLocked = true;
         setTimeout(() => {
             this.victoryLocked = false;
         }, 3000); // 3 seconds lock
-        
+
         // Setup continue handler - any key press continues the game (only after lock)
         const continueHandler = (e) => {
             // Ignore input if still locked
             if (this.victoryLocked) return;
-            
+
             this.continueAfterVictory();
             document.removeEventListener('keydown', continueHandler);
             document.removeEventListener('click', continueHandler);
             document.removeEventListener('touchstart', continueHandler);
         };
-        
+
         document.addEventListener('keydown', continueHandler);
         document.addEventListener('click', continueHandler);
         document.addEventListener('touchstart', continueHandler);
@@ -255,16 +255,16 @@ class Game {
     gameOver() {
         // Don't trigger multiple times
         if (this.state === 'gameover') return;
-        
+
         // Stop music when game over
         this.audioManager.stopMusic();
-        
+
         // Create player death explosion effect
         if (this.player) {
             const explosion = new ExplosionEffect(this.player.x, this.player.y, 'large');
             this.effects.push(explosion);
         }
-        
+
         // Delay game over screen to show explosion
         setTimeout(() => {
             this.state = 'gameover';
@@ -302,14 +302,14 @@ class Game {
         // Increase spawn rate with level - slow gradual increase
         // Uses square root for smoother progression: level 1 = 1.0x, level 5 = 1.4x, level 10 = 1.73x
         const spawnRate = CONFIG.ENEMY_SPAWN_RATE * (1 + Math.sqrt(this.level - 1) * 0.15);
-        
+
         if (Math.random() < spawnRate) {
             const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
             const x = CONFIG.LANE_POSITIONS[laneIndex];
             const enemy = EnemyFactory.createRandom(x, -40, laneIndex, this.level);
             this.enemies.push(enemy);
         }
-        
+
         // Spawn carrier enemy occasionally at level 5+ (if not at forced levels 5, 10, 15)
         const carrierLevels = [5, 10, 15];
         if (this.level >= 5 && !carrierLevels.includes(this.level)) {
@@ -346,7 +346,7 @@ class Game {
         // Always update effects even after game over to show death animation
         this.effects.forEach(effect => effect.update());
         this.effects = this.effects.filter(effect => effect.active);
-        
+
         // Update level up text
         if (this.levelUpText && this.levelUpText.active) {
             this.levelUpText.lifetime++;
@@ -367,14 +367,14 @@ class Game {
                 this.levelUpText.active = false;
             }
         }
-        
+
         // If victory state, pause all game logic (only update levelUpText if needed)
         if (this.state === 'victory') {
             return; // Completely pause game during victory screen
         }
-        
+
         if (this.state !== 'playing') return;
-        
+
         // Update elapsed time
         if (this.gameStartTime > 0) {
             this.elapsedTime = Math.floor((Date.now() - this.gameStartTime) / 1000); // Convert to seconds
@@ -385,7 +385,7 @@ class Game {
 
         // Update player
         this.player.update();
-        
+
         // Auto-shoot
         if (this.player) {
             this.player.shoot(this.audioManager);
@@ -411,17 +411,17 @@ class Game {
                 enemy.speed = enemy.baseSpeed;
             }
             enemy.update();
-            
+
             // Handle carrier enemy spawning
             if (enemy.type === 'carrier' && enemy.shouldSpawnEnemy()) {
                 // Spawn a random enemy from the carrier (equal probability, no carrier)
                 const spawnX = enemy.x;
                 const spawnY = enemy.y + enemy.height / 2 + 20; // Spawn below the carrier
-                
+
                 // Create spawn animation effect
                 const spawnEffect = EffectManager.createEffect(spawnX, spawnY, 'spawn');
                 this.effects.push(spawnEffect);
-                
+
                 // Randomly select from non-carrier enemy types with equal probability
                 const enemyTypes = ['basic', 'fast', 'tank', 'swarm', 'formation'];
                 const randomType = enemyTypes[randomInt(0, enemyTypes.length - 1)];
@@ -451,65 +451,99 @@ class Game {
         if (this.player) {
             const bulletCount = this.player.bullets.length;
             const enemyCount = this.enemies.length;
-            
+
             // Safety check: prevent infinite loops
             if (bulletCount > 100 || enemyCount > 100) {
                 console.warn(`WARNING: Unusually high entity count - Bullets: ${bulletCount}, Enemies: ${enemyCount}`);
             }
-            
+
             this.player.bullets.forEach((bullet, bulletIndex) => {
                 if (!bullet.active) return; // Skip already inactive bullets
-                
+
                 this.enemies.forEach((enemy, enemyIndex) => {
                     if (!enemy.active) return; // Skip inactive enemies
-                    
-                    // For formation enemies, only check collision with bottom row units
+
+                    // For formation/swarm enemies, check collision with the entire bottom row as a solid block
+                    // This prevents bullets from passing through gaps where units were destroyed
                     let collisionDetected = false;
-                    if (enemy.type === 'formation' && enemy.units) {
-                        // Get alive units
+
+                    if ((enemy.type === 'formation' || enemy.type === 'swarm') && enemy.units) {
+                        // Get alive units to find which row is the bottom-most active one
                         const aliveUnits = enemy.units.filter(u => u.health > 0);
+
                         if (aliveUnits.length > 0) {
-                            // Find the bottommost row (highest row number)
+                            // Find the bottommost row index (highest row number)
                             const maxRow = Math.max(...aliveUnits.map(u => u.row));
-                            // Get units in the bottommost row only
-                            const bottomRowUnits = aliveUnits.filter(u => u.row === maxRow);
-                            
-                            // Check collision with each bottom row unit
-                            const bulletBounds = bullet.getBounds();
-                            for (const unit of bottomRowUnits) {
-                                // Calculate unit position
+
+                            // Calculate the bounding box for this entire row (solid block)
+                            let rowX, rowY, rowWidth, rowHeight;
+
+                            if (enemy.type === 'formation') {
+                                // For formation, the row width is the full formation width
                                 const totalWidth = (enemy.cols * enemy.enemyWidth) + ((enemy.cols - 1) * enemy.spacing);
                                 const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
-                                const startX = enemy.x - totalWidth / 2;
+
+                                // Row Y position
                                 const startY = enemy.y - totalHeight / 2;
-                                const unitX = startX + (unit.col * (enemy.enemyWidth + enemy.spacing)) + (enemy.enemyWidth / 2);
-                                const unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
-                                
-                                // Check collision with this unit
-                                const unitBounds = {
-                                    x: unitX - enemy.enemyWidth / 2,
-                                    y: unitY - enemy.enemyHeight / 2,
-                                    width: enemy.enemyWidth,
-                                    height: enemy.enemyHeight
-                                };
-                                
-                                if (checkCollision(bulletBounds, unitBounds)) {
-                                    collisionDetected = true;
-                                    break;
+                                rowY = startY + (maxRow * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
+
+                                // Row box center X is same as enemy X, width is total width
+                                rowX = enemy.x;
+                                rowWidth = totalWidth;
+                                rowHeight = enemy.enemyHeight;
+
+                            } else { // swarm
+                                // For swarm, find the Y of the row and the min/max X of units in that row (original positions)
+                                // We use ALL units in that row (even dead ones) to determine the "span" of the row
+                                const rowUnits = enemy.units.filter(u => u.row === maxRow);
+
+                                if (rowUnits.length > 0) {
+                                    // Calculate Y
+                                    const firstUnit = rowUnits[0];
+                                    rowY = enemy.y + firstUnit.offsetY;
+                                    rowHeight = enemy.unitSize || 15;
+
+                                    // Calculate X span
+                                    // Swarm units are centered relative to enemy.x
+                                    // We need to find the full width of this row
+                                    const minOffsetX = Math.min(...rowUnits.map(u => u.offsetX));
+                                    const maxOffsetX = Math.max(...rowUnits.map(u => u.offsetX));
+
+                                    rowWidth = (maxOffsetX - minOffsetX) + rowHeight; // Add unit size
+                                    rowX = enemy.x + (minOffsetX + maxOffsetX) / 2; // Center of the span
+                                } else {
+                                    // Fallback (shouldn't happen if maxRow came from aliveUnits)
+                                    rowX = enemy.x;
+                                    rowY = enemy.y;
+                                    rowWidth = enemy.width;
+                                    rowHeight = enemy.height;
                                 }
+                            }
+
+                            // Create collision bounds for the row
+                            const rowBounds = {
+                                x: rowX - rowWidth / 2,
+                                y: rowY - rowHeight / 2,
+                                width: rowWidth,
+                                height: rowHeight
+                            };
+
+                            // Check collision
+                            if (checkCollision(bullet.getBounds(), rowBounds)) {
+                                collisionDetected = true;
                             }
                         }
                     } else {
                         // For other enemies, use normal collision detection
                         collisionDetected = checkCollision(bullet.getBounds(), enemy.getBounds());
                     }
-                    
+
                     if (collisionDetected) {
                         bullet.active = false;
-                        
+
                         // Calculate actual damage based on bullet power and enemy type
                         const actualDamage = bullet.getDamage(enemy);
-                        
+
                         // Store unit positions before damage for formation/swarm enemies
                         let destroyedUnitPositions = [];
                         if ((enemy.type === 'formation' || enemy.type === 'swarm') && enemy.units) {
@@ -532,28 +566,28 @@ class Game {
                                 }
                             });
                         }
-                        
+
                         const result = enemy.takeDamage(actualDamage);
                         const unitsKilled = result.unitsKilled || 0;
-                        
+
                         // Give score and experience for each unit killed (Formation/Swarm)
                         if (unitsKilled > 0 && (enemy.type === 'formation' || enemy.type === 'swarm')) {
                             // Score: proportional to unit health, independent of total count
                             const unitScore = enemy.healthPerUnit * CONFIG.SCORE_PER_ENEMY;
-                            
+
                             // Give score for each killed unit
                             this.score += unitScore * unitsKilled;
-                            
+
                             // Swarm/Formation: each unit has 0.5 (50%) chance to drop XP
                             const experienceChance = 0.5;
-                            
+
                             // Queue kill accent for each unit killed (but limit to avoid spam)
                             // Only queue accent for first few units to avoid overwhelming the beat sync
                             const maxAccents = Math.min(unitsKilled, 3);
                             for (let i = 0; i < maxAccents; i++) {
                                 this.audioManager.queueKillAccent(enemy.type, 0.5);
                             }
-                            
+
                             for (let i = 0; i < unitsKilled; i++) {
                                 // Chance to gain experience from each unit
                                 if (Math.random() < experienceChance) {
@@ -561,13 +595,13 @@ class Game {
                                 }
                             }
                         }
-                        
+
                         if (result.destroyed) {
                             // Only give score for non-multi-unit enemies (Formation/Swarm already handled above)
                             if (enemy.type !== 'formation' && enemy.type !== 'swarm') {
                                 this.score += enemy.scoreValue;
                             }
-                            
+
                             // Give experience when enemy is completely destroyed (for non-multi-unit enemies)
                             // Multi-unit enemies already handled above
                             if (enemy.type !== 'formation' && enemy.type !== 'swarm') {
@@ -582,16 +616,16 @@ class Game {
                                 } else if (enemy.type === 'carrier') {
                                     dropRate = 1.0; // 100%
                                 }
-                                
+
                                 // Check if should drop experience
                                 if (Math.random() < dropRate) {
                                     this.gainExperienceFromEnemy(enemy, 0);
                                 }
                             }
-                            
+
                             // Play enemy-specific death sound
                             this.playEnemyDeathSound(enemy.type);
-                            
+
                             // Queue kill accent for beat synchronization
                             // Intensity based on enemy type
                             let accentIntensity = 0.5;
@@ -603,16 +637,16 @@ class Game {
                                 accentIntensity = 0.4; // Standard accent
                             }
                             this.audioManager.queueKillAccent(enemy.type, accentIntensity);
-                            
+
                             // Create destruction effect
                             const effect = EffectManager.createEffect(enemy.x, enemy.y, enemy.type);
                             this.effects.push(effect);
-                            
+
                             this.updateUI();
                         } else if (unitsKilled > 0) {
                             // Play hit sound even if not fully destroyed
                             this.audioManager.play('hit');
-                            
+
                             // Create effects for destroyed units
                             destroyedUnitPositions.forEach((pos, index) => {
                                 if (index < unitsKilled) {
@@ -620,7 +654,7 @@ class Game {
                                     this.effects.push(effect);
                                 }
                             });
-                            
+
                             this.updateUI();
                         }
                         return; // Bullet hit, no need to check other enemies
@@ -651,7 +685,7 @@ class Game {
                             unitX = enemy.x + unit.offsetX;
                             unitY = enemy.y + unit.offsetY;
                         }
-                        
+
                         // Check collision with unit's actual bounds
                         let unitWidth, unitHeight;
                         if (enemy.type === 'formation') {
@@ -667,7 +701,7 @@ class Game {
                             width: unitWidth,
                             height: unitHeight
                         };
-                        
+
                         if (checkCollision(this.player.getBounds(), unitBounds)) {
                             collisionDetected = true;
                             break;
@@ -689,16 +723,16 @@ class Game {
         this.powerups.forEach(powerup => {
             if (checkCollision(this.player.getBounds(), powerup.getBounds())) {
                 powerup.active = false;
-                
+
                 if (powerup.type === 'experience') {
                     // Handle experience powerup
                     const oldLevel = this.player.getUpgradeLevel(powerup.upgradeType);
                     const leveledUp = powerup.apply(this.player);
                     const newLevel = this.player.getUpgradeLevel(powerup.upgradeType);
-                    
+
                     // Show XP text for experience powerup
                     this.xpTexts.push(new XPText(powerup.x, powerup.y, powerup.experienceAmount, powerup.upgradeType));
-                    
+
                     // If leveled up, show level up effect
                     if (leveledUp) {
                         // Could add level up effect here
@@ -708,16 +742,16 @@ class Game {
                     const oldLevel = this.player.getUpgradeLevel(powerup.type);
                     powerup.apply(this.player);
                     const newLevel = this.player.getUpgradeLevel(powerup.type);
-                    
+
                     // Show XP text for powerup
                     this.xpTexts.push(new XPText(powerup.x, powerup.y, powerup.experienceAmount || 5, powerup.type));
-                    
+
                     // If leveled up, show level up effect
                     if (newLevel > oldLevel) {
                         // Could add level up effect here
                     }
                 }
-                
+
                 this.audioManager.play('powerup');
                 this.updateUI();
             }
@@ -728,7 +762,7 @@ class Game {
         // Time contribution: +1 level every 30 seconds
         let scoreBasedLevel = 1;
         let totalRequired = 0;
-        
+
         // Calculate level based on score
         // Formula: requiredForLevel(n) = (300 + (n - 1) × 100) + n² × 10
         while (true) {
@@ -742,25 +776,25 @@ class Game {
                 break;
             }
         }
-        
+
         // Calculate level based on time (1 level per 30 seconds)
         const timeBasedLevel = 1 + Math.floor(this.elapsedTime / 30);
-        
+
         // Combined level: take the higher of score-based or time-based, but also consider both
         // Formula: max(scoreLevel, timeLevel) + bonus from having both
         const baseLevel = Math.max(scoreBasedLevel, timeBasedLevel);
         // Bonus: if both score and time contribute, add a small bonus
         const bothContribute = scoreBasedLevel > 1 && timeBasedLevel > 1;
         const calculatedLevel = baseLevel + (bothContribute ? Math.floor(Math.min(scoreBasedLevel, timeBasedLevel) / 3) : 0);
-        
+
         if (calculatedLevel > this.level) {
             const oldLevel = this.level;
             this.level = calculatedLevel;
             this.updateUI();
-            
+
             // Level up effect: clear bottom half of screen enemies
             this.onLevelUp(oldLevel);
-            
+
             // Check for victory at level 20 (only show once)
             if (this.level >= 20 && this.state === 'playing' && !this.victoryShown) {
                 this.victoryShown = true;
@@ -801,14 +835,14 @@ class Game {
 
         // Draw XP texts
         this.xpTexts.forEach(xpText => xpText.draw(this.ctx));
-        
+
         // Draw level up text
         if (this.levelUpText && this.levelUpText.active) {
             this.ctx.save();
             this.ctx.globalAlpha = this.levelUpText.alpha;
             this.ctx.translate(this.levelUpText.x, this.levelUpText.y);
             this.ctx.scale(this.levelUpText.scale, this.levelUpText.scale);
-            
+
             // Draw with glow effect
             this.ctx.shadowColor = '#ffd700';
             this.ctx.shadowBlur = 20;
@@ -818,10 +852,10 @@ class Game {
             this.ctx.lineWidth = 4;
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
-            
+
             this.ctx.strokeText(this.levelUpText.text, 0, 0);
             this.ctx.fillText(this.levelUpText.text, 0, 0);
-            
+
             this.ctx.restore();
         }
     }
@@ -839,15 +873,15 @@ class Game {
      */
     onLevelUp(oldLevel) {
         if (!this.canvas) return;
-        
+
         const canvasHeight = this.canvas.height;
         const bottomHalfY = canvasHeight / 2; // Bottom half starts at middle of screen
-        
+
         // Find enemies in bottom half of screen
         const enemiesToDestroy = [];
         this.enemies.forEach(enemy => {
             if (!enemy.active) return;
-            
+
             // Check if enemy is in bottom half (y > bottomHalfY)
             // For multi-unit enemies, check if any unit is in bottom half
             if (enemy.type === 'formation' || enemy.type === 'swarm') {
@@ -864,7 +898,7 @@ class Game {
                     }
                     return unitY > bottomHalfY;
                 });
-                
+
                 if (hasUnitInBottomHalf) {
                     enemiesToDestroy.push(enemy);
                 }
@@ -875,7 +909,7 @@ class Game {
                 }
             }
         });
-        
+
         // Destroy enemies in bottom half (no XP gain)
         enemiesToDestroy.forEach(enemy => {
             // Create explosion effects
@@ -895,7 +929,7 @@ class Game {
                         unitX = enemy.x + unit.offsetX;
                         unitY = enemy.y + unit.offsetY;
                     }
-                    
+
                     if (unitY > bottomHalfY) {
                         const effect = EffectManager.createEffect(unitX, unitY, enemy.type === 'formation' ? 'formation' : 'swarm');
                         this.effects.push(effect);
@@ -906,11 +940,11 @@ class Game {
                 const effect = EffectManager.createEffect(enemy.x, enemy.y, enemy.type);
                 this.effects.push(effect);
             }
-            
+
             // Mark enemy as destroyed (no XP, no score)
             enemy.active = false;
         });
-        
+
         // Show "Level Up!" text in center of screen
         const centerX = this.canvas.width / 2;
         const centerY = this.canvas.height / 2;
@@ -924,10 +958,10 @@ class Game {
             scale: 1.0,
             alpha: 1.0
         };
-        
+
         // Play level up sound (if available)
         this.audioManager.play('powerup');
-        
+
         // Force spawn carrier at specific levels (5, 10, 15)
         const carrierLevels = [5, 10, 15];
         if (carrierLevels.includes(this.level)) {
@@ -958,7 +992,7 @@ class Game {
 
         // Check for carrier status
         const hasCarrier = this.enemies.some(e => e.type === 'carrier' && e.active);
-        
+
         // If carrier status changed, switch music
         if (hasCarrier !== this.hasCarrier) {
             this.hasCarrier = hasCarrier;
@@ -976,14 +1010,14 @@ class Game {
             this.currentMusicLevel = this.level;
             this.audioManager.startBackgroundMusic(this.level);
         }
-        
+
         // Calculate and update tension for dynamic music (only if not carrier music)
         if (!this.hasCarrier && this.audioManager.currentMusic === 'background') {
             const tension = this.calculateTension();
             this.audioManager.updateMusicTension(tension);
         }
     }
-    
+
     /**
      * Calculate game tension based on enemies, level, and distance threat
      * @returns {number} Tension value (0-1)
@@ -991,11 +1025,11 @@ class Game {
     calculateTension() {
         const activeEnemies = this.enemies.filter(e => e.active);
         const enemyCount = activeEnemies.length;
-        
+
         // 1. Enemy count component (0-0.3)
         const maxEnemies = 15; // Assume 15 enemies is "full screen"
         const enemyCountComponent = Math.min(enemyCount / maxEnemies, 1.0) * 0.3;
-        
+
         // 2. Dangerous enemy weight component (0-0.35)
         const enemyWeights = {
             'carrier': 3.0,
@@ -1005,31 +1039,31 @@ class Game {
             'fast': 1.2,
             'basic': 1.0
         };
-        
+
         let totalWeight = 0;
         activeEnemies.forEach(enemy => {
             totalWeight += enemyWeights[enemy.type] || 1.0;
         });
-        
+
         const maxWeight = 10; // Normalize to max weight
         const enemyWeightComponent = Math.min(totalWeight / maxWeight, 1.0) * 0.35;
-        
+
         // 3. Level component (0-0.25)
         const maxLevel = 20;
         const levelComponent = Math.min((this.level - 1) / (maxLevel - 1), 1.0) * 0.25;
-        
+
         // 4. Distance threat component (0-0.1)
         // Enemies in bottom half of screen are more threatening
         const canvasHeight = this.canvas.height;
         const bottomHalfY = canvasHeight / 2;
         const bottomHalfEnemies = activeEnemies.filter(e => e.y > bottomHalfY);
-        const distanceThreatComponent = enemyCount > 0 
-            ? (bottomHalfEnemies.length / enemyCount) * 0.1 
+        const distanceThreatComponent = enemyCount > 0
+            ? (bottomHalfEnemies.length / enemyCount) * 0.1
             : 0;
-        
+
         // Total tension
         const tension = enemyCountComponent + enemyWeightComponent + levelComponent + distanceThreatComponent;
-        
+
         return Math.max(0, Math.min(1, tension));
     }
 
@@ -1047,7 +1081,7 @@ class Game {
             'swarm': 'swarm',
             'carrier': 'carrier'
         };
-        
+
         const soundName = soundMap[enemyType] || 'hit';
         this.audioManager.play(soundName);
     }
@@ -1062,7 +1096,7 @@ class Game {
         if (!this.player) return;
 
         let xpAmount = 1;
-        
+
         // Tank enemies: XP only depends on level (doubled)
         if (enemy.type === 'tank') {
             // Simple formula: level-based XP for tanks (doubled from original)
@@ -1092,7 +1126,7 @@ class Game {
             } else if (enemy.type === 'carrier') {
                 baseXPPerLevel = 30; // Carrier gives much more
             }
-            
+
             xpAmount = Math.floor(baseXPPerLevel + (this.level - 1) * (baseXPPerLevel / 5));
             xpAmount = Math.max(1, xpAmount);
         }
@@ -1104,7 +1138,7 @@ class Game {
         // Calculate position offset for multiple units
         const offsetX = (unitIndex % 3 - 1) * 20; // Spread horizontally
         const offsetY = Math.floor(unitIndex / 3) * 15; // Stack vertically
-        
+
         // Only create experience powerup if XP amount is large (> level * 5 + 5)
         // Otherwise, directly add experience and show XP text (like before)
         if (xpAmount > this.level * 5 + 5) {
@@ -1116,15 +1150,15 @@ class Game {
             const oldLevel = this.player.getUpgradeLevel(randomType);
             this.player.addExperience(randomType, xpAmount);
             const newLevel = this.player.getUpgradeLevel(randomType);
-            
+
             // Show XP text at enemy position with offset
             this.xpTexts.push(new XPText(enemy.x + offsetX, enemy.y - offsetY, xpAmount, randomType));
-            
+
             // If leveled up, show level up effect
             if (newLevel > oldLevel) {
                 // Could add level up effect here
             }
-            
+
             this.updateUI();
         }
     }
@@ -1135,7 +1169,7 @@ class Game {
     updateUI() {
         this.scoreElement.textContent = this.score;
         this.levelElement.textContent = this.level;
-        
+
         // Update time display
         if (this.timeElement) {
             const minutes = Math.floor(this.elapsedTime / 60);
@@ -1147,41 +1181,41 @@ class Game {
         if (this.player) {
             const upgrades = this.player.getAllUpgrades();
             const upgradeConfig = {
-                'rapidfire': { 
-                    icon: '⚡', 
-                    name: 'Fire Rate', 
+                'rapidfire': {
+                    icon: '⚡',
+                    name: 'Fire Rate',
                     desc: 'Shooting Speed',
-                    color: '#ff6b6b' 
+                    color: '#ff6b6b'
                 },
-                'multishot': { 
-                    icon: '🔫', 
-                    name: 'Multi Shot', 
+                'multishot': {
+                    icon: '🔫',
+                    name: 'Multi Shot',
                     desc: 'Bullet Count',
-                    color: '#4ecdc4' 
+                    color: '#4ecdc4'
                 },
-                'speedboost': { 
-                    icon: '💨', 
-                    name: 'Bullet Power', 
+                'speedboost': {
+                    icon: '💨',
+                    name: 'Bullet Power',
                     desc: 'Attack Power',
-                    color: '#ffe66d' 
+                    color: '#ffe66d'
                 },
-                'lanespeed': { 
-                    icon: '🚀', 
-                    name: 'Lane Speed', 
+                'lanespeed': {
+                    icon: '🚀',
+                    name: 'Lane Speed',
                     desc: 'Movement Speed',
-                    color: '#a29bfe' 
+                    color: '#a29bfe'
                 }
             };
-            
+
             // Clear existing display
             this.upgradePanel.innerHTML = '';
-            
+
             // Add title
             const title = document.createElement('div');
             title.className = 'upgrade-panel-title';
             title.textContent = 'UPGRADES';
             this.upgradePanel.appendChild(title);
-            
+
             // Create upgrade items for all types with progress bars
             const experience = this.player.getAllExperience();
             for (const [type, config] of Object.entries(upgradeConfig)) {
@@ -1189,48 +1223,48 @@ class Game {
                 const currentExp = experience[type] || 0;
                 const requiredExp = this.player.getRequiredExperience(type);
                 const progress = this.player.getExperienceProgress(type);
-                
+
                 const upgradeItem = document.createElement('div');
                 upgradeItem.className = 'upgrade-item' + (level > 0 ? ' has-upgrade' : '');
-                
+
                 const icon = document.createElement('div');
                 icon.className = `upgrade-icon ${type}`;
                 icon.textContent = config.icon;
-                
+
                 const info = document.createElement('div');
                 info.className = 'upgrade-info';
-                
+
                 const name = document.createElement('div');
                 name.className = 'upgrade-name';
                 name.textContent = config.name;
-                
+
                 const desc = document.createElement('div');
                 desc.className = 'upgrade-desc';
                 desc.textContent = config.desc;
-                
+
                 // Progress bar container
                 const progressContainer = document.createElement('div');
                 progressContainer.className = 'upgrade-progress-container';
-                
+
                 const progressBar = document.createElement('div');
                 progressBar.className = 'upgrade-progress-bar';
                 progressBar.style.width = `${progress * 100}%`;
-                
+
                 const progressText = document.createElement('div');
                 progressText.className = 'upgrade-progress-text';
                 progressText.textContent = `${currentExp}/${requiredExp}`;
-                
+
                 progressContainer.appendChild(progressBar);
                 progressContainer.appendChild(progressText);
-                
+
                 info.appendChild(name);
                 info.appendChild(desc);
                 info.appendChild(progressContainer);
-                
+
                 const levelDisplay = document.createElement('div');
                 levelDisplay.className = 'upgrade-level';
                 levelDisplay.textContent = `Lv.${level}`;
-                
+
                 upgradeItem.appendChild(icon);
                 upgradeItem.appendChild(info);
                 upgradeItem.appendChild(levelDisplay);
@@ -1261,18 +1295,18 @@ class Game {
 
         try {
             const perfStart = performance.now();
-            
+
             this.handleInput();
             const inputTime = performance.now() - perfStart;
-            
+
             const updateStart = performance.now();
             this.update();
             const updateTime = performance.now() - updateStart;
-            
+
             const drawStart = performance.now();
             this.draw();
             const drawTime = performance.now() - drawStart;
-            
+
             // Log if any operation takes too long (>16ms for 60fps)
             if (updateTime > 16 || drawTime > 16 || inputTime > 16) {
                 console.warn(`SLOW OPERATION DETECTED - Input: ${inputTime.toFixed(2)}ms, Update: ${updateTime.toFixed(2)}ms, Draw: ${drawTime.toFixed(2)}ms`);
@@ -1287,7 +1321,7 @@ class Game {
 
         requestAnimationFrame((ts) => this.gameLoop(ts));
     }
-    
+
     /**
      * Log system status for debugging
      * @param {number} timestamp - Current timestamp
@@ -1297,14 +1331,14 @@ class Game {
         const updateStart = performance.now();
         // This is called from gameLoop, so we can't measure update() here
         // But we can log what we know
-        
+
         const logData = {
             timestamp: new Date().toISOString(),
             gameTime: this.gameStartTime > 0 ? Math.floor((Date.now() - this.gameStartTime) / 1000) : 0,
             gameState: this.state,
             level: this.level,
             score: this.score,
-            
+
             // Entity counts
             enemyCount: this.enemies.length,
             activeEnemyCount: this.enemies.filter(e => e.active).length,
@@ -1313,11 +1347,11 @@ class Game {
             bulletCount: this.player ? this.player.bullets.length : 0,
             effectCount: this.effects.length,
             xpTextCount: this.xpTexts.length,
-            
+
             // Performance
             fps: Math.round(this.lastLogFrameCount / (this.logInterval / 1000)),
             frameCount: this.frameCount,
-            
+
             // Audio system status
             audioEnabled: this.audioManager.enabled,
             musicEnabled: this.audioManager.musicEnabled,
@@ -1329,22 +1363,22 @@ class Game {
             patternIntervals: Object.keys(this.audioManager.patternIntervals || {}),
             beatSyncInterval: this.audioManager.beatSyncInterval !== null,
             killAccentQueue: (this.audioManager.killAccentQueue || []).length,
-            
+
             // Enemy type breakdown
             enemyTypes: this.getEnemyTypeBreakdown(),
-            
+
             // Player status
             playerUpgrades: this.player ? this.player.getAllUpgrades() : null,
-            
+
             // Memory (if available)
             memory: this.getMemoryInfo()
         };
-        
+
         console.log('=== GAME STATUS LOG ===');
         console.log(JSON.stringify(logData, null, 2));
         console.log('=======================');
     }
-    
+
     /**
      * Get breakdown of enemy types
      * @returns {object} Enemy type counts
@@ -1358,7 +1392,7 @@ class Game {
         });
         return breakdown;
     }
-    
+
     /**
      * Get memory information if available
      * @returns {object} Memory info

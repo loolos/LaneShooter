@@ -23,7 +23,7 @@ class Enemy {
      */
     update() {
         this.y += this.speed;
-        
+
         // Deactivate if off screen
         if (this.y > CONFIG.CANVAS_HEIGHT + this.height) {
             this.active = false;
@@ -40,7 +40,7 @@ class Enemy {
         ctx.save();
         ctx.shadowColor = this.color;
         ctx.shadowBlur = 10;
-        
+
         // Draw enemy as a spaceship (triangle pointing down)
         ctx.fillStyle = this.color;
         ctx.beginPath();
@@ -50,13 +50,13 @@ class Enemy {
         ctx.lineTo(this.x + this.width / 2, this.y - this.height / 2); // Top right
         ctx.closePath();
         ctx.fill();
-        
+
         // Draw cockpit/cannon detail
         ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.beginPath();
         ctx.arc(this.x, this.y - this.height / 4, this.width / 6, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Draw wing details
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.lineWidth = 1;
@@ -66,7 +66,7 @@ class Enemy {
         ctx.moveTo(this.x + this.width / 3, this.y);
         ctx.lineTo(this.x + this.width / 2, this.y - this.height / 3);
         ctx.stroke();
-        
+
         ctx.restore();
     }
 
@@ -106,7 +106,7 @@ class BasicEnemy extends Enemy {
         this.type = 'basic';
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.6; // Reduced to 60% of original
         this.speed = this.baseSpeed;
-        
+
         // Health increases with level: base 1, +1 every 2 levels
         // Late game: additional health boost (after level 10, health increases faster)
         // Calculate health with late game boost integrated into formula
@@ -115,17 +115,17 @@ class BasicEnemy extends Enemy {
             : 1 + Math.floor((level - 1) / 2);
         this.health = this.maxHealth;
         this.initialHealth = 1; // Base health for color calculation
-        
+
         // Update color based on health
         this.updateColor();
     }
-    
+
     /**
      * Update color based on remaining health
      */
     updateColor() {
         const healthPercent = this.health / this.maxHealth;
-        
+
         // Color changes from bright red (healthy) to dark red (damaged)
         // Bright red: rgb(255, 71, 87) -> Dark red: rgb(100, 0, 0)
         const r = Math.floor(100 + (255 - 100) * healthPercent);
@@ -133,21 +133,21 @@ class BasicEnemy extends Enemy {
         const b = Math.floor(0 + 87 * healthPercent);
         this.color = `rgb(${r}, ${g}, ${b})`;
     }
-    
+
     /**
      * Take damage and update color
      */
     takeDamage(damage) {
         this.health -= damage;
         this.updateColor();
-        
+
         if (this.health <= 0) {
             this.active = false;
             return { destroyed: true, unitsKilled: 1 };
         }
         return { destroyed: false, unitsKilled: 0 };
     }
-    
+
     /**
      * Draw basic enemy as a simple fighter
      */
@@ -157,7 +157,7 @@ class BasicEnemy extends Enemy {
         ctx.save();
         ctx.shadowColor = this.color;
         ctx.shadowBlur = 8;
-        
+
         // Draw main body (triangle)
         ctx.fillStyle = this.color;
         ctx.beginPath();
@@ -167,13 +167,13 @@ class BasicEnemy extends Enemy {
         ctx.lineTo(this.x + this.width / 2, this.y - this.height / 2);
         ctx.closePath();
         ctx.fill();
-        
+
         // Draw cockpit
         ctx.fillStyle = 'rgba(255, 200, 200, 0.6)';
         ctx.beginPath();
         ctx.arc(this.x, this.y - this.height / 4, this.width / 8, 0, Math.PI * 2);
         ctx.fill();
-        
+
         ctx.restore();
     }
 }
@@ -192,7 +192,7 @@ class FastEnemy extends Enemy {
         this.width = 35; // Slightly smaller, more agile
         this.height = 35;
     }
-    
+
     /**
      * Draw fast enemy as a sleek interceptor
      */
@@ -202,7 +202,7 @@ class FastEnemy extends Enemy {
         ctx.save();
         ctx.shadowColor = this.color;
         ctx.shadowBlur = 10;
-        
+
         // Draw sleek pointed fighter
         ctx.fillStyle = this.color;
         ctx.beginPath();
@@ -214,7 +214,7 @@ class FastEnemy extends Enemy {
         ctx.lineTo(this.x + this.width / 2.5, this.y - this.height / 2);
         ctx.closePath();
         ctx.fill();
-        
+
         // Draw afterburner effect
         ctx.fillStyle = 'rgba(255, 200, 0, 0.6)';
         ctx.beginPath();
@@ -223,13 +223,13 @@ class FastEnemy extends Enemy {
         ctx.lineTo(this.x + this.width / 8, this.y + this.height / 2);
         ctx.closePath();
         ctx.fill();
-        
+
         // Draw cockpit
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.beginPath();
         ctx.arc(this.x, this.y - this.height / 5, this.width / 10, 0, Math.PI * 2);
         ctx.fill();
-        
+
         ctx.restore();
     }
 }
@@ -243,23 +243,23 @@ class TankEnemy extends Enemy {
         this.type = 'tank';
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.5 * 0.6; // Slower movement, reduced to 60% (0.3x total)
         this.speed = this.baseSpeed;
-        
+
         // Health increases with level: A + B*LVL + C*LVL^2
         // Formula: 5 + 3*LVL + (1/4)*LVL^2
         const A = 8;    // Constant term
         const B = 4;    // Linear coefficient
-        const C = 1/3;  // Quadratic coefficient
-        const D = 1/30; // Cubic coefficient
+        const C = 1 / 3;  // Quadratic coefficient
+        const D = 1 / 30; // Cubic coefficient
         const maxHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
         this.maxHealth = Math.floor(maxHealth);
         this.health = this.maxHealth;
         // Calculate initial health using same formula (Level 1)
         const level1Health = A + B * 1 + C * 1 * 1;
         this.initialHealth = Math.floor(level1Health); // Base health for color calculation (Level 1: 8.25 -> 8)
-        
+
         // Increased score value for more experience
         this.scoreValue = CONFIG.SCORE_PER_ENEMY * (5 + (level - 1) * 1); // More score (increased from 3 + 0.5)
-        
+
         // Size scales with sqrt of maxHealth: base 50x50, proportional to sqrt(maxHealth)
         // Use sqrt of maxHealth relative to base size
         const baseSize = 50;
@@ -267,17 +267,17 @@ class TankEnemy extends Enemy {
         const sizeMultiplier = Math.pow(this.maxHealth / baseHealthForSize, 0.3);
         this.width = Math.floor(baseSize * sizeMultiplier);
         this.height = Math.floor(baseSize * sizeMultiplier);
-        
+
         // Update color based on health
         this.updateColor();
     }
-    
+
     /**
      * Update color based on health
      */
     updateColor() {
         const healthRatio = this.maxHealth / this.initialHealth;
-        
+
         // Color changes from blue to purple to red as health increases
         if (healthRatio <= 1.5) {
             // Blue to purple
@@ -292,7 +292,7 @@ class TankEnemy extends Enemy {
             this.color = '#ff0000';
         }
     }
-    
+
     /**
      * Draw tank enemy as a heavy battleship
      */
@@ -302,7 +302,7 @@ class TankEnemy extends Enemy {
         ctx.save();
         ctx.shadowColor = this.color;
         ctx.shadowBlur = 12;
-        
+
         // Draw main body (wider, more armored)
         ctx.fillStyle = this.color;
         ctx.beginPath();
@@ -314,7 +314,7 @@ class TankEnemy extends Enemy {
         ctx.lineTo(this.x + this.width / 2, this.y - this.height / 3);
         ctx.closePath();
         ctx.fill();
-        
+
         // Draw armor plates
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.lineWidth = 2;
@@ -324,28 +324,28 @@ class TankEnemy extends Enemy {
         ctx.moveTo(this.x - this.width / 4, this.y);
         ctx.lineTo(this.x + this.width / 4, this.y);
         ctx.stroke();
-        
+
         // Draw cannon/weapon mount
         ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
         ctx.beginPath();
         ctx.arc(this.x, this.y - this.height / 3, this.width / 8, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Draw health bar
         const barWidth = this.width;
         const barHeight = 5;
         const barX = this.x - barWidth / 2;
         const barY = this.y - this.height / 2 - 10;
-        
+
         // Background
         ctx.fillStyle = '#333';
         ctx.fillRect(barX, barY, barWidth, barHeight);
-        
+
         // Health
         const healthPercent = this.health / this.maxHealth;
         ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
         ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
-        
+
         ctx.restore();
     }
 }
@@ -359,35 +359,35 @@ class FormationEnemy extends Enemy {
         this.type = 'formation';
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.9 * 0.6; // Reduced to 60% (0.54x total)
         this.speed = this.baseSpeed;
-        
+
         // New generation system: fixed total health, random rows/cols
         // Total health increases with level: A + B*LVL + C*LVL^2 + D*LVL^3
         // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
         const A = 6;    // Constant term
         const B = 2;    // Linear coefficient
-        const C = 1/20;  // Quadratic coefficient
-        const D = 1/50; // Cubic coefficient
+        const C = 1 / 20;  // Quadratic coefficient
+        const D = 1 / 50; // Cubic coefficient
         const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
-        
+
         // Randomly determine rows and columns within reasonable ranges
         // Rows: 1-4, Columns: 2-8
         const minRows = 1;
         const maxRows = Math.min(4, 1 + Math.floor((level - 1) / 3));
         const minCols = 2;
         const maxCols = Math.min(8, 3 + Math.floor((level - 1) / 2));
-        
+
         // Randomly select rows and columns
         this.rows = randomInt(minRows, maxRows);
         this.cols = randomInt(minCols, maxCols);
-        
+
         // Calculate health per unit: totalHealth / (rows * cols)
         // Ensure at least 1 health per unit
         const totalUnits = this.rows * this.cols;
         this.healthPerUnit = Math.max(1, Math.floor(totalHealth / totalUnits));
-        
+
         // Recalculate actual total health (may be slightly different due to rounding)
         const actualTotalHealth = this.healthPerUnit * totalUnits;
-        
+
         // Initialize units grid - each unit has individual health
         this.units = [];
         for (let row = 0; row < this.rows; row++) {
@@ -400,15 +400,15 @@ class FormationEnemy extends Enemy {
                 });
             }
         }
-        
+
         this.maxUnits = this.units.length;
         this.enemyCount = this.maxUnits;
         this.maxEnemies = this.maxUnits;
-        
+
         // Store actual total health
         this.maxHealth = actualTotalHealth;
         this.health = actualTotalHealth;
-        
+
         // Score increases with total health and unit count
         const baseTotalHealth = 3; // Base total health at level 1 (level²/4 + level + 3 = 3.25 ≈ 3)
         const baseScoreMultiplier = 1.5;
@@ -418,17 +418,17 @@ class FormationEnemy extends Enemy {
         this.enemyHeight = 35; // Height of each enemy
         this.spacing = 10; // Spacing between enemies
         this.rowSpacing = 12; // Vertical spacing between rows
-        
+
         // Base color (for shadow)
         this.color = '#ff4757';
     }
-    
+
     /**
      * Get color for a unit based on its health
      */
     getUnitColor(unit) {
         const healthPercent = unit.health / unit.maxHealth;
-        
+
         // Color changes from bright red/orange (healthy) to dark red (damaged)
         if (healthPercent > 0.6) {
             // Bright red to orange
@@ -453,24 +453,24 @@ class FormationEnemy extends Enemy {
         if (!this.active) return;
 
         ctx.save();
-        
+
         // Calculate total width and height
         const totalWidth = (this.cols * this.enemyWidth) + ((this.cols - 1) * this.spacing);
         const totalHeight = (this.rows * this.enemyHeight) + ((this.rows - 1) * this.rowSpacing);
         const startX = this.x - totalWidth / 2;
         const startY = this.y - totalHeight / 2;
-        
+
         // Draw each unit
         for (const unit of this.units) {
             if (unit.health <= 0) continue; // Skip destroyed units
-            
+
             const unitX = startX + (unit.col * (this.enemyWidth + this.spacing)) + (this.enemyWidth / 2);
             const unitY = startY + (unit.row * (this.enemyHeight + this.rowSpacing)) + (this.enemyHeight / 2);
             const unitColor = this.getUnitColor(unit);
-            
+
             ctx.shadowColor = unitColor;
             ctx.shadowBlur = 10;
-            
+
             // Draw fighter shape
             ctx.fillStyle = unitColor;
             ctx.beginPath();
@@ -480,7 +480,7 @@ class FormationEnemy extends Enemy {
             ctx.lineTo(unitX + this.enemyWidth / 2, unitY - this.enemyHeight / 2);
             ctx.closePath();
             ctx.fill();
-            
+
             // Draw wing details
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
             ctx.lineWidth = 1;
@@ -490,14 +490,14 @@ class FormationEnemy extends Enemy {
             ctx.moveTo(unitX + this.enemyWidth / 4, unitY);
             ctx.lineTo(unitX + this.enemyWidth / 2, unitY - this.enemyHeight / 3);
             ctx.stroke();
-            
+
             // Draw cockpit
             ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
             ctx.beginPath();
             ctx.arc(unitX, unitY - this.enemyHeight / 4, this.enemyWidth / 10, 0, Math.PI * 2);
             ctx.fill();
         }
-        
+
         ctx.restore();
     }
 
@@ -510,59 +510,59 @@ class FormationEnemy extends Enemy {
     takeDamage(damage) {
         const oldAliveCount = this.units.filter(u => u.health > 0).length;
         let remainingDamage = damage;
-        
+
         // Keep applying damage until no damage remains or all units are destroyed
         while (remainingDamage > 0) {
             // Get all alive units
             const aliveUnits = this.units.filter(u => u.health > 0);
-            
+
             if (aliveUnits.length === 0) {
                 // All units destroyed
                 this.active = false;
                 return { destroyed: true, unitsKilled: this.maxUnits };
             }
-            
+
             // Find the bottommost row (highest row number)
             const maxRow = Math.max(...aliveUnits.map(u => u.row));
-            
+
             // Get units in the bottommost row
             const bottomRowUnits = aliveUnits.filter(u => u.row === maxRow);
-            
+
             if (bottomRowUnits.length === 0) {
                 // Should not happen, but break to avoid infinite loop
                 break;
             }
-            
+
             // Distribute damage randomly among bottom row units
             while (remainingDamage > 0 && bottomRowUnits.length > 0) {
                 // Randomly select a unit from bottom row
                 const randomIndex = randomInt(0, bottomRowUnits.length - 1);
                 const unit = bottomRowUnits[randomIndex];
-                
+
                 // Apply damage
                 const damageToApply = Math.min(remainingDamage, unit.health);
                 unit.health -= damageToApply;
                 remainingDamage -= damageToApply;
-                
+
                 // Remove unit from bottom row list if destroyed
                 if (unit.health <= 0) {
                     bottomRowUnits.splice(randomIndex, 1);
                 }
             }
         }
-        
+
         // Update total health
         this.health = this.units.reduce((sum, u) => sum + Math.max(0, u.health), 0);
         this.enemyCount = this.units.filter(u => u.health > 0).length;
-        
+
         const newAliveCount = this.enemyCount;
         const unitsKilled = oldAliveCount - newAliveCount;
-        
+
         if (this.health <= 0 || this.enemyCount === 0) {
             this.active = false;
             return { destroyed: true, unitsKilled: unitsKilled };
         }
-        
+
         return { destroyed: false, unitsKilled: unitsKilled };
     }
 
@@ -590,42 +590,42 @@ class SwarmEnemy extends Enemy {
         this.type = 'swarm';
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.8 * 0.6; // Reduced to 60% (0.48x total)
         this.speed = this.baseSpeed;
-        
+
         // New generation system: fixed total health, random rows/cols
         // Total health increases with level: A + B*LVL + C*LVL^2 + D*LVL^3
         // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
         const A = 6;    // Constant term
         const B = 2;    // Linear coefficient
-        const C = 1/20;  // Quadratic coefficient
-        const D = 1/50; // Cubic coefficient
+        const C = 1 / 20;  // Quadratic coefficient
+        const D = 1 / 50; // Cubic coefficient
         const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
-        
+
         // Randomly determine rows and columns within reasonable ranges
         // Rows: 1-3, Columns: 3-5
         const minRows = 1;
         const maxRows = Math.min(3, 1 + Math.floor((level - 1) / 3));
         const minCols = 3;
         const maxCols = Math.min(5, 3 + Math.floor((level - 1) / 2));
-        
+
         // Randomly select rows and columns
         this.rows = randomInt(minRows, maxRows);
         const unitsPerRow = randomInt(minCols, maxCols);
         this.unitsPerRow = unitsPerRow;
         const totalUnits = this.rows * unitsPerRow;
-        
+
         // Calculate health per unit: totalHealth / (rows * cols)
         // Ensure at least 1 health per unit
         this.healthPerUnit = Math.max(1, Math.floor(totalHealth / totalUnits));
-        
+
         // Recalculate actual total health (may be slightly different due to rounding)
         const actualTotalHealth = this.healthPerUnit * totalUnits;
-        
+
         // Initialize units - each unit has individual health and position
         this.units = [];
         this.unitSize = 15; // Size of each unit
         // Increased spread for wider distribution, especially for first row to allow multishot to hit all units
         this.spread = 150; // Spread between units (increased significantly for wider distribution)
-        
+
         for (let row = 0; row < this.rows; row++) {
             for (let col = 0; col < unitsPerRow; col++) {
                 // Use larger spacing for first row to allow multishot coverage
@@ -635,7 +635,7 @@ class SwarmEnemy extends Enemy {
                 const spacingMultiplier = row === 0 ? 1.2 : 1.0; // First row extra spread
                 const offsetX = (col - (unitsPerRow - 1) / 2) * (rowSpread / unitsPerRow) * spacingMultiplier;
                 const offsetY = (row - (this.rows - 1) / 2) * (this.spread / unitsPerRow);
-                
+
                 this.units.push({
                     row: row,
                     col: col,
@@ -646,31 +646,31 @@ class SwarmEnemy extends Enemy {
                 });
             }
         }
-        
+
         this.maxUnits = this.units.length;
         this.unitCount = this.maxUnits;
         this.initialCount = 3; // Base count for reference
-        
+
         // Store actual total health
         this.maxHealth = actualTotalHealth;
         this.health = actualTotalHealth;
-        
+
         // Score increases with total health and unit count
         const baseTotalHealth = 5; // Base total health at level 1
         const baseScoreMultiplier = 2;
         const scoreBonus = (actualTotalHealth - baseTotalHealth) * 0.1 + (this.maxUnits - 3) * 0.2;
         this.scoreValue = CONFIG.SCORE_PER_ENEMY * (baseScoreMultiplier + scoreBonus);
-        
+
         // Base color (for shadow)
         this.color = '#ffa500';
     }
-    
+
     /**
      * Get color for a unit based on its health
      */
     getUnitColor(unit) {
         const healthPercent = unit.health / unit.maxHealth;
-        
+
         // Color changes from bright orange/yellow (healthy) to dark orange (damaged)
         if (healthPercent > 0.6) {
             // Bright orange to yellow
@@ -695,46 +695,46 @@ class SwarmEnemy extends Enemy {
         if (!this.active) return;
 
         ctx.save();
-        
+
         // Draw each unit as an insect
         for (const unit of this.units) {
             if (unit.health <= 0) continue; // Skip destroyed units
-            
+
             const unitX = this.x + unit.offsetX;
             const unitY = this.y + unit.offsetY;
             const unitColor = this.getUnitColor(unit);
-            
+
             // Animated wing flapping effect (subtle)
             const time = Date.now() * 0.01;
             const wingOffset = Math.sin(time + unit.offsetX * 0.1) * 2; // Subtle wing animation
-            
+
             ctx.shadowColor = unitColor;
             ctx.shadowBlur = 6;
-            
+
             // Draw wings (transparent, behind body)
             ctx.strokeStyle = `rgba(255, 200, 100, 0.4)`;
             ctx.fillStyle = `rgba(255, 220, 150, 0.2)`;
             ctx.lineWidth = 1;
-            
+
             // Left wing
             ctx.beginPath();
             ctx.ellipse(unitX - this.unitSize * 0.3, unitY - wingOffset, this.unitSize * 0.4, this.unitSize * 0.25, -0.3, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
-            
+
             // Right wing
             ctx.beginPath();
             ctx.ellipse(unitX + this.unitSize * 0.3, unitY - wingOffset, this.unitSize * 0.4, this.unitSize * 0.25, 0.3, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
-            
+
             // Draw insect body (oval/ellipse shape)
             ctx.fillStyle = unitColor;
             ctx.shadowBlur = 8;
             ctx.beginPath();
             ctx.ellipse(unitX, unitY, this.unitSize * 0.35, this.unitSize * 0.5, 0, 0, Math.PI * 2);
             ctx.fill();
-            
+
             // Draw body segments (insect-like)
             ctx.strokeStyle = `rgba(0, 0, 0, 0.3)`;
             ctx.lineWidth = 1;
@@ -747,13 +747,13 @@ class SwarmEnemy extends Enemy {
             ctx.moveTo(unitX - this.unitSize * 0.2, unitY + this.unitSize * 0.2);
             ctx.lineTo(unitX + this.unitSize * 0.2, unitY + this.unitSize * 0.2);
             ctx.stroke();
-            
+
             // Draw head (slightly larger circle at top)
             ctx.fillStyle = unitColor;
             ctx.beginPath();
             ctx.arc(unitX, unitY - this.unitSize * 0.25, this.unitSize * 0.25, 0, Math.PI * 2);
             ctx.fill();
-            
+
             // Draw eyes (two small dots)
             ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
             ctx.shadowBlur = 3;
@@ -765,7 +765,7 @@ class SwarmEnemy extends Enemy {
             ctx.beginPath();
             ctx.arc(unitX + this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.08, 0, Math.PI * 2);
             ctx.fill();
-            
+
             // Draw antennae (small lines)
             ctx.strokeStyle = unitColor;
             ctx.lineWidth = 1.5;
@@ -777,7 +777,7 @@ class SwarmEnemy extends Enemy {
             ctx.moveTo(unitX + this.unitSize * 0.1, unitY - this.unitSize * 0.35);
             ctx.lineTo(unitX + this.unitSize * 0.2, unitY - this.unitSize * 0.45);
             ctx.stroke();
-            
+
             // Draw small dots at antenna tips
             ctx.fillStyle = unitColor;
             ctx.beginPath();
@@ -787,7 +787,7 @@ class SwarmEnemy extends Enemy {
             ctx.arc(unitX + this.unitSize * 0.2, unitY - this.unitSize * 0.45, 1.5, 0, Math.PI * 2);
             ctx.fill();
         }
-        
+
         ctx.restore();
     }
 
@@ -800,59 +800,59 @@ class SwarmEnemy extends Enemy {
     takeDamage(damage) {
         const oldAliveCount = this.units.filter(u => u.health > 0).length;
         let remainingDamage = damage;
-        
+
         // Keep applying damage until no damage remains or all units are destroyed
         while (remainingDamage > 0) {
             // Get all alive units
             const aliveUnits = this.units.filter(u => u.health > 0);
-            
+
             if (aliveUnits.length === 0) {
                 // All units destroyed
                 this.active = false;
                 return { destroyed: true, unitsKilled: this.maxUnits };
             }
-            
+
             // Find the bottommost row (highest row number)
             const maxRow = Math.max(...aliveUnits.map(u => u.row));
-            
+
             // Get units in the bottommost row
             const bottomRowUnits = aliveUnits.filter(u => u.row === maxRow);
-            
+
             if (bottomRowUnits.length === 0) {
                 // Should not happen, but break to avoid infinite loop
                 break;
             }
-            
+
             // Distribute damage randomly among bottom row units
             while (remainingDamage > 0 && bottomRowUnits.length > 0) {
                 // Randomly select a unit from bottom row
                 const randomIndex = randomInt(0, bottomRowUnits.length - 1);
                 const unit = bottomRowUnits[randomIndex];
-                
+
                 // Apply damage
                 const damageToApply = Math.min(remainingDamage, unit.health);
                 unit.health -= damageToApply;
                 remainingDamage -= damageToApply;
-                
+
                 // Remove unit from bottom row list if destroyed
                 if (unit.health <= 0) {
                     bottomRowUnits.splice(randomIndex, 1);
                 }
             }
         }
-        
+
         // Update total health and count
         this.health = this.units.reduce((sum, u) => sum + Math.max(0, u.health), 0);
         this.unitCount = this.units.filter(u => u.health > 0).length;
-        
+
         const newAliveCount = this.unitCount;
         const unitsKilled = oldAliveCount - newAliveCount;
-        
+
         if (this.health <= 0 || this.unitCount === 0) {
             this.active = false;
             return { destroyed: true, unitsKilled: unitsKilled };
         }
-        
+
         return { destroyed: false, unitsKilled: unitsKilled };
     }
 
@@ -879,33 +879,33 @@ class CarrierEnemy extends Enemy {
         this.type = 'carrier';
         this.baseSpeed = 0; // Stationary - doesn't move
         this.speed = 0;
-        
+
         // Very high health that increases with level (4x original)
         // Health formula: A + B*LVL (only appears at level 5+)
         // Formula: -200 + 80*LVL (equivalent to 200 + (LVL - 5) * 80)
         const A = 100;    // Constant term
         const B = 40;    // Linear coefficient
-        const C = 1/3;  // Quadratic coefficient
-        const D = 1/10; // Cubic coefficient
+        const C = 1 / 3;  // Quadratic coefficient
+        const D = 1 / 10; // Cubic coefficient
         this.maxHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
-        
+
         this.health = this.maxHealth;
         this.initialHealth = 200;
-        
+
         // High score value
         this.scoreValue = CONFIG.SCORE_PER_ENEMY * (10 + (level - 5) * 2);
         this.width = 80;
         this.height = 60;
-        
+
         // Spawning system
         this.spawnCooldown = 0;
         this.spawnInterval = 180; // Spawn every 180 frames (3 seconds at 60fps)
         this.spawnedEnemies = []; // Track spawned enemies for reference
-        
+
         // Color - dark gray/blue for carrier
         this.color = '#4a5568';
     }
-    
+
     /**
      * Update carrier - spawn enemies periodically
      */
@@ -913,10 +913,10 @@ class CarrierEnemy extends Enemy {
         // Don't move (speed = 0)
         // Just update spawn cooldown
         this.spawnCooldown++;
-        
+
         // Carrier doesn't go off screen, so no need to check bounds
     }
-    
+
     /**
      * Check if carrier should spawn an enemy
      * @returns {boolean} - True if should spawn
@@ -924,14 +924,14 @@ class CarrierEnemy extends Enemy {
     shouldSpawnEnemy() {
         return this.spawnCooldown >= this.spawnInterval;
     }
-    
+
     /**
      * Reset spawn cooldown after spawning
      */
     resetSpawnCooldown() {
         this.spawnCooldown = 0;
     }
-    
+
     /**
      * Draw carrier as a large stationary ship
      */
@@ -941,7 +941,7 @@ class CarrierEnemy extends Enemy {
         ctx.save();
         ctx.shadowColor = this.color;
         ctx.shadowBlur = 15;
-        
+
         // Draw main carrier body (large rectangular shape)
         ctx.fillStyle = this.color;
         ctx.fillRect(
@@ -950,7 +950,7 @@ class CarrierEnemy extends Enemy {
             this.width,
             this.height
         );
-        
+
         // Draw carrier deck details
         ctx.fillStyle = 'rgba(100, 100, 120, 0.8)';
         ctx.fillRect(
@@ -959,7 +959,7 @@ class CarrierEnemy extends Enemy {
             this.width - 10,
             this.height / 3
         );
-        
+
         // Draw launch bay (opening at front)
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         ctx.fillRect(
@@ -968,7 +968,7 @@ class CarrierEnemy extends Enemy {
             this.width / 4,
             this.height / 2
         );
-        
+
         // Draw side details
         ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)';
         ctx.lineWidth = 2;
@@ -976,22 +976,22 @@ class CarrierEnemy extends Enemy {
         ctx.moveTo(this.x - this.width / 2, this.y);
         ctx.lineTo(this.x + this.width / 2, this.y);
         ctx.stroke();
-        
+
         // Draw health bar (always visible for carrier)
         const barWidth = this.width + 10;
         const barHeight = 6;
         const barX = this.x - barWidth / 2;
         const barY = this.y - this.height / 2 - 15;
-        
+
         // Background
         ctx.fillStyle = '#333';
         ctx.fillRect(barX, barY, barWidth, barHeight);
-        
+
         // Health
         const healthPercent = this.health / this.maxHealth;
         ctx.fillStyle = healthPercent > 0.6 ? '#00ff00' : healthPercent > 0.3 ? '#ffff00' : '#ff0000';
         ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
-        
+
         // Health text
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 10px Arial';
@@ -1002,7 +1002,7 @@ class CarrierEnemy extends Enemy {
             this.x,
             barY - 8
         );
-        
+
         ctx.restore();
     }
 }
