@@ -464,6 +464,270 @@ class MultiExplosionEffect extends Effect {
 }
 
 /**
+ * Spawn Effect - For carrier spawning enemies
+ */
+class SpawnEffect extends Effect {
+    constructor(x, y) {
+        super(x, y, 'spawn');
+        this.maxLife = 30; // Longer duration for more spectacular effect
+        this.particles = [];
+        this.energyRings = [];
+        this.sparks = [];
+        this.lightning = [];
+        
+        // Create upward particles (enemy emerging) - more particles
+        const particleCount = 24;
+        for (let i = 0; i < particleCount; i++) {
+            this.particles.push({
+                angle: Math.PI / 2 + (Math.random() - 0.5) * 1.2, // Wider spread
+                speed: 1.5 + Math.random() * 3,
+                size: 2 + Math.random() * 4,
+                color: `hsl(${180 + Math.random() * 60}, 100%, ${50 + Math.random() * 40}%)`, // Cyan to purple
+                life: 20 + Math.random() * 10,
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 0.3
+            });
+        }
+        
+        // Create energy rings (expanding from spawn point) - more rings
+        for (let i = 0; i < 4; i++) {
+            this.energyRings.push({
+                radius: 0,
+                maxRadius: 25 + i * 20,
+                speed: 2.5 + i * 1.5,
+                delay: i * 2,
+                opacity: 0.8 - i * 0.15,
+                color: `hsl(${200 + i * 15}, 100%, ${60 + i * 10}%)`,
+                thickness: 3 - i * 0.5
+            });
+        }
+        
+        // Create sparks (bright flashes)
+        for (let i = 0; i < 16; i++) {
+            this.sparks.push({
+                angle: (Math.PI * 2 * i) / 16 + Math.random() * 0.3,
+                distance: 0,
+                maxDistance: 20 + Math.random() * 30,
+                speed: 1.5 + Math.random() * 2,
+                size: 3 + Math.random() * 4,
+                color: `hsl(${Math.random() * 60 + 180}, 100%, ${60 + Math.random() * 40}%)`, // Cyan to blue to purple
+                life: 10 + Math.random() * 10,
+                delay: Math.random() * 5
+            });
+        }
+        
+        // Create lightning effects
+        for (let i = 0; i < 6; i++) {
+            this.lightning.push({
+                angle: (Math.PI * 2 * i) / 6 + Math.random() * 0.5,
+                length: 0,
+                maxLength: 25 + Math.random() * 20,
+                speed: 3 + Math.random() * 2,
+                segments: [],
+                life: 8 + Math.random() * 5,
+                delay: Math.random() * 3
+            });
+        }
+    }
+
+    update() {
+        super.update();
+        
+        // Update particles
+        this.particles.forEach(particle => {
+            particle.speed *= 0.94;
+            particle.size *= 0.96;
+            particle.life--;
+            particle.rotation += particle.rotationSpeed;
+        });
+        this.particles = this.particles.filter(p => p.life > 0);
+        
+        // Update energy rings
+        this.energyRings.forEach(ring => {
+            if (this.life > ring.delay) {
+                ring.radius += ring.speed;
+                ring.opacity = Math.max(0, ring.opacity - 0.04);
+            }
+        });
+        
+        // Update sparks
+        this.sparks.forEach(spark => {
+            if (this.life > spark.delay) {
+                spark.distance += spark.speed;
+                spark.size *= 0.95;
+                spark.life--;
+            }
+        });
+        this.sparks = this.sparks.filter(s => s.life > 0 && s.distance < s.maxDistance);
+        
+        // Update lightning
+        this.lightning.forEach(bolt => {
+            if (this.life > bolt.delay && bolt.length < bolt.maxLength) {
+                bolt.length += bolt.speed;
+                bolt.life--;
+            }
+        });
+        this.lightning = this.lightning.filter(l => l.life > 0);
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+
+        const progress = this.life / this.maxLife;
+        const alpha = 1 - progress * 0.8; // Fade slower
+
+        ctx.save();
+
+        // Draw energy rings with glow
+        this.energyRings.forEach(ring => {
+            if (this.life > ring.delay && ring.radius < ring.maxRadius) {
+                const ringAlpha = ring.opacity * (1 - ring.radius / ring.maxRadius) * alpha;
+                const hslMatch = ring.color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+                if (hslMatch) {
+                    ctx.strokeStyle = `hsla(${hslMatch[1]}, ${hslMatch[2]}%, ${hslMatch[3]}%, ${ringAlpha})`;
+                } else {
+                    ctx.strokeStyle = `rgba(100, 200, 255, ${ringAlpha})`;
+                }
+                ctx.lineWidth = ring.thickness;
+                ctx.shadowColor = ring.color;
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, ring.radius, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Inner ring for depth
+                ctx.strokeStyle = `hsla(${hslMatch ? hslMatch[1] : 200}, ${hslMatch ? hslMatch[2] : 100}%, ${hslMatch ? Math.min(100, parseInt(hslMatch[3]) + 20) : 80}%, ${ringAlpha * 0.6})`;
+                ctx.lineWidth = ring.thickness * 0.5;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, ring.radius * 0.9, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        });
+
+        // Draw lightning bolts
+        this.lightning.forEach(bolt => {
+            if (this.life > bolt.delay && bolt.length > 0) {
+                const boltAlpha = (bolt.life / 10) * alpha;
+                ctx.strokeStyle = `rgba(150, 200, 255, ${boltAlpha})`;
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#aaccff';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                const endX = this.x + Math.cos(bolt.angle) * bolt.length;
+                const endY = this.y + Math.sin(bolt.angle) * bolt.length;
+                // Create jagged lightning effect
+                const segments = 5;
+                let lastX = this.x;
+                let lastY = this.y;
+                for (let i = 1; i <= segments; i++) {
+                    const t = i / segments;
+                    const x = this.x + (endX - this.x) * t + (Math.random() - 0.5) * 5;
+                    const y = this.y + (endY - this.y) * t + (Math.random() - 0.5) * 5;
+                    ctx.lineTo(x, y);
+                    lastX = x;
+                    lastY = y;
+                }
+                ctx.stroke();
+            }
+        });
+
+        // Draw sparks (radial bursts)
+        this.sparks.forEach(spark => {
+            if (this.life > spark.delay && spark.distance < spark.maxDistance) {
+                const sparkAlpha = (spark.life / 20) * alpha;
+                const px = this.x + Math.cos(spark.angle) * spark.distance;
+                const py = this.y + Math.sin(spark.angle) * spark.distance;
+                
+                ctx.fillStyle = spark.color;
+                ctx.shadowColor = spark.color;
+                ctx.shadowBlur = 12;
+                ctx.globalAlpha = sparkAlpha;
+                ctx.beginPath();
+                ctx.arc(px, py, spark.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+
+        // Draw particles (upward motion with rotation)
+        this.particles.forEach(particle => {
+            const px = this.x + Math.cos(particle.angle) * particle.speed * (this.maxLife - particle.life);
+            const py = this.y + Math.sin(particle.angle) * particle.speed * (this.maxLife - particle.life);
+            const particleAlpha = (particle.life / 30) * alpha;
+
+            ctx.save();
+            ctx.translate(px, py);
+            ctx.rotate(particle.rotation);
+            ctx.fillStyle = particle.color;
+            ctx.shadowColor = particle.color;
+            ctx.shadowBlur = 10;
+            ctx.globalAlpha = particleAlpha;
+            ctx.beginPath();
+            ctx.arc(0, 0, particle.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
+
+        // Draw central glow (spawn point) - multiple layers
+        const glowSize = (1 - progress * 0.7) * 25;
+        const innerGlow = glowSize * 0.6;
+        
+        // Outer glow
+        const outerGradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, glowSize);
+        outerGradient.addColorStop(0, `rgba(150, 220, 255, ${alpha * 0.8})`);
+        outerGradient.addColorStop(0.4, `rgba(100, 180, 255, ${alpha * 0.6})`);
+        outerGradient.addColorStop(0.7, `rgba(50, 150, 255, ${alpha * 0.3})`);
+        outerGradient.addColorStop(1, `rgba(0, 100, 200, 0)`);
+        
+        ctx.fillStyle = outerGradient;
+        ctx.shadowColor = '#66ccff';
+        ctx.shadowBlur = 25;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, glowSize, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Inner bright core
+        const innerGradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, innerGlow);
+        innerGradient.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.9})`);
+        innerGradient.addColorStop(0.5, `rgba(200, 240, 255, ${alpha * 0.7})`);
+        innerGradient.addColorStop(1, `rgba(100, 200, 255, 0)`);
+        
+        ctx.fillStyle = innerGradient;
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, innerGlow, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw energy beam (from carrier to spawn point) - enhanced
+        if (progress < 0.7) {
+            const beamAlpha = alpha * (1 - progress / 0.7);
+            // Outer beam
+            ctx.strokeStyle = `rgba(150, 220, 255, ${beamAlpha * 0.6})`;
+            ctx.lineWidth = 5;
+            ctx.shadowColor = '#66ccff';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - 40);
+            ctx.lineTo(this.x, this.y);
+            ctx.stroke();
+            
+            // Inner bright beam
+            ctx.strokeStyle = `rgba(255, 255, 255, ${beamAlpha * 0.8})`;
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - 40);
+            ctx.lineTo(this.x, this.y);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+}
+
+/**
  * Effect Manager - Creates and manages effects
  */
 class EffectManager {
@@ -481,6 +745,8 @@ class EffectManager {
                 return new SparkleEffect(x, y);
             case 'carrier':
                 return new CarrierExplosionEffect(x, y);
+            case 'spawn':
+                return new SpawnEffect(x, y);
             default:
                 return new ExplosionEffect(x, y, 'small');
         }

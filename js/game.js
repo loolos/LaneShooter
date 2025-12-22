@@ -417,6 +417,11 @@ class Game {
                 // Spawn a random enemy from the carrier (equal probability, no carrier)
                 const spawnX = enemy.x;
                 const spawnY = enemy.y + enemy.height / 2 + 20; // Spawn below the carrier
+                
+                // Create spawn animation effect
+                const spawnEffect = EffectManager.createEffect(spawnX, spawnY, 'spawn');
+                this.effects.push(spawnEffect);
+                
                 // Randomly select from non-carrier enemy types with equal probability
                 const enemyTypes = ['basic', 'fast', 'tank', 'swarm', 'formation'];
                 const randomType = enemyTypes[randomInt(0, enemyTypes.length - 1)];
@@ -458,7 +463,48 @@ class Game {
                 this.enemies.forEach((enemy, enemyIndex) => {
                     if (!enemy.active) return; // Skip inactive enemies
                     
-                    if (checkCollision(bullet.getBounds(), enemy.getBounds())) {
+                    // For formation enemies, only check collision with bottom row units
+                    let collisionDetected = false;
+                    if (enemy.type === 'formation' && enemy.units) {
+                        // Get alive units
+                        const aliveUnits = enemy.units.filter(u => u.health > 0);
+                        if (aliveUnits.length > 0) {
+                            // Find the bottommost row (highest row number)
+                            const maxRow = Math.max(...aliveUnits.map(u => u.row));
+                            // Get units in the bottommost row only
+                            const bottomRowUnits = aliveUnits.filter(u => u.row === maxRow);
+                            
+                            // Check collision with each bottom row unit
+                            const bulletBounds = bullet.getBounds();
+                            for (const unit of bottomRowUnits) {
+                                // Calculate unit position
+                                const totalWidth = (enemy.cols * enemy.enemyWidth) + ((enemy.cols - 1) * enemy.spacing);
+                                const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
+                                const startX = enemy.x - totalWidth / 2;
+                                const startY = enemy.y - totalHeight / 2;
+                                const unitX = startX + (unit.col * (enemy.enemyWidth + enemy.spacing)) + (enemy.enemyWidth / 2);
+                                const unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
+                                
+                                // Check collision with this unit
+                                const unitBounds = {
+                                    x: unitX - enemy.enemyWidth / 2,
+                                    y: unitY - enemy.enemyHeight / 2,
+                                    width: enemy.enemyWidth,
+                                    height: enemy.enemyHeight
+                                };
+                                
+                                if (checkCollision(bulletBounds, unitBounds)) {
+                                    collisionDetected = true;
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        // For other enemies, use normal collision detection
+                        collisionDetected = checkCollision(bullet.getBounds(), enemy.getBounds());
+                    }
+                    
+                    if (collisionDetected) {
                         bullet.active = false;
                         
                         // Calculate actual damage based on bullet power and enemy type
