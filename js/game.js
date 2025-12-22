@@ -25,6 +25,9 @@ class Game {
         // Systems
         this.audioManager = new AudioManager();
         this.audioManager.initializeDefaultSounds();
+        this.audioManager.initializeMusic();
+        this.currentMusicLevel = 1;
+        this.hasCarrier = false;
 
         // Input handling
         this.keys = {};
@@ -170,6 +173,11 @@ class Game {
         this.powerups = [];
         this.xpTexts = [];
         this.effects = [];
+        this.currentMusicLevel = 1;
+        this.hasCarrier = false;
+        
+        // Start background music
+        this.audioManager.startBackgroundMusic(this.level);
 
         // Create player in center of first lane
         const startX = CONFIG.LANE_POSITIONS[0];
@@ -188,6 +196,9 @@ class Game {
     gameOver() {
         // Don't trigger multiple times
         if (this.state === 'gameover') return;
+        
+        // Stop music when game over
+        this.audioManager.stopMusic();
         
         // Create player death explosion effect
         if (this.player) {
@@ -249,6 +260,9 @@ class Game {
                 const x = CONFIG.LANE_POSITIONS[laneIndex];
                 const carrier = EnemyFactory.create('carrier', x, 100, laneIndex, this.level); // Spawn near top
                 this.enemies.push(carrier);
+                // Switch to carrier music when carrier spawns
+                this.hasCarrier = true;
+                this.audioManager.startCarrierMusic();
             }
         }
     }
@@ -281,6 +295,9 @@ class Game {
         if (this.gameStartTime > 0) {
             this.elapsedTime = Math.floor((Date.now() - this.gameStartTime) / 1000); // Convert to seconds
         }
+
+        // Update music based on game state
+        this.updateMusic();
 
         // Update player
         this.player.update();
@@ -578,6 +595,37 @@ class Game {
      */
     drawLaneDividers() {
         // Already drawn by player.drawLaneIndicators, but can add more visual elements here
+    }
+
+    /**
+     * Update music based on game state
+     */
+    updateMusic() {
+        if (this.state !== 'playing') {
+            this.audioManager.stopMusic();
+            return;
+        }
+
+        // Check for carrier status
+        const hasCarrier = this.enemies.some(e => e.type === 'carrier' && e.active);
+        
+        // If carrier status changed, switch music
+        if (hasCarrier !== this.hasCarrier) {
+            this.hasCarrier = hasCarrier;
+            if (hasCarrier) {
+                // Carrier appeared, switch to intense music
+                this.audioManager.startCarrierMusic();
+            } else {
+                // Carrier destroyed, switch back to background music
+                this.audioManager.startBackgroundMusic(this.level);
+            }
+        }
+
+        // Update music tempo if level changed (for background music)
+        if (this.level !== this.currentMusicLevel && !this.hasCarrier) {
+            this.currentMusicLevel = this.level;
+            this.audioManager.updateMusicTempo(this.level);
+        }
     }
 
     /**
