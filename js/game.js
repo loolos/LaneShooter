@@ -880,20 +880,20 @@ class Game {
 
         let xpAmount = 1;
         
-        // Tank enemies: XP only depends on level
+        // Tank enemies: XP only depends on level (doubled)
         if (enemy.type === 'tank') {
-            // Simple formula: level-based XP for tanks
-            // Level 1: 5 XP, Level 5: 9 XP, Level 10: 12 XP, Level 20: 16 XP
-            xpAmount = Math.floor(10 + (this.level - 1) * 0.5);
+            // Simple formula: level-based XP for tanks (doubled from original)
+            // Level 1: 20 XP, Level 5: 22 XP, Level 10: 24 XP, Level 20: 28 XP
+            xpAmount = Math.floor(20 + (this.level - 1) * 1); // Doubled: 10->20, 0.5->1
             xpAmount = Math.max(1, xpAmount);
         }
-        // Formation/Swarm enemies: XP depends on level and unit count (inverse relationship)
+        // Formation/Swarm enemies: XP depends on level and unit count (inverse relationship, doubled)
         else if (enemy.type === 'formation' || enemy.type === 'swarm') {
             const maxUnits = enemy.maxUnits || enemy.maxEnemies || 1;
-            // Base XP per unit based on level, inversely proportional to unit count
-            // Level 1: base 10 XP, Level 5: base 15 XP, Level 10: base 20 XP
+            // Base XP per unit based on level, inversely proportional to unit count (doubled)
+            // Level 1: base 20 XP, Level 5: base 30 XP, Level 10: base 40 XP
             // Then divided by unit count: more units = less XP per unit
-            const baseXP = Math.floor(10 + (this.level - 1) * 1);
+            const baseXP = Math.floor(20 + (this.level - 1) * 2); // Doubled: 10->20, 1->2
             xpAmount = Math.floor(baseXP / maxUnits);
             xpAmount = Math.max(1, xpAmount);
         }

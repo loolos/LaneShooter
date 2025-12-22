@@ -244,16 +244,16 @@ class TankEnemy extends Enemy {
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.5 * 0.6; // Slower movement, reduced to 60% (0.3x total)
         this.speed = this.baseSpeed;
         
-        // Health increases with level: base 3, +1 per level, then multiplied by 2.25 (1.5x of previous 1.5x)
+        // Health increases with level: base 3, +1 per level, then multiplied by 4.5 (2x of previous 2.25x)
         // Late game: additional health boost (after level 10, 10% more health)
-        let healthMultiplier = 2.25;
+        let healthMultiplier = 4.5; // Doubled from 2.25
         if (level > 10) {
-            healthMultiplier = 2.25 * (1 + (level - 10) * 0.01); // Additional 1% per level after 10
+            healthMultiplier = 4.5 * (1 + (level - 10) * 0.01); // Additional 1% per level after 10
         }
         const baseHealth = 3 + (level - 1);
         this.maxHealth = Math.floor(baseHealth * healthMultiplier);
         this.health = this.maxHealth;
-        this.initialHealth = Math.floor(3 * 2.25); // Base health for color calculation (6.75 -> 6)
+        this.initialHealth = Math.floor(3 * 4.5); // Base health for color calculation (13.5 -> 13)
         
         // Increased score value for more experience
         this.scoreValue = CONFIG.SCORE_PER_ENEMY * (5 + (level - 1) * 1); // More score (increased from 3 + 0.5)
@@ -358,8 +358,8 @@ class FormationEnemy extends Enemy {
         this.speed = this.baseSpeed;
         
         // New generation system: fixed total health, random rows/cols
-        // Total health increases with level: lvl³/8 + level²/2 + level + 3
-        const totalHealth = Math.floor((level * level * level / 8) + (level * level / 2) + level + 3);
+        // Total health increases with level: lvl³/25 + level²/4 + level + 5
+        const totalHealth = Math.floor((level * level * level / 25) + (level * level / 4) + level + 5);
         
         // Randomly determine rows and columns within reasonable ranges
         // Rows: 1-4, Columns: 2-8
@@ -584,8 +584,8 @@ class SwarmEnemy extends Enemy {
         this.speed = this.baseSpeed;
         
         // New generation system: fixed total health, random rows/cols
-        // Total health increases with level: lvl³/8 + level²/2 + level + 3
-        const totalHealth = Math.floor((level * level * level / 8) + (level * level / 2) + level + 3);
+        // Total health increases with level: lvl³/25 + level²/4 + level + 5
+        const totalHealth = Math.floor((level * level * level / 25) + (level * level / 4) + level + 5);
         
         // Randomly determine rows and columns within reasonable ranges
         // Rows: 1-3, Columns: 3-5
