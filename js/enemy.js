@@ -247,7 +247,7 @@ class TankEnemy extends Enemy {
         // Health increases with level: A + B*LVL + C*LVL^2
         // Formula: 5 + 3*LVL + (1/4)*LVL^2
         const A = 8;    // Constant term
-        const B = 3;    // Linear coefficient
+        const B = 4;    // Linear coefficient
         const C = 1/3;  // Quadratic coefficient
         const D = 1/30; // Cubic coefficient
         const maxHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
