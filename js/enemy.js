@@ -244,26 +244,22 @@ class TankEnemy extends Enemy {
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.5 * 0.6; // Slower movement, reduced to 60% (0.3x total)
         this.speed = this.baseSpeed;
         
-        // Health increases with level: base 3, +1 per level, then multiplied by 4.5 (2x of previous 2.25x)
-        // Late game: additional health boost (after level 10, 10% more health)
-        let healthMultiplier = 4.5; // Doubled from 2.25
-        if (level > 10) {
-            healthMultiplier = 4.5 * (1 + (level - 10) * 0.01); // Additional 1% per level after 10
-        }
-        const baseHealth = 3 + (level - 1);
-        this.maxHealth = Math.floor(baseHealth * healthMultiplier);
+        // Health increases with level: LVL^2/4 + LVL*3 + 5
+        const maxHealth = (level * level) / 4 + level * 3 + 5;
+        this.maxHealth = Math.floor(maxHealth);
         this.health = this.maxHealth;
-        this.initialHealth = Math.floor(3 * 4.5); // Base health for color calculation (13.5 -> 13)
+        this.initialHealth = Math.floor((1 * 1) / 4 + 1 * 3 + 5); // Base health for color calculation (Level 1: 8.25 -> 8)
         
         // Increased score value for more experience
         this.scoreValue = CONFIG.SCORE_PER_ENEMY * (5 + (level - 1) * 1); // More score (increased from 3 + 0.5)
         
-        // Size increases with health: base 50x50, scales with maxHealth
-        // Base health at level 1 is 6.75 (rounded to 6), so we scale from there
-        const baseHealthForSize = 6; // Base health at level 1
-        const sizeMultiplier = 1 + (this.maxHealth - baseHealthForSize) / baseHealthForSize * 0.5; // Up to 50% larger
-        this.width = Math.floor(50 * sizeMultiplier);
-        this.height = Math.floor(50 * sizeMultiplier);
+        // Size scales with sqrt of maxHealth: base 50x50, proportional to sqrt(maxHealth)
+        // Use sqrt of maxHealth relative to base size
+        const baseSize = 50;
+        const baseHealthForSize = Math.floor((1 * 1) / 4 + 1 * 3 + 5); // Level 1 health (8)
+        const sizeMultiplier = Math.sqrt(this.maxHealth / baseHealthForSize);
+        this.width = Math.floor(baseSize * sizeMultiplier);
+        this.height = Math.floor(baseSize * sizeMultiplier);
         
         // Update color based on health
         this.updateColor();

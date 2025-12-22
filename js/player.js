@@ -218,39 +218,96 @@ class Player {
         // Draw thrusters based on lane speed upgrade
         this.drawThrusters(ctx);
         
-        // Determine triangle color based on rapidfire upgrade
+        // Determine ship color based on rapidfire upgrade
         const rapidfireLevel = this.upgrades.rapidfire;
-        let triangleColor = '#00d4ff';
+        let shipColor = '#00d4ff';
         if (rapidfireLevel > 0) {
             // Color changes from cyan to yellow to red as level increases
             if (rapidfireLevel <= 3) {
-                triangleColor = `rgb(0, ${212 + rapidfireLevel * 14}, 255)`;
+                shipColor = `rgb(0, ${212 + rapidfireLevel * 14}, 255)`;
             } else if (rapidfireLevel <= 6) {
                 const intensity = (rapidfireLevel - 3) * 85;
-                triangleColor = `rgb(${intensity}, 255, ${255 - intensity})`;
+                shipColor = `rgb(${intensity}, 255, ${255 - intensity})`;
             } else {
-                triangleColor = `rgb(255, ${255 - (rapidfireLevel - 6) * 30}, 0)`;
+                shipColor = `rgb(255, ${255 - (rapidfireLevel - 6) * 30}, 0)`;
             }
         }
         
-        // Draw main triangle (ship)
-        ctx.fillStyle = triangleColor;
-        ctx.shadowColor = triangleColor;
+        ctx.save();
+        
+        // Draw main ship body (more detailed spaceship design)
+        ctx.shadowColor = shipColor;
         ctx.shadowBlur = 15;
         
+        // Main hull (pointed up, like a fighter)
+        ctx.fillStyle = shipColor;
         ctx.beginPath();
-        ctx.moveTo(this.x, this.y - this.height / 2);
-        ctx.lineTo(this.x - this.width / 2, this.y + this.height / 2);
-        ctx.lineTo(this.x + this.width / 2, this.y + this.height / 2);
+        ctx.moveTo(this.x, this.y - this.height / 2); // Top point (nose)
+        ctx.lineTo(this.x - this.width / 2, this.y + this.height / 4); // Bottom left
+        ctx.lineTo(this.x - this.width / 3, this.y + this.height / 2); // Left wing tip
+        ctx.lineTo(this.x, this.y + this.height / 3); // Center bottom
+        ctx.lineTo(this.x + this.width / 3, this.y + this.height / 2); // Right wing tip
+        ctx.lineTo(this.x + this.width / 2, this.y + this.height / 4); // Bottom right
         ctx.closePath();
         ctx.fill();
         
+        // Draw cockpit/canopy (glowing center)
+        ctx.fillStyle = 'rgba(200, 240, 255, 0.8)';
+        ctx.shadowColor = 'rgba(200, 240, 255, 0.6)';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - this.height / 6, this.width / 5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw wing details (engines/panels)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 5;
+        
+        // Left wing detail
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.width / 3, this.y);
+        ctx.lineTo(this.x - this.width / 2.5, this.y + this.height / 3);
+        ctx.stroke();
+        
+        // Right wing detail
+        ctx.beginPath();
+        ctx.moveTo(this.x + this.width / 3, this.y);
+        ctx.lineTo(this.x + this.width / 2.5, this.y + this.height / 3);
+        ctx.stroke();
+        
+        // Draw nose detail (sensor/weapon)
+        ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
+        ctx.shadowColor = 'rgba(255, 255, 200, 0.5)';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - this.height / 2.5, this.width / 8, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw side panels/armor
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.shadowBlur = 3;
+        
+        // Left panel
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.width / 4, this.y - this.height / 4);
+        ctx.lineTo(this.x - this.width / 3, this.y);
+        ctx.stroke();
+        
+        // Right panel
+        ctx.beginPath();
+        ctx.moveTo(this.x + this.width / 4, this.y - this.height / 4);
+        ctx.lineTo(this.x + this.width / 3, this.y);
+        ctx.stroke();
+        
         ctx.shadowBlur = 0;
+        ctx.restore();
         
         // Draw additional triangles for multishot upgrade
         const multishotLevel = this.upgrades.multishot;
         if (multishotLevel > 0) {
-            this.drawAdditionalTriangles(ctx, multishotLevel, triangleColor);
+            this.drawAdditionalTriangles(ctx, multishotLevel, shipColor);
         }
 
         // Lane indicators removed - no lines between lanes

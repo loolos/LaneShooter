@@ -2,16 +2,21 @@
  * Powerup Base Class - Extensible system for power-ups
  */
 class Powerup {
-    constructor(x, y) {
+    constructor(x, y, experienceAmount = 0) {
         this.x = x;
         this.y = y;
-        this.width = 25;
-        this.height = 25;
+        // Size based on experience amount: sqrt(experience) * baseSize
+        // Base size is 20, and scales with sqrt of experience
+        const baseSize = 20;
+        const experienceSize = experienceAmount > 0 ? Math.sqrt(experienceAmount) * 3 : 1;
+        this.width = baseSize + experienceSize;
+        this.height = baseSize + experienceSize;
         this.speed = 3;
         this.active = true;
         this.type = 'default';
         this.duration = 0; // 0 means instant effect
         this.color = '#ffd700';
+        this.experienceAmount = experienceAmount; // Store experience amount for experience powerups
     }
 
     /**
@@ -39,6 +44,7 @@ class Powerup {
             'multishot': '🔫',
             'speedboost': '💨',
             'lanespeed': '🚀',
+            'experience': this.getExperienceIcon(), // Get icon based on upgrade type
             'default': '⭐'
         };
         const icon = iconMap[this.type] || iconMap['default'];
@@ -81,6 +87,24 @@ class Powerup {
         
         ctx.shadowBlur = 0;
     }
+    
+    /**
+     * Get icon for experience powerup based on upgrade type
+     * @returns {string} Icon emoji
+     */
+    getExperienceIcon() {
+        // Check if this is an experience powerup with upgradeType
+        if (this.type === 'experience' && this.upgradeType) {
+            const iconMap = {
+                'rapidfire': '⚡',
+                'multishot': '🔫',
+                'speedboost': '💨',
+                'lanespeed': '🚀'
+            };
+            return iconMap[this.upgradeType] || '⭐';
+        }
+        return '⭐';
+    }
 
     /**
      * Apply powerup effect to player
@@ -110,14 +134,14 @@ class Powerup {
  */
 class RapidFirePowerup extends Powerup {
     constructor(x, y) {
-        super(x, y);
+        super(x, y, 5); // 5 XP
         this.type = 'rapidfire';
         this.color = '#ff6b6b';
     }
 
     apply(player) {
         // Add experience instead of direct upgrade (5 XP per powerup)
-        player.addExperience('rapidfire', 5);
+        player.addExperience('rapidfire', this.experienceAmount);
     }
 }
 
@@ -126,14 +150,14 @@ class RapidFirePowerup extends Powerup {
  */
 class MultiShotPowerup extends Powerup {
     constructor(x, y) {
-        super(x, y);
+        super(x, y, 5); // 5 XP
         this.type = 'multishot';
         this.color = '#4ecdc4';
     }
 
     apply(player) {
         // Add experience instead of direct upgrade (5 XP per powerup)
-        player.addExperience('multishot', 5);
+        player.addExperience('multishot', this.experienceAmount);
     }
 }
 
@@ -142,14 +166,14 @@ class MultiShotPowerup extends Powerup {
  */
 class SpeedBoostPowerup extends Powerup {
     constructor(x, y) {
-        super(x, y);
+        super(x, y, 5); // 5 XP
         this.type = 'speedboost';
         this.color = '#ffe66d';
     }
 
     apply(player) {
         // Add experience instead of direct upgrade (5 XP per powerup)
-        player.addExperience('speedboost', 5);
+        player.addExperience('speedboost', this.experienceAmount);
     }
 }
 
@@ -158,33 +182,71 @@ class SpeedBoostPowerup extends Powerup {
  */
 class LaneSpeedPowerup extends Powerup {
     constructor(x, y) {
-        super(x, y);
+        super(x, y, 5); // 5 XP
         this.type = 'lanespeed';
         this.color = '#a29bfe';
     }
 
     apply(player) {
         // Add experience instead of direct upgrade (5 XP per powerup)
-        player.addExperience('lanespeed', 5);
+        player.addExperience('lanespeed', this.experienceAmount);
     }
+}
+
+/**
+ * Experience Powerup - Drops experience for a random upgrade type
+ * Now uses the same draw method as other powerups (shows icon instead of XP amount)
+ */
+class ExperiencePowerup extends Powerup {
+    constructor(x, y, xpAmount, upgradeType) {
+        super(x, y, xpAmount);
+        this.type = 'experience';
+        this.upgradeType = upgradeType; // Which upgrade type this XP is for
+        // Color based on upgrade type (same as regular powerups)
+        const upgradeColors = {
+            'rapidfire': '#ff6b6b',
+            'multishot': '#4ecdc4',
+            'speedboost': '#ffe66d',
+            'lanespeed': '#a29bfe'
+        };
+        this.color = upgradeColors[upgradeType] || '#ffd700';
+    }
+
+    apply(player) {
+        // Add experience to the specified upgrade type
+        const oldLevel = player.getUpgradeLevel(this.upgradeType);
+        player.addExperience(this.upgradeType, this.experienceAmount);
+        const newLevel = player.getUpgradeLevel(this.upgradeType);
+        
+        // Return whether level up occurred
+        return newLevel > oldLevel;
+    }
+    
+    // No need to override draw() - uses base class draw() which shows icon
 }
 
 /**
  * Powerup Factory - Creates powerups by type
  */
 class PowerupFactory {
-    static create(type, x, y) {
+    static create(type, x, y, xpAmount = 0, upgradeType = null) {
         const powerupClasses = {
             'rapidfire': RapidFirePowerup,
             'multishot': MultiShotPowerup,
             'speedboost': SpeedBoostPowerup,
-            'lanespeed': LaneSpeedPowerup
+            'lanespeed': LaneSpeedPowerup,
+            'experience': ExperiencePowerup
         };
 
         const PowerupClass = powerupClasses[type];
         if (!PowerupClass) {
             console.warn(`Unknown powerup type: ${type}`);
-            return new Powerup(x, y);
+            return new Powerup(x, y, xpAmount);
+        }
+
+        // Special handling for experience powerups
+        if (type === 'experience') {
+            return new ExperiencePowerup(x, y, xpAmount, upgradeType);
         }
 
         return new PowerupClass(x, y);
