@@ -30,6 +30,7 @@ class Game {
         this.currentMusicLevel = 1;
         this.hasCarrier = false;
         this.victoryShown = false; // Track if victory has been shown (only show once at level 20)
+        this.victoryLocked = false; // Lock victory screen for 3 seconds
 
         // Input handling
         this.keys = {};
@@ -180,6 +181,7 @@ class Game {
         this.currentMusicLevel = 1;
         this.hasCarrier = false;
         this.victoryShown = false; // Reset victory flag on new game
+        this.victoryLocked = false; // Reset victory lock on new game
         
         // Start background music
         this.audioManager.startBackgroundMusic(this.level);
@@ -208,8 +210,17 @@ class Game {
         // Play epic victory music
         this.audioManager.startVictoryMusic();
         
-        // Setup continue handler - any key press continues the game
+        // Lock screen for 3 seconds to prevent quick skipping
+        this.victoryLocked = true;
+        setTimeout(() => {
+            this.victoryLocked = false;
+        }, 3000); // 3 seconds lock
+        
+        // Setup continue handler - any key press continues the game (only after lock)
         const continueHandler = (e) => {
+            // Ignore input if still locked
+            if (this.victoryLocked) return;
+            
             this.continueAfterVictory();
             document.removeEventListener('keydown', continueHandler);
             document.removeEventListener('click', continueHandler);
@@ -452,25 +463,19 @@ class Game {
                         const result = enemy.takeDamage(actualDamage);
                         const unitsKilled = result.unitsKilled || 0;
                         
-                        // Give experience for each unit killed
-                        if (unitsKilled > 0) {
-                            // Calculate experience chance based on enemy strength
-                            // Stronger enemies have higher chance, weaker enemies have lower chance
-                            const maxUnits = enemy.maxUnits || enemy.maxEnemies || 1;
-                            const baseScore = enemy.scoreValue / maxUnits; // Score per unit
-                            const baseChance = 0.3; // Base 30% chance
+                        // Give score and experience for each unit killed (Formation/Swarm)
+                        if (unitsKilled > 0 && (enemy.type === 'formation' || enemy.type === 'swarm')) {
+                            // Score: proportional to unit health, independent of total count
+                            const unitScore = enemy.healthPerUnit * CONFIG.SCORE_PER_ENEMY;
                             
-                            // Adjust chance: stronger units (higher score) = higher chance
-                            // Weak units (score < 5) have reduced chance
-                            let experienceChance = baseChance;
-                            if (baseScore < 5) {
-                                experienceChance = baseChance * (baseScore / 5); // Scale down for weak enemies
-                            } else if (baseScore > 10) {
-                                experienceChance = Math.min(0.5, baseChance * (baseScore / 10)); // Scale up for strong enemies
-                            }
+                            // Give score for each killed unit
+                            this.score += unitScore * unitsKilled;
+                            
+                            // Swarm/Formation: each unit has 0.5 (50%) chance to drop XP
+                            const experienceChance = 0.5;
                             
                             for (let i = 0; i < unitsKilled; i++) {
-                                // Chance to gain experience from each unit (adjusted based on strength)
+                                // Chance to gain experience from each unit
                                 if (Math.random() < experienceChance) {
                                     this.gainExperienceFromEnemy(enemy, i);
                                 }
@@ -478,7 +483,32 @@ class Game {
                         }
                         
                         if (result.destroyed) {
-                            this.score += enemy.scoreValue;
+                            // Only give score for non-multi-unit enemies (Formation/Swarm already handled above)
+                            if (enemy.type !== 'formation' && enemy.type !== 'swarm') {
+                                this.score += enemy.scoreValue;
+                            }
+                            
+                            // Give experience when enemy is completely destroyed (for non-multi-unit enemies)
+                            // Multi-unit enemies already handled above
+                            if (enemy.type !== 'formation' && enemy.type !== 'swarm') {
+                                // Get drop rate based on enemy type
+                                let dropRate = 0.2; // Default
+                                if (enemy.type === 'basic') {
+                                    dropRate = 0.2; // 20%
+                                } else if (enemy.type === 'fast') {
+                                    dropRate = 0.3; // 30%
+                                } else if (enemy.type === 'tank') {
+                                    dropRate = 0.5; // 50%
+                                } else if (enemy.type === 'carrier') {
+                                    dropRate = 1.0; // 100%
+                                }
+                                
+                                // Check if should drop experience
+                                if (Math.random() < dropRate) {
+                                    this.gainExperienceFromEnemy(enemy, 0);
+                                }
+                            }
+                            
                             // Play enemy-specific death sound
                             this.playEnemyDeathSound(enemy.type);
                             
@@ -591,7 +621,7 @@ class Game {
         let totalRequired = 0;
         
         // Calculate level based on score
-        // Formula: requiredForLevel(n) = (200 + (n - 1) × 50) + n² × 10
+        // Formula: requiredForLevel(n) = (300 + (n - 1) × 100) + n² × 10
         while (true) {
             const baseRequired = CONFIG.LEVEL_UP_SCORE + (scoreBasedLevel - 1) * CONFIG.LEVEL_UP_SCORE_INCREMENT;
             const squaredBonus = scoreBasedLevel * scoreBasedLevel * 10;
@@ -848,34 +878,41 @@ class Game {
     gainExperienceFromEnemy(enemy, unitIndex = 0) {
         if (!this.player) return;
 
-        // Calculate XP based on enemy strength (scoreValue) and game level
-        // Base XP = enemy scoreValue / 2, scaled by level, then halved
-        // For multi-unit enemies, divide by max units to get per-unit XP
-        // Increased XP for stronger enemies (tank with more health, formations/swarms with more units)
-        const maxUnits = enemy.maxUnits || enemy.maxEnemies || 1;
-        const baseXP = Math.max(1, Math.floor(enemy.scoreValue / 2 / maxUnits));
-        // Level multiplier: diminishing returns - growth slows significantly as level increases
-        // Uses cube root for much slower growth: level 1 = 1.0x, level 5 = 1.12x, level 10 = 1.19x, level 20 = 1.26x
-        // Further reduced by using a smaller coefficient and adding a cap
-        const levelMultiplier = 1 + Math.min(Math.pow(this.level - 1, 1/3) * 0.08, 0.3); // Much slower growth with cap at 0.3
+        let xpAmount = 1;
         
-        // Bonus XP for enhanced enemies (tank with more health, or multi-unit with more units)
-        let bonusMultiplier = 1.0;
+        // Tank enemies: XP only depends on level
         if (enemy.type === 'tank') {
-            // Tank enemies give reduced XP (1/4 of previous bonus)
-            // Base bonus reduced from 1.5x to 0.375x, additional bonus reduced from 15% to 3.75% per extra health
-            const baseTankHealth = 4; // Base tank health after 1.5x multiplier
-            const originalBonus = 1.5 + (enemy.maxHealth - baseTankHealth) * 0.15;
-            bonusMultiplier = originalBonus * 0.25; // 1/4 of original bonus
-        } else if ((enemy.type === 'formation' || enemy.type === 'swarm')) {
-            const initialCount = enemy.initialCount || (enemy.type === 'formation' ? 4 : 5);
-            if (maxUnits > initialCount) {
-                bonusMultiplier = 1.0 + (maxUnits - initialCount) * 0.1; // +10% per extra unit
-            }
+            // Simple formula: level-based XP for tanks
+            // Level 1: 5 XP, Level 5: 9 XP, Level 10: 12 XP, Level 20: 16 XP
+            xpAmount = Math.floor(10 + (this.level - 1) * 0.5);
+            xpAmount = Math.max(1, xpAmount);
         }
-        
-        let xpAmount = Math.floor((baseXP * levelMultiplier * bonusMultiplier) / 2); // Reduced to half, but with bonus
-        xpAmount = Math.max(1, xpAmount); // Ensure at least 1 XP
+        // Formation/Swarm enemies: XP depends on level and unit count (inverse relationship)
+        else if (enemy.type === 'formation' || enemy.type === 'swarm') {
+            const maxUnits = enemy.maxUnits || enemy.maxEnemies || 1;
+            // Base XP per unit based on level, inversely proportional to unit count
+            // Level 1: base 10 XP, Level 5: base 15 XP, Level 10: base 20 XP
+            // Then divided by unit count: more units = less XP per unit
+            const baseXP = Math.floor(10 + (this.level - 1) * 1);
+            xpAmount = Math.floor(baseXP / maxUnits);
+            xpAmount = Math.max(1, xpAmount);
+        }
+        // Other enemies (Basic, Fast, Carrier): simplified formula based on level only
+        else {
+            // Simple level-based XP calculation
+            // Basic: Level 1: 2 XP, Level 5: 4 XP, Level 10: 6 XP
+            // Fast: Level 1: 4 XP, Level 5: 8 XP, Level 10: 12 XP
+            // Carrier: Level 5: 20 XP, Level 10: 30 XP, Level 15: 40 XP
+            let baseXPPerLevel = 2; // Base XP per level for Basic
+            if (enemy.type === 'fast') {
+                baseXPPerLevel = 4; // Fast enemies give 2x Basic
+            } else if (enemy.type === 'carrier') {
+                baseXPPerLevel = 30; // Carrier gives much more
+            }
+            
+            xpAmount = Math.floor(baseXPPerLevel + (this.level - 1) * (baseXPPerLevel / 5));
+            xpAmount = Math.max(1, xpAmount);
+        }
 
         // Randomly select which upgrade type to gain XP for
         const upgradeTypes = ['rapidfire', 'multishot', 'speedboost', 'lanespeed'];

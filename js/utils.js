@@ -17,8 +17,8 @@ const CONFIG = {
     ENEMY_BASE_SPEED: 2,
     ENEMY_SPEED_INCREMENT: 0.1,
     SCORE_PER_ENEMY: 10,
-    LEVEL_UP_SCORE: 200, // Increased from 100 to make levels longer
-    LEVEL_UP_SCORE_INCREMENT: 50 // Additional score needed per level
+    LEVEL_UP_SCORE: 300, // Base score required for level 1
+    LEVEL_UP_SCORE_INCREMENT: 100 // Additional score needed per level
 };
 
 /**
