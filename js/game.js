@@ -31,6 +31,7 @@ class Game {
         this.hasCarrier = false;
         this.victoryShown = false; // Track if victory has been shown (only show once at level 20)
         this.victoryLocked = false; // Lock victory screen for 3 seconds
+        this.carrierSpawnedAtLevels = new Set(); // Track which levels have spawned a carrier
 
         // Debug logging system
         this.lastLogTime = 0;
@@ -188,6 +189,7 @@ class Game {
         this.hasCarrier = false;
         this.victoryShown = false; // Reset victory flag on new game
         this.victoryLocked = false; // Reset victory lock on new game
+        this.carrierSpawnedAtLevels = new Set(); // Reset carrier spawn tracking
         
         // Start background music
         this.audioManager.startBackgroundMusic(this.level);
@@ -308,9 +310,10 @@ class Game {
             this.enemies.push(enemy);
         }
         
-        // Spawn carrier enemy occasionally at level 5+
-        if (this.level >= 5) {
-            // Check if there's already a carrier in this lane
+        // Spawn carrier enemy occasionally at level 5+ (if not at forced levels 5, 10, 15)
+        const carrierLevels = [5, 10, 15];
+        if (this.level >= 5 && !carrierLevels.includes(this.level)) {
+            // Check if there's already a carrier
             const hasCarrier = this.enemies.some(e => e.type === 'carrier' && e.active);
             if (!hasCarrier && Math.random() < 0.001) { // Very low spawn rate for carrier
                 const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
@@ -365,7 +368,12 @@ class Game {
             }
         }
         
-        if (this.state !== 'playing' && this.state !== 'victory') return;
+        // If victory state, pause all game logic (only update levelUpText if needed)
+        if (this.state === 'victory') {
+            return; // Completely pause game during victory screen
+        }
+        
+        if (this.state !== 'playing') return;
         
         // Update elapsed time
         if (this.gameStartTime > 0) {
@@ -679,7 +687,7 @@ class Game {
         // Formula: requiredForLevel(n) = (300 + (n - 1) × 100) + n² × 10
         while (true) {
             const baseRequired = CONFIG.LEVEL_UP_SCORE + (scoreBasedLevel - 1) * CONFIG.LEVEL_UP_SCORE_INCREMENT;
-            const squaredBonus = scoreBasedLevel * scoreBasedLevel * 10;
+            const squaredBonus = scoreBasedLevel * scoreBasedLevel * 20;
             const requiredForNext = baseRequired + squaredBonus;
             if (this.score >= totalRequired + requiredForNext) {
                 totalRequired += requiredForNext;
@@ -873,6 +881,24 @@ class Game {
         
         // Play level up sound (if available)
         this.audioManager.play('powerup');
+        
+        // Force spawn carrier at specific levels (5, 10, 15)
+        const carrierLevels = [5, 10, 15];
+        if (carrierLevels.includes(this.level)) {
+            // Check if we've already spawned a carrier at this level
+            if (!this.carrierSpawnedAtLevels.has(this.level)) {
+                // Force spawn carrier (even if there's already an active carrier)
+                const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
+                const x = CONFIG.LANE_POSITIONS[laneIndex];
+                const carrier = EnemyFactory.create('carrier', x, 100, laneIndex, this.level);
+                this.enemies.push(carrier);
+                // Mark this level as having spawned a carrier
+                this.carrierSpawnedAtLevels.add(this.level);
+                // Switch to carrier music when carrier spawns
+                this.hasCarrier = true;
+                this.audioManager.startCarrierMusic();
+            }
+        }
     }
 
     /**

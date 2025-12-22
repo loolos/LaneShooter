@@ -244,11 +244,18 @@ class TankEnemy extends Enemy {
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.5 * 0.6; // Slower movement, reduced to 60% (0.3x total)
         this.speed = this.baseSpeed;
         
-        // Health increases with level: LVL^2/4 + LVL*3 + 5
-        const maxHealth = (level * level) / 4 + level * 3 + 5;
+        // Health increases with level: A + B*LVL + C*LVL^2
+        // Formula: 5 + 3*LVL + (1/4)*LVL^2
+        const A = 8;    // Constant term
+        const B = 3;    // Linear coefficient
+        const C = 1/3;  // Quadratic coefficient
+        const D = 1/30; // Cubic coefficient
+        const maxHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
         this.maxHealth = Math.floor(maxHealth);
         this.health = this.maxHealth;
-        this.initialHealth = Math.floor((1 * 1) / 4 + 1 * 3 + 5); // Base health for color calculation (Level 1: 8.25 -> 8)
+        // Calculate initial health using same formula (Level 1)
+        const level1Health = A + B * 1 + C * 1 * 1;
+        this.initialHealth = Math.floor(level1Health); // Base health for color calculation (Level 1: 8.25 -> 8)
         
         // Increased score value for more experience
         this.scoreValue = CONFIG.SCORE_PER_ENEMY * (5 + (level - 1) * 1); // More score (increased from 3 + 0.5)
@@ -256,8 +263,8 @@ class TankEnemy extends Enemy {
         // Size scales with sqrt of maxHealth: base 50x50, proportional to sqrt(maxHealth)
         // Use sqrt of maxHealth relative to base size
         const baseSize = 50;
-        const baseHealthForSize = Math.floor((1 * 1) / 4 + 1 * 3 + 5); // Level 1 health (8)
-        const sizeMultiplier = Math.sqrt(this.maxHealth / baseHealthForSize);
+        const baseHealthForSize = Math.floor(level1Health); // Level 1 health (8)
+        const sizeMultiplier = Math.pow(this.maxHealth / baseHealthForSize, 0.3);
         this.width = Math.floor(baseSize * sizeMultiplier);
         this.height = Math.floor(baseSize * sizeMultiplier);
         
@@ -354,8 +361,13 @@ class FormationEnemy extends Enemy {
         this.speed = this.baseSpeed;
         
         // New generation system: fixed total health, random rows/cols
-        // Total health increases with level: lvl³/25 + level²/4 + level + 5
-        const totalHealth = Math.floor((level * level * level / 25) + (level * level / 4) + level + 5);
+        // Total health increases with level: A + B*LVL + C*LVL^2 + D*LVL^3
+        // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
+        const A = 6;    // Constant term
+        const B = 2;    // Linear coefficient
+        const C = 1/20;  // Quadratic coefficient
+        const D = 1/50; // Cubic coefficient
+        const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
         
         // Randomly determine rows and columns within reasonable ranges
         // Rows: 1-4, Columns: 2-8
@@ -580,8 +592,13 @@ class SwarmEnemy extends Enemy {
         this.speed = this.baseSpeed;
         
         // New generation system: fixed total health, random rows/cols
-        // Total health increases with level: lvl³/25 + level²/4 + level + 5
-        const totalHealth = Math.floor((level * level * level / 25) + (level * level / 4) + level + 5);
+        // Total health increases with level: A + B*LVL + C*LVL^2 + D*LVL^3
+        // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
+        const A = 6;    // Constant term
+        const B = 2;    // Linear coefficient
+        const C = 1/20;  // Quadratic coefficient
+        const D = 1/50; // Cubic coefficient
+        const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
         
         // Randomly determine rows and columns within reasonable ranges
         // Rows: 1-3, Columns: 3-5
@@ -671,7 +688,7 @@ class SwarmEnemy extends Enemy {
     }
 
     /**
-     * Draw swarm as multiple small units, each with individual color
+     * Draw swarm as multiple small units, each with individual color (insect-like design)
      * @param {CanvasRenderingContext2D} ctx
      */
     draw(ctx) {
@@ -679,7 +696,7 @@ class SwarmEnemy extends Enemy {
 
         ctx.save();
         
-        // Draw each unit
+        // Draw each unit as an insect
         for (const unit of this.units) {
             if (unit.health <= 0) continue; // Skip destroyed units
             
@@ -687,23 +704,87 @@ class SwarmEnemy extends Enemy {
             const unitY = this.y + unit.offsetY;
             const unitColor = this.getUnitColor(unit);
             
-            ctx.shadowColor = unitColor;
-            ctx.shadowBlur = 8;
+            // Animated wing flapping effect (subtle)
+            const time = Date.now() * 0.01;
+            const wingOffset = Math.sin(time + unit.offsetX * 0.1) * 2; // Subtle wing animation
             
-            // Draw drone body (small triangle)
-            ctx.fillStyle = unitColor;
+            ctx.shadowColor = unitColor;
+            ctx.shadowBlur = 6;
+            
+            // Draw wings (transparent, behind body)
+            ctx.strokeStyle = `rgba(255, 200, 100, 0.4)`;
+            ctx.fillStyle = `rgba(255, 220, 150, 0.2)`;
+            ctx.lineWidth = 1;
+            
+            // Left wing
             ctx.beginPath();
-            ctx.moveTo(unitX, unitY + this.unitSize / 2);
-            ctx.lineTo(unitX - this.unitSize / 2, unitY - this.unitSize / 2);
-            ctx.lineTo(unitX, unitY - this.unitSize / 2 + 1);
-            ctx.lineTo(unitX + this.unitSize / 2, unitY - this.unitSize / 2);
-            ctx.closePath();
+            ctx.ellipse(unitX - this.unitSize * 0.3, unitY - wingOffset, this.unitSize * 0.4, this.unitSize * 0.25, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Right wing
+            ctx.beginPath();
+            ctx.ellipse(unitX + this.unitSize * 0.3, unitY - wingOffset, this.unitSize * 0.4, this.unitSize * 0.25, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Draw insect body (oval/ellipse shape)
+            ctx.fillStyle = unitColor;
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.ellipse(unitX, unitY, this.unitSize * 0.35, this.unitSize * 0.5, 0, 0, Math.PI * 2);
             ctx.fill();
             
-            // Draw small glow/eye
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            // Draw body segments (insect-like)
+            ctx.strokeStyle = `rgba(0, 0, 0, 0.3)`;
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.arc(unitX, unitY - this.unitSize / 4, this.unitSize / 6, 0, Math.PI * 2);
+            // Segment lines
+            ctx.moveTo(unitX - this.unitSize * 0.2, unitY - this.unitSize * 0.2);
+            ctx.lineTo(unitX + this.unitSize * 0.2, unitY - this.unitSize * 0.2);
+            ctx.moveTo(unitX - this.unitSize * 0.2, unitY);
+            ctx.lineTo(unitX + this.unitSize * 0.2, unitY);
+            ctx.moveTo(unitX - this.unitSize * 0.2, unitY + this.unitSize * 0.2);
+            ctx.lineTo(unitX + this.unitSize * 0.2, unitY + this.unitSize * 0.2);
+            ctx.stroke();
+            
+            // Draw head (slightly larger circle at top)
+            ctx.fillStyle = unitColor;
+            ctx.beginPath();
+            ctx.arc(unitX, unitY - this.unitSize * 0.25, this.unitSize * 0.25, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw eyes (two small dots)
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.shadowBlur = 3;
+            // Left eye
+            ctx.beginPath();
+            ctx.arc(unitX - this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+            // Right eye
+            ctx.beginPath();
+            ctx.arc(unitX + this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw antennae (small lines)
+            ctx.strokeStyle = unitColor;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            // Left antenna
+            ctx.moveTo(unitX - this.unitSize * 0.1, unitY - this.unitSize * 0.35);
+            ctx.lineTo(unitX - this.unitSize * 0.2, unitY - this.unitSize * 0.45);
+            // Right antenna
+            ctx.moveTo(unitX + this.unitSize * 0.1, unitY - this.unitSize * 0.35);
+            ctx.lineTo(unitX + this.unitSize * 0.2, unitY - this.unitSize * 0.45);
+            ctx.stroke();
+            
+            // Draw small dots at antenna tips
+            ctx.fillStyle = unitColor;
+            ctx.beginPath();
+            ctx.arc(unitX - this.unitSize * 0.2, unitY - this.unitSize * 0.45, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(unitX + this.unitSize * 0.2, unitY - this.unitSize * 0.45, 1.5, 0, Math.PI * 2);
             ctx.fill();
         }
         
@@ -800,8 +881,14 @@ class CarrierEnemy extends Enemy {
         this.speed = 0;
         
         // Very high health that increases with level (4x original)
-        // Base health: 200 (4x of 50), increases by 80 per level (4x of 20)
-        this.maxHealth = 200 + (level - 5) * 80; // Only appears at level 5+, 4x health
+        // Health formula: A + B*LVL (only appears at level 5+)
+        // Formula: -200 + 80*LVL (equivalent to 200 + (LVL - 5) * 80)
+        const A = 100;    // Constant term
+        const B = 40;    // Linear coefficient
+        const C = 1/3;  // Quadratic coefficient
+        const D = 1/10; // Cubic coefficient
+        this.maxHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
+        
         this.health = this.maxHealth;
         this.initialHealth = 200;
         

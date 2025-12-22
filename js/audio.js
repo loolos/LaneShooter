@@ -994,35 +994,46 @@ class AudioManager {
             const melodyNotes = [330, 370, 392, 440, 494, 440, 392, 370];
             const highNotes = [440, 494, 523, 587, 659, 587, 523, 494];
 
-            const playNextNote = () => {
-                if (!this.musicOscillators.length) return;
+            // Clear any existing carrier pattern interval
+            if (this.patternIntervals.carrier) {
+                clearInterval(this.patternIntervals.carrier);
+                delete this.patternIntervals.carrier;
+            }
 
-                this.musicOscillators[0].osc.frequency.setTargetAtTime(
-                    bassNotes[noteIndex], 
-                    this.musicContext.currentTime, 
-                    0.05
-                );
-                this.musicOscillators[1].osc.frequency.setTargetAtTime(
-                    melodyNotes[noteIndex], 
-                    this.musicContext.currentTime, 
-                    0.05
-                );
-                this.musicOscillators[2].osc.frequency.setTargetAtTime(
-                    highNotes[noteIndex], 
-                    this.musicContext.currentTime, 
-                    0.05
-                );
+            // Use setInterval instead of recursive setTimeout to prevent infinite timers
+            this.patternIntervals.carrier = setInterval(() => {
+                if (!this.musicOscillators.length || this.currentMusic !== 'carrier') {
+                    if (this.patternIntervals.carrier) {
+                        clearInterval(this.patternIntervals.carrier);
+                        delete this.patternIntervals.carrier;
+                    }
+                    return;
+                }
+
+                if (this.musicOscillators[0] && this.musicOscillators[0].osc) {
+                    this.musicOscillators[0].osc.frequency.setTargetAtTime(
+                        bassNotes[noteIndex], 
+                        this.musicContext.currentTime, 
+                        0.05
+                    );
+                }
+                if (this.musicOscillators[1] && this.musicOscillators[1].osc) {
+                    this.musicOscillators[1].osc.frequency.setTargetAtTime(
+                        melodyNotes[noteIndex], 
+                        this.musicContext.currentTime, 
+                        0.05
+                    );
+                }
+                if (this.musicOscillators[2] && this.musicOscillators[2].osc) {
+                    this.musicOscillators[2].osc.frequency.setTargetAtTime(
+                        highNotes[noteIndex], 
+                        this.musicContext.currentTime, 
+                        0.05
+                    );
+                }
 
                 noteIndex = (noteIndex + 1) % bassNotes.length;
-                
-                setTimeout(() => {
-                    if (this.musicOscillators.length) {
-                        playNextNote();
-                    }
-                }, beatDuration * 1000);
-            };
-
-            playNextNote();
+            }, beatDuration * 1000);
 
             this.currentMusic = 'carrier';
         } catch (err) {
