@@ -21,6 +21,7 @@ class Game {
         this.powerups = [];
         this.xpTexts = []; // Floating XP text
         this.effects = []; // Visual effects
+        this.levelUpText = null; // Level up text display
 
         // Systems
         this.audioManager = new AudioManager();
@@ -28,6 +29,7 @@ class Game {
         this.audioManager.initializeMusic();
         this.currentMusicLevel = 1;
         this.hasCarrier = false;
+        this.victoryShown = false; // Track if victory has been shown (only show once at level 20)
 
         // Input handling
         this.keys = {};
@@ -177,6 +179,7 @@ class Game {
         this.effects = [];
         this.currentMusicLevel = 1;
         this.hasCarrier = false;
+        this.victoryShown = false; // Reset victory flag on new game
         
         // Start background music
         this.audioManager.startBackgroundMusic(this.level);
@@ -324,7 +327,28 @@ class Game {
         this.effects.forEach(effect => effect.update());
         this.effects = this.effects.filter(effect => effect.active);
         
-        if (this.state !== 'playing') return;
+        // Update level up text
+        if (this.levelUpText && this.levelUpText.active) {
+            this.levelUpText.lifetime++;
+            // Scale animation: grow then shrink
+            if (this.levelUpText.lifetime < 30) {
+                this.levelUpText.scale = 1 + (this.levelUpText.lifetime / 30) * 0.5; // Grow to 1.5x
+            } else {
+                const shrinkProgress = (this.levelUpText.lifetime - 30) / (this.levelUpText.maxLifetime - 30);
+                this.levelUpText.scale = 1.5 - shrinkProgress * 0.5; // Shrink from 1.5x to 1x
+            }
+            // Fade out
+            if (this.levelUpText.lifetime > this.levelUpText.maxLifetime * 0.6) {
+                const fadeStart = this.levelUpText.maxLifetime * 0.6;
+                const fadeDuration = this.levelUpText.maxLifetime - fadeStart;
+                this.levelUpText.alpha = 1 - ((this.levelUpText.lifetime - fadeStart) / fadeDuration);
+            }
+            if (this.levelUpText.lifetime >= this.levelUpText.maxLifetime) {
+                this.levelUpText.active = false;
+            }
+        }
+        
+        if (this.state !== 'playing' && this.state !== 'victory') return;
 
         this.frameCount++;
         
@@ -591,11 +615,16 @@ class Game {
         const calculatedLevel = baseLevel + (bothContribute ? Math.floor(Math.min(scoreBasedLevel, timeBasedLevel) / 3) : 0);
         
         if (calculatedLevel > this.level) {
+            const oldLevel = this.level;
             this.level = calculatedLevel;
             this.updateUI();
             
-            // Check for victory at level 20
-            if (this.level >= 20 && this.state === 'playing') {
+            // Level up effect: clear bottom half of screen enemies
+            this.onLevelUp(oldLevel);
+            
+            // Check for victory at level 20 (only show once)
+            if (this.level >= 20 && this.state === 'playing' && !this.victoryShown) {
+                this.victoryShown = true;
                 this.victory();
             }
         }
@@ -633,6 +662,29 @@ class Game {
 
         // Draw XP texts
         this.xpTexts.forEach(xpText => xpText.draw(this.ctx));
+        
+        // Draw level up text
+        if (this.levelUpText && this.levelUpText.active) {
+            this.ctx.save();
+            this.ctx.globalAlpha = this.levelUpText.alpha;
+            this.ctx.translate(this.levelUpText.x, this.levelUpText.y);
+            this.ctx.scale(this.levelUpText.scale, this.levelUpText.scale);
+            
+            // Draw with glow effect
+            this.ctx.shadowColor = '#ffd700';
+            this.ctx.shadowBlur = 20;
+            this.ctx.font = 'bold 72px Arial';
+            this.ctx.fillStyle = '#ffd700';
+            this.ctx.strokeStyle = '#000';
+            this.ctx.lineWidth = 4;
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            
+            this.ctx.strokeText(this.levelUpText.text, 0, 0);
+            this.ctx.fillText(this.levelUpText.text, 0, 0);
+            
+            this.ctx.restore();
+        }
     }
 
     /**
@@ -640,6 +692,102 @@ class Game {
      */
     drawLaneDividers() {
         // Already drawn by player.drawLaneIndicators, but can add more visual elements here
+    }
+
+    /**
+     * Handle level up: clear bottom half enemies and show level up text
+     * @param {number} oldLevel - Previous level
+     */
+    onLevelUp(oldLevel) {
+        if (!this.canvas) return;
+        
+        const canvasHeight = this.canvas.height;
+        const bottomHalfY = canvasHeight / 2; // Bottom half starts at middle of screen
+        
+        // Find enemies in bottom half of screen
+        const enemiesToDestroy = [];
+        this.enemies.forEach(enemy => {
+            if (!enemy.active) return;
+            
+            // Check if enemy is in bottom half (y > bottomHalfY)
+            // For multi-unit enemies, check if any unit is in bottom half
+            if (enemy.type === 'formation' || enemy.type === 'swarm') {
+                // Check if any unit is in bottom half
+                const hasUnitInBottomHalf = enemy.units.some(unit => {
+                    if (unit.health <= 0) return false;
+                    let unitY;
+                    if (enemy.type === 'formation') {
+                        const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
+                        const startY = enemy.y - totalHeight / 2;
+                        unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
+                    } else { // swarm
+                        unitY = enemy.y + unit.offsetY;
+                    }
+                    return unitY > bottomHalfY;
+                });
+                
+                if (hasUnitInBottomHalf) {
+                    enemiesToDestroy.push(enemy);
+                }
+            } else {
+                // Regular enemies: check if center is in bottom half
+                if (enemy.y > bottomHalfY) {
+                    enemiesToDestroy.push(enemy);
+                }
+            }
+        });
+        
+        // Destroy enemies in bottom half (no XP gain)
+        enemiesToDestroy.forEach(enemy => {
+            // Create explosion effects
+            if (enemy.type === 'formation' || enemy.type === 'swarm') {
+                // Create effects for each unit in bottom half
+                enemy.units.forEach(unit => {
+                    if (unit.health <= 0) return;
+                    let unitX, unitY;
+                    if (enemy.type === 'formation') {
+                        const totalWidth = (enemy.cols * enemy.enemyWidth) + ((enemy.cols - 1) * enemy.spacing);
+                        const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
+                        const startX = enemy.x - totalWidth / 2;
+                        const startY = enemy.y - totalHeight / 2;
+                        unitX = startX + (unit.col * (enemy.enemyWidth + enemy.spacing)) + (enemy.enemyWidth / 2);
+                        unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
+                    } else { // swarm
+                        unitX = enemy.x + unit.offsetX;
+                        unitY = enemy.y + unit.offsetY;
+                    }
+                    
+                    if (unitY > bottomHalfY) {
+                        const effect = EffectManager.createEffect(unitX, unitY, enemy.type === 'formation' ? 'formation' : 'swarm');
+                        this.effects.push(effect);
+                    }
+                });
+            } else {
+                // Regular enemy explosion
+                const effect = EffectManager.createEffect(enemy.x, enemy.y, enemy.type);
+                this.effects.push(effect);
+            }
+            
+            // Mark enemy as destroyed (no XP, no score)
+            enemy.active = false;
+        });
+        
+        // Show "Level Up!" text in center of screen
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        this.levelUpText = {
+            x: centerX,
+            y: centerY,
+            text: 'LEVEL UP!',
+            lifetime: 0,
+            maxLifetime: 90, // 1.5 seconds at 60fps
+            active: true,
+            scale: 1.0,
+            alpha: 1.0
+        };
+        
+        // Play level up sound (if available)
+        this.audioManager.play('powerup');
     }
 
     /**
