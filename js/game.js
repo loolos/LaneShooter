@@ -325,8 +325,57 @@ class Game {
 
         // Check player-enemy collisions
         this.enemies.forEach(enemy => {
-            if (checkCollision(this.player.getBounds(), enemy.getBounds())) {
-                this.gameOver();
+            // For formation and swarm enemies, only check collision with actual units
+            // (especially bottom row units that can actually hit the player)
+            if (enemy.type === 'formation' || enemy.type === 'swarm') {
+                // Check collision with each alive unit
+                let collisionDetected = false;
+                for (const unit of enemy.units) {
+                    if (unit.health > 0) {
+                        // Calculate unit's actual position
+                        let unitX, unitY;
+                        if (enemy.type === 'formation') {
+                            const totalWidth = (enemy.cols * enemy.enemyWidth) + ((enemy.cols - 1) * enemy.spacing);
+                            const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
+                            const startX = enemy.x - totalWidth / 2;
+                            const startY = enemy.y - totalHeight / 2;
+                            unitX = startX + (unit.col * (enemy.enemyWidth + enemy.spacing)) + (enemy.enemyWidth / 2);
+                            unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
+                        } else { // swarm
+                            unitX = enemy.x + unit.offsetX;
+                            unitY = enemy.y + unit.offsetY;
+                        }
+                        
+                        // Check collision with unit's actual bounds
+                        let unitWidth, unitHeight;
+                        if (enemy.type === 'formation') {
+                            unitWidth = enemy.enemyWidth;
+                            unitHeight = enemy.enemyHeight;
+                        } else { // swarm
+                            unitWidth = enemy.unitSize;
+                            unitHeight = enemy.unitSize;
+                        }
+                        const unitBounds = {
+                            x: unitX - unitWidth / 2,
+                            y: unitY - unitHeight / 2,
+                            width: unitWidth,
+                            height: unitHeight
+                        };
+                        
+                        if (checkCollision(this.player.getBounds(), unitBounds)) {
+                            collisionDetected = true;
+                            break;
+                        }
+                    }
+                }
+                if (collisionDetected) {
+                    this.gameOver();
+                }
+            } else {
+                // For other enemy types, use standard bounds check
+                if (checkCollision(this.player.getBounds(), enemy.getBounds())) {
+                    this.gameOver();
+                }
             }
         });
 
