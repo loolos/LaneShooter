@@ -10,13 +10,13 @@ class Player {
         this.laneIndex = 0;
         this.targetX = CONFIG.LANE_POSITIONS[this.laneIndex];
         this.moveSpeed = 25; // Increased for faster lane switching
-        
+
         // Shooting
         this.baseShootCooldown = 300; // Base cooldown in milliseconds
         this.shootCooldown = this.baseShootCooldown;
         this.lastShootTime = 0;
         this.bullets = [];
-        
+
         // Experience-based Upgrades System
         this.upgrades = {
             rapidfire: 0,      // Current level
@@ -24,7 +24,7 @@ class Player {
             speedboost: 0,
             lanespeed: 0
         };
-        
+
         // Experience points for each upgrade type
         this.experience = {
             rapidfire: 0,
@@ -32,7 +32,7 @@ class Player {
             speedboost: 0,
             lanespeed: 0
         };
-        
+
         // Base values
         this.baseMoveSpeed = 25;
         this.baseBulletSpeed = CONFIG.BULLET_SPEED;
@@ -56,7 +56,7 @@ class Player {
     update() {
         // Update move speed based on upgrades
         this.moveSpeed = this.baseMoveSpeed * (1 + this.upgrades.lanespeed * 0.3);
-        
+
         // Fast lane switching
         const dx = this.targetX - this.x;
         if (Math.abs(dx) > 0.5) {
@@ -77,13 +77,13 @@ class Player {
     shoot(audioManager) {
         const now = Date.now();
         const cooldown = this.getEffectiveShootCooldown();
-        
+
         if (now - this.lastShootTime < cooldown) {
             return;
         }
 
         this.lastShootTime = now;
-        
+
         // Get bullet count from multishot upgrade
         const bulletCount = 1 + this.upgrades.multishot;
         const bulletSpeed = this.getEffectiveBulletSpeed();
@@ -137,7 +137,7 @@ class Player {
         // Level 2->3: 2² × 3 + 2 × 10 + 2³/3 + 5 = 12 + 20 + 2.67 + 5 = 39
         // Level 3->4: 3² × 3 + 3 × 10 + 3³/3 + 5 = 27 + 30 + 9 + 5 = 71
         // Level 4->5: 4² × 3 + 4 × 10 + 4³/3 + 5 = 48 + 40 + 21.33 + 5 = 114
-        return Math.floor((currentLevel * currentLevel * 3) + (currentLevel * 10) + (currentLevel * currentLevel * currentLevel / 3) + 5);
+        return Math.floor((currentLevel * currentLevel * 3) + (currentLevel * 10) + (currentLevel * currentLevel * currentLevel / 3) + 10);
     }
 
     /**
@@ -217,7 +217,7 @@ class Player {
     draw(ctx) {
         // Draw thrusters based on lane speed upgrade
         this.drawThrusters(ctx);
-        
+
         // Determine ship color based on rapidfire upgrade
         const rapidfireLevel = this.upgrades.rapidfire;
         let shipColor = '#00d4ff';
@@ -232,13 +232,13 @@ class Player {
                 shipColor = `rgb(255, ${255 - (rapidfireLevel - 6) * 30}, 0)`;
             }
         }
-        
+
         ctx.save();
-        
+
         // Draw main ship body (more detailed spaceship design)
         ctx.shadowColor = shipColor;
         ctx.shadowBlur = 15;
-        
+
         // Main hull (pointed up, like a fighter)
         ctx.fillStyle = shipColor;
         ctx.beginPath();
@@ -250,7 +250,7 @@ class Player {
         ctx.lineTo(this.x + this.width / 2, this.y + this.height / 4); // Bottom right
         ctx.closePath();
         ctx.fill();
-        
+
         // Draw cockpit/canopy (glowing center)
         ctx.fillStyle = 'rgba(200, 240, 255, 0.8)';
         ctx.shadowColor = 'rgba(200, 240, 255, 0.6)';
@@ -258,24 +258,24 @@ class Player {
         ctx.beginPath();
         ctx.arc(this.x, this.y - this.height / 6, this.width / 5, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Draw wing details (engines/panels)
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.lineWidth = 2;
         ctx.shadowBlur = 5;
-        
+
         // Left wing detail
         ctx.beginPath();
         ctx.moveTo(this.x - this.width / 3, this.y);
         ctx.lineTo(this.x - this.width / 2.5, this.y + this.height / 3);
         ctx.stroke();
-        
+
         // Right wing detail
         ctx.beginPath();
         ctx.moveTo(this.x + this.width / 3, this.y);
         ctx.lineTo(this.x + this.width / 2.5, this.y + this.height / 3);
         ctx.stroke();
-        
+
         // Draw nose detail (sensor/weapon)
         ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
         ctx.shadowColor = 'rgba(255, 255, 200, 0.5)';
@@ -283,27 +283,27 @@ class Player {
         ctx.beginPath();
         ctx.arc(this.x, this.y - this.height / 2.5, this.width / 8, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Draw side panels/armor
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.lineWidth = 1.5;
         ctx.shadowBlur = 3;
-        
+
         // Left panel
         ctx.beginPath();
         ctx.moveTo(this.x - this.width / 4, this.y - this.height / 4);
         ctx.lineTo(this.x - this.width / 3, this.y);
         ctx.stroke();
-        
+
         // Right panel
         ctx.beginPath();
         ctx.moveTo(this.x + this.width / 4, this.y - this.height / 4);
         ctx.lineTo(this.x + this.width / 3, this.y);
         ctx.stroke();
-        
+
         ctx.shadowBlur = 0;
         ctx.restore();
-        
+
         // Draw additional triangles for multishot upgrade
         const multishotLevel = this.upgrades.multishot;
         if (multishotLevel > 0) {
@@ -312,7 +312,7 @@ class Player {
 
         // Lane indicators removed - no lines between lanes
     }
-    
+
     /**
      * Draw thrusters based on lane speed upgrade
      * @param {CanvasRenderingContext2D} ctx
@@ -323,16 +323,16 @@ class Player {
             const thrusterCount = Math.min(3, lanespeedLevel); // Max 3 thrusters
             const thrusterSpacing = 8;
             const startX = this.x - (thrusterCount - 1) * thrusterSpacing / 2;
-            
+
             for (let i = 0; i < thrusterCount; i++) {
                 const thrusterX = startX + i * thrusterSpacing;
                 const thrusterY = this.y + this.height / 2;
-                
+
                 // Draw thruster flame
                 ctx.fillStyle = `rgba(255, ${100 + lanespeedLevel * 10}, 0, 0.8)`;
                 ctx.shadowColor = '#ff6b00';
                 ctx.shadowBlur = 10;
-                
+
                 // Draw flame shape
                 ctx.beginPath();
                 ctx.moveTo(thrusterX, thrusterY);
@@ -340,7 +340,7 @@ class Player {
                 ctx.lineTo(thrusterX + 4, thrusterY + 8 + lanespeedLevel * 2);
                 ctx.closePath();
                 ctx.fill();
-                
+
                 // Inner flame
                 ctx.fillStyle = `rgba(255, 255, 0, 0.6)`;
                 ctx.beginPath();
@@ -350,11 +350,11 @@ class Player {
                 ctx.closePath();
                 ctx.fill();
             }
-            
+
             ctx.shadowBlur = 0;
         }
     }
-    
+
     /**
      * Draw additional triangles for multishot upgrade
      * @param {CanvasRenderingContext2D} ctx
@@ -364,17 +364,17 @@ class Player {
     drawAdditionalTriangles(ctx, level, color) {
         const smallTriangleSize = this.width * 0.6;
         const offset = this.width * 0.8;
-        
+
         // Draw small triangles on sides
         for (let i = 0; i < Math.min(level, 2); i++) {
             const side = i === 0 ? -1 : 1; // Left or right
             const triangleX = this.x + side * offset;
             const triangleY = this.y;
-            
+
             ctx.fillStyle = color;
             ctx.shadowColor = color;
             ctx.shadowBlur = 10;
-            
+
             ctx.beginPath();
             ctx.moveTo(triangleX, triangleY - smallTriangleSize / 2);
             ctx.lineTo(triangleX - smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
@@ -382,16 +382,16 @@ class Player {
             ctx.closePath();
             ctx.fill();
         }
-        
+
         // If level 3+, draw one more triangle above
         if (level >= 3) {
             const triangleX = this.x;
             const triangleY = this.y - this.height * 0.8;
-            
+
             ctx.fillStyle = color;
             ctx.shadowColor = color;
             ctx.shadowBlur = 10;
-            
+
             ctx.beginPath();
             ctx.moveTo(triangleX, triangleY - smallTriangleSize / 2);
             ctx.lineTo(triangleX - smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
@@ -399,7 +399,7 @@ class Player {
             ctx.closePath();
             ctx.fill();
         }
-        
+
         ctx.shadowBlur = 0;
     }
 
@@ -410,13 +410,13 @@ class Player {
     drawLaneIndicators(ctx) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 2;
-        
+
         CONFIG.LANE_POSITIONS.forEach((x, index) => {
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, CONFIG.CANVAS_HEIGHT);
             ctx.stroke();
-            
+
             // Highlight current lane
             if (index === this.laneIndex) {
                 ctx.strokeStyle = 'rgba(0, 212, 255, 0.5)';
