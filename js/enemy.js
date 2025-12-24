@@ -370,14 +370,13 @@ class FormationEnemy extends Enemy {
         const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
 
         // Randomly determine rows and columns within reasonable ranges
-        // Rows: 1-4, Columns: 2-8
-        const minRows = 1;
-        const maxRows = Math.min(4, 1 + Math.floor((level - 1) / 3));
-        const minCols = 2;
-        const maxCols = Math.min(8, 3 + Math.floor((level - 1) / 2));
+        // Rows: random from 1 to min(4, floor(level/5)+1), Columns: 3-6 (fixed)
+        const maxRows = Math.min(4, Math.floor(level / 5) + 1);
+        this.rows = randomInt(1, maxRows);
+        const minCols = 3;
+        const maxCols = 6;
 
-        // Randomly select rows and columns
-        this.rows = randomInt(minRows, maxRows);
+        // Randomly select columns
         this.cols = randomInt(minCols, maxCols);
 
         // Calculate health per unit: totalHealth / (rows * cols)
@@ -601,14 +600,13 @@ class SwarmEnemy extends Enemy {
         const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
 
         // Randomly determine rows and columns within reasonable ranges
-        // Rows: 1-3, Columns: 3-5
-        const minRows = 1;
-        const maxRows = Math.min(3, 1 + Math.floor((level - 1) / 3));
-        const minCols = 3;
-        const maxCols = Math.min(5, 3 + Math.floor((level - 1) / 2));
+        // Rows: random from 1 to min(4, floor(level/5)+1), Columns: 3-6 (fixed)
+        const maxRows = Math.min(3, Math.floor(level / 10) + 1);
+        this.rows = randomInt(1, maxRows);
+        const minCols = 4;
+        const maxCols = 8;
 
-        // Randomly select rows and columns
-        this.rows = randomInt(minRows, maxRows);
+        // Randomly select columns
         const unitsPerRow = randomInt(minCols, maxCols);
         this.unitsPerRow = unitsPerRow;
         const totalUnits = this.rows * unitsPerRow;

@@ -579,9 +579,26 @@ class Game {
      * Update game entities
      */
     update() {
-        // Always update effects even after game over to show death animation
-        this.effects.forEach(effect => effect.update());
-        this.effects = this.effects.filter(effect => effect.active);
+        // Always update effects even after game over to show death animation (optimized cleanup)
+        let effectIndex = 0;
+        while (effectIndex < this.effects.length) {
+            const effect = this.effects[effectIndex];
+            if (!effect.active) {
+                this.effects.splice(effectIndex, 1);
+                continue;
+            }
+            effect.update();
+            if (!effect.active) {
+                this.effects.splice(effectIndex, 1);
+                continue;
+            }
+            effectIndex++;
+        }
+        
+        // Limit effects to prevent memory issues
+        if (this.effects.length > 100) {
+            this.effects = this.effects.slice(-100); // Keep only last 100 effects
+        }
 
         // Update level up text
         if (this.levelUpText && this.levelUpText.active) {
@@ -632,8 +649,17 @@ class Game {
         this.spawnEnemies();
         this.spawnPowerups();
 
-        // Update enemies
-        this.enemies.forEach(enemy => {
+        // Update enemies (optimized: remove inactive ones during iteration)
+        let enemyIndex = 0;
+        while (enemyIndex < this.enemies.length) {
+            const enemy = this.enemies[enemyIndex];
+            
+            if (!enemy.active) {
+                // Remove inactive enemy without creating new array
+                this.enemies.splice(enemyIndex, 1);
+                continue;
+            }
+            
             // Only fast enemies' speed increases with level, all others stay at base speed
             if (enemy.type === 'fast') {
                 // Fast enemies speed increases with level
@@ -666,51 +692,84 @@ class Game {
                 this.enemies.push(spawnedEnemy);
                 enemy.resetSpawnCooldown();
             }
-        });
-        this.enemies = this.enemies.filter(enemy => enemy.active);
+            
+            enemyIndex++;
+        }
 
-        // Update powerups
-        this.powerups.forEach((powerup, index) => {
+        // Update powerups (optimized: remove inactive ones during iteration)
+        let powerupIndex = 0;
+        while (powerupIndex < this.powerups.length) {
+            const powerup = this.powerups[powerupIndex];
+            if (!powerup.active) {
+                this.powerups.splice(powerupIndex, 1);
+                continue;
+            }
             try {
                 powerup.update();
             } catch (error) {
-                console.error(`ERROR updating powerup ${index}:`, error);
+                console.error(`ERROR updating powerup ${powerupIndex}:`, error);
                 powerup.active = false; // Deactivate problematic powerup
+                this.powerups.splice(powerupIndex, 1);
+                continue;
             }
-        });
-        this.powerups = this.powerups.filter(powerup => powerup.active);
+            powerupIndex++;
+        }
 
-        // Update XP texts
-        this.xpTexts.forEach(xpText => xpText.update());
-        this.xpTexts = this.xpTexts.filter(xpText => xpText.active);
+        // Update XP texts (optimized: remove inactive ones during iteration)
+        let xpTextIndex = 0;
+        while (xpTextIndex < this.xpTexts.length) {
+            const xpText = this.xpTexts[xpTextIndex];
+            if (!xpText.active) {
+                this.xpTexts.splice(xpTextIndex, 1);
+                continue;
+            }
+            xpText.update();
+            xpTextIndex++;
+        }
 
         // Check bullet-enemy collisions
         if (this.player) {
-            const bulletCount = this.player.bullets.length;
-            const enemyCount = this.enemies.length;
+            // Pre-filter active bullets and enemies to reduce nested loop iterations
+            const activeBullets = this.player.bullets.filter(b => b.active);
+            const activeEnemies = this.enemies.filter(e => e.active);
+            
+            const bulletCount = activeBullets.length;
+            const enemyCount = activeEnemies.length;
 
-            // Safety check: prevent infinite loops
-            if (bulletCount > 100 || enemyCount > 100) {
+            // Safety check: prevent infinite loops and limit entity counts
+            if (bulletCount > 200 || enemyCount > 100) {
                 console.warn(`WARNING: Unusually high entity count - Bullets: ${bulletCount}, Enemies: ${enemyCount}`);
+                // Force cleanup if too many entities
+                if (bulletCount > 300) {
+                    this.player.bullets = this.player.bullets.filter(b => b.active).slice(0, 200);
+                }
+                if (enemyCount > 150) {
+                    this.enemies = this.enemies.filter(e => e.active).slice(0, 100);
+                }
             }
 
-            this.player.bullets.forEach((bullet, bulletIndex) => {
-                if (!bullet.active) return; // Skip already inactive bullets
-
-                this.enemies.forEach((enemy, enemyIndex) => {
-                    if (!enemy.active) return; // Skip inactive enemies
+            // Optimized collision detection: only check active entities
+            activeBullets.forEach((bullet, bulletIndex) => {
+                activeEnemies.forEach((enemy, enemyIndex) => {
 
                     // For formation/swarm enemies, check collision with the entire bottom row as a solid block
                     // This prevents bullets from passing through gaps where units were destroyed
                     let collisionDetected = false;
 
                     if ((enemy.type === 'formation' || enemy.type === 'swarm') && enemy.units) {
-                        // Get alive units to find which row is the bottom-most active one
-                        const aliveUnits = enemy.units.filter(u => u.health > 0);
+                        // Cache alive units calculation (only recalculate if enemy was hit)
+                        if (!enemy._cachedAliveUnits || enemy._needsCacheUpdate) {
+                            enemy._cachedAliveUnits = enemy.units.filter(u => u.health > 0);
+                            enemy._needsCacheUpdate = false;
+                        }
+                        const aliveUnits = enemy._cachedAliveUnits;
 
                         if (aliveUnits.length > 0) {
-                            // Find the bottommost row index (highest row number)
-                            const maxRow = Math.max(...aliveUnits.map(u => u.row));
+                            // Cache maxRow calculation
+                            if (enemy._cachedMaxRow === undefined || enemy._needsCacheUpdate) {
+                                enemy._cachedMaxRow = Math.max(...aliveUnits.map(u => u.row));
+                            }
+                            const maxRow = enemy._cachedMaxRow;
 
                             // Calculate the bounding box for this entire row (solid block)
                             let rowX, rowY, rowWidth, rowHeight;
@@ -807,6 +866,13 @@ class Game {
                         const result = enemy.takeDamage(actualDamage);
                         const unitsKilled = result.unitsKilled || 0;
 
+                        // Invalidate cache for formation/swarm enemies when they take damage
+                        if ((enemy.type === 'formation' || enemy.type === 'swarm') && unitsKilled > 0) {
+                            enemy._needsCacheUpdate = true;
+                            enemy._cachedAliveUnits = null;
+                            enemy._cachedMaxRow = undefined;
+                        }
+
                         // Give score and experience for each unit killed (Formation/Swarm)
                         if (unitsKilled > 0 && (enemy.type === 'formation' || enemy.type === 'swarm')) {
                             // Score: proportional to unit health, independent of total count
@@ -900,49 +966,55 @@ class Game {
             });
         }
 
-        // Check player-enemy collisions
-        this.enemies.forEach(enemy => {
+        // Check player-enemy collisions (only check active enemies)
+        const activeEnemiesForPlayer = this.enemies.filter(e => e.active);
+        activeEnemiesForPlayer.forEach(enemy => {
             // For formation and swarm enemies, only check collision with actual units
             // (especially bottom row units that can actually hit the player)
             if (enemy.type === 'formation' || enemy.type === 'swarm') {
+                // Use cached alive units if available
+                if (!enemy._cachedAliveUnits || enemy._needsCacheUpdate) {
+                    enemy._cachedAliveUnits = enemy.units.filter(u => u.health > 0);
+                    enemy._needsCacheUpdate = false;
+                }
+                const aliveUnits = enemy._cachedAliveUnits;
+                
                 // Check collision with each alive unit
                 let collisionDetected = false;
-                for (const unit of enemy.units) {
-                    if (unit.health > 0) {
-                        // Calculate unit's actual position
-                        let unitX, unitY;
-                        if (enemy.type === 'formation') {
-                            const totalWidth = (enemy.cols * enemy.enemyWidth) + ((enemy.cols - 1) * enemy.spacing);
-                            const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
-                            const startX = enemy.x - totalWidth / 2;
-                            const startY = enemy.y - totalHeight / 2;
-                            unitX = startX + (unit.col * (enemy.enemyWidth + enemy.spacing)) + (enemy.enemyWidth / 2);
-                            unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
-                        } else { // swarm
-                            unitX = enemy.x + unit.offsetX;
-                            unitY = enemy.y + unit.offsetY;
-                        }
+                for (const unit of aliveUnits) {
+                    // Calculate unit's actual position
+                    let unitX, unitY;
+                    if (enemy.type === 'formation') {
+                        const totalWidth = (enemy.cols * enemy.enemyWidth) + ((enemy.cols - 1) * enemy.spacing);
+                        const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
+                        const startX = enemy.x - totalWidth / 2;
+                        const startY = enemy.y - totalHeight / 2;
+                        unitX = startX + (unit.col * (enemy.enemyWidth + enemy.spacing)) + (enemy.enemyWidth / 2);
+                        unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
+                    } else { // swarm
+                        unitX = enemy.x + unit.offsetX;
+                        unitY = enemy.y + unit.offsetY;
+                    }
 
-                        // Check collision with unit's actual bounds
-                        let unitWidth, unitHeight;
-                        if (enemy.type === 'formation') {
-                            unitWidth = enemy.enemyWidth;
-                            unitHeight = enemy.enemyHeight;
-                        } else { // swarm
-                            unitWidth = enemy.unitSize;
-                            unitHeight = enemy.unitSize;
-                        }
-                        const unitBounds = {
-                            x: unitX - unitWidth / 2,
-                            y: unitY - unitHeight / 2,
-                            width: unitWidth,
-                            height: unitHeight
-                        };
+                    // Check collision with unit's actual bounds
+                    let unitWidth, unitHeight;
+                    if (enemy.type === 'formation') {
+                        unitWidth = enemy.enemyWidth;
+                        unitHeight = enemy.enemyHeight;
+                    } else { // swarm
+                        unitWidth = enemy.unitSize;
+                        unitHeight = enemy.unitSize;
+                    }
+                    const unitBounds = {
+                        x: unitX - unitWidth / 2,
+                        y: unitY - unitHeight / 2,
+                        width: unitWidth,
+                        height: unitHeight
+                    };
 
-                        if (checkCollision(this.player.getBounds(), unitBounds)) {
-                            collisionDetected = true;
-                            break;
-                        }
+                    if (checkCollision(this.player.getBounds(), unitBounds)) {
+                        collisionDetected = true;
+                        break;
                     }
                 }
                 if (collisionDetected) {
@@ -1066,18 +1138,38 @@ class Game {
         if (this.player) {
             this.player.draw(this.ctx);
 
-            // Draw bullets
-            this.player.bullets.forEach(bullet => bullet.draw(this.ctx));
+            // Draw bullets (only active ones, and only if on screen)
+            const canvasHeight = this.canvas.height;
+            const canvasWidth = this.canvas.width;
+            this.player.bullets.forEach(bullet => {
+                if (bullet.active && bullet.y > -50 && bullet.y < canvasHeight + 50) {
+                    bullet.draw(this.ctx);
+                }
+            });
         }
 
-        // Draw enemies
-        this.enemies.forEach(enemy => enemy.draw(this.ctx));
+        // Draw enemies (only active ones, and only if on screen or near screen)
+        const canvasHeight = this.canvas.height;
+        const canvasWidth = this.canvas.width;
+        this.enemies.forEach(enemy => {
+            if (enemy.active && enemy.y > -100 && enemy.y < canvasHeight + 100) {
+                enemy.draw(this.ctx);
+            }
+        });
 
-        // Draw powerups
-        this.powerups.forEach(powerup => powerup.draw(this.ctx));
+        // Draw powerups (only active ones, and only if on screen)
+        this.powerups.forEach(powerup => {
+            if (powerup.active && powerup.y > -50 && powerup.y < canvasHeight + 50) {
+                powerup.draw(this.ctx);
+            }
+        });
 
-        // Draw XP texts
-        this.xpTexts.forEach(xpText => xpText.draw(this.ctx));
+        // Draw XP texts (only active ones, and only if on screen)
+        this.xpTexts.forEach(xpText => {
+            if (xpText.active && xpText.y > -50 && xpText.y < canvasHeight + 50) {
+                xpText.draw(this.ctx);
+            }
+        });
 
         // Draw level up text
         if (this.levelUpText && this.levelUpText.active) {
