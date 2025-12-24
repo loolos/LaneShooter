@@ -112,7 +112,7 @@ class AudioManager {
     initializeDefaultSounds() {
         // Using Web Audio API to generate simple sounds
         // In production, these would be actual audio files
-        this.createToneSound('shoot', 200, 0.1);
+        // Note: 'shoot' is now created dynamically via createDynamicShootSound()
         this.createToneSound('hit', 150, 0.15);
         this.createToneSound('powerup', 400, 0.2);
         this.createToneSound('gameover', 100, 0.5);
@@ -124,6 +124,12 @@ class AudioManager {
         this.createEnemyDeathSound('formation', 100, 0.25);
         this.createEnemyDeathSound('swarm', 160, 0.18);
         this.createEnemyDeathSound('carrier', 60, 0.8); // Epic carrier explosion sound
+        
+        // Create dynamic shoot sound generator (not pre-generated)
+        this.createDynamicShootSound();
+        
+        // Track last shoot time for dynamic pitch adjustment
+        this.lastShootTime = 0;
     }
 
     /**
@@ -144,9 +150,40 @@ class AudioManager {
 
         for (let i = 0; i < frameCount; i++) {
             const t = i / sampleRate;
-            // Simple sine wave with envelope
-            const envelope = Math.exp(-t * 5); // Exponential decay
-            data[i] = Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
+            let value = 0;
+            
+            if (name === 'shoot') {
+                // Enhanced shooting sound: sharp, punchy, with pitch sweep
+                // Pitch rises quickly then falls (pew-pew effect)
+                const pitchSweep = 1 + (1 - t * 2) * 0.3; // Rise then fall
+                const currentFreq = frequency * pitchSweep;
+                
+                // ADSR envelope: fast attack, quick decay
+                let envelope = 0;
+                if (t < 0.01) {
+                    // Attack: very fast rise
+                    envelope = t / 0.01;
+                } else if (t < 0.05) {
+                    // Decay: quick fall
+                    envelope = 1 - ((t - 0.01) / 0.04) * 0.4;
+                } else {
+                    // Sustain and release: exponential decay
+                    envelope = 0.6 * Math.exp(-(t - 0.05) * 30);
+                }
+                
+                // Multiple frequencies for richer sound
+                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.4; // Main tone
+                value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.2; // Octave
+                value += Math.sin(2 * Math.PI * currentFreq * 1.5 * t) * envelope * 0.15; // Fifth
+                // Add slight noise for punch
+                value += (Math.random() * 2 - 1) * envelope * 0.05;
+            } else {
+                // Simple sine wave with envelope for other sounds
+                const envelope = Math.exp(-t * 5); // Exponential decay
+                value = Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
+            }
+            
+            data[i] = value;
         }
 
         // Convert to Audio element for compatibility
@@ -194,36 +231,68 @@ class AudioManager {
             let value = 0;
             
             if (name === 'carrier') {
-                // Epic carrier explosion: multiple frequencies with heavy bass
-                const envelope = Math.exp(-t * 2); // Slower decay for epic feel
-                value += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.4; // Base tone
-                value += Math.sin(2 * Math.PI * frequency * 0.5 * t) * envelope * 0.3; // Bass
-                value += Math.sin(2 * Math.PI * frequency * 2 * t) * envelope * 0.2; // High tone
-                value += Math.sin(2 * Math.PI * frequency * 3 * t) * envelope * 0.1; // Higher tone
-                // Add some noise for explosion effect
-                value += (Math.random() * 2 - 1) * envelope * 0.1;
+                // Epic carrier explosion: multiple frequencies with heavy bass and pitch drop
+                const pitchDrop = 1 - t * 0.4; // Pitch drops dramatically
+                const currentFreq = frequency * pitchDrop;
+                const envelope = Math.exp(-t * 1.5); // Slower decay for epic feel
+                
+                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.5; // Base tone (dropping)
+                value += Math.sin(2 * Math.PI * currentFreq * 0.5 * t) * envelope * 0.4; // Deep bass
+                value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.25; // High tone
+                value += Math.sin(2 * Math.PI * currentFreq * 3 * t) * envelope * 0.15; // Higher tone
+                // Add filtered noise for explosion effect
+                const noiseEnvelope = Math.exp(-t * 3);
+                value += (Math.random() * 2 - 1) * noiseEnvelope * 0.15;
             } else if (name === 'tank') {
-                // Heavy tank explosion: low frequency with rumble
-                const envelope = Math.exp(-t * 3);
-                value += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.5;
-                value += Math.sin(2 * Math.PI * frequency * 0.7 * t) * envelope * 0.3;
+                // Heavy tank explosion: low frequency with rumble and pitch wobble
+                const pitchWobble = 1 + Math.sin(t * 20) * 0.1; // Slight wobble for rumble effect
+                const currentFreq = frequency * pitchWobble;
+                const envelope = Math.exp(-t * 2.5);
+                
+                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.6;
+                value += Math.sin(2 * Math.PI * currentFreq * 0.7 * t) * envelope * 0.35;
+                value += Math.sin(2 * Math.PI * currentFreq * 0.5 * t) * envelope * 0.25; // Extra bass
+                // Add low-frequency rumble
+                value += Math.sin(2 * Math.PI * 30 * t) * envelope * 0.2;
             } else if (name === 'fast') {
-                // Quick, sharp sound for fast enemy
-                const envelope = Math.exp(-t * 8);
-                value = Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
+                // Quick, sharp sound for fast enemy with pitch rise
+                const pitchRise = 1 + t * 0.5; // Pitch rises quickly
+                const currentFreq = frequency * pitchRise;
+                const envelope = Math.exp(-t * 10); // Very fast decay
+                
+                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.4;
+                value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.2; // Bright overtone
             } else if (name === 'formation') {
-                // Multiple tones for formation
+                // Multiple tones for formation with cascading effect
+                const pitchDrop = 1 - t * 0.2; // Slight pitch drop
+                const currentFreq = frequency * pitchDrop;
                 const envelope = Math.exp(-t * 4);
-                value += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
-                value += Math.sin(2 * Math.PI * frequency * 1.5 * t) * envelope * 0.2;
+                
+                // Staggered tones for cascading effect
+                const delay1 = Math.max(0, t - 0.02);
+                const delay2 = Math.max(0, t - 0.04);
+                
+                value += Math.sin(2 * Math.PI * currentFreq * delay1) * envelope * 0.35;
+                value += Math.sin(2 * Math.PI * currentFreq * 1.5 * delay1) * envelope * 0.25;
+                value += Math.sin(2 * Math.PI * currentFreq * 2 * delay2) * envelope * 0.2;
             } else if (name === 'swarm') {
-                // High-pitched sparkle sound
-                const envelope = Math.exp(-t * 6);
-                value = Math.sin(2 * Math.PI * frequency * t) * envelope * 0.25;
+                // High-pitched sparkle sound with rapid pitch modulation
+                const pitchMod = 1 + Math.sin(t * 50) * 0.15; // Rapid pitch modulation
+                const currentFreq = frequency * pitchMod;
+                const envelope = Math.exp(-t * 7);
+                
+                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.3;
+                value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.2; // Bright sparkle
+                value += Math.sin(2 * Math.PI * currentFreq * 3 * t) * envelope * 0.1;
             } else {
-                // Basic explosion: standard tone
+                // Basic explosion: standard tone with pitch drop
+                const pitchDrop = 1 - t * 0.3; // Pitch drops
+                const currentFreq = frequency * pitchDrop;
                 const envelope = Math.exp(-t * 5);
-                value = Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
+                
+                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.4;
+                value += Math.sin(2 * Math.PI * currentFreq * 1.5 * t) * envelope * 0.2; // Fifth
+                value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.15; // Octave
             }
             
             data[i] = value;
@@ -250,6 +319,96 @@ class AudioManager {
             }
         };
         this.sounds[name] = soundObj;
+    }
+
+    /**
+     * Create dynamic shoot sound that adjusts pitch based on fire rate
+     */
+    createDynamicShootSound() {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const soundObj = {
+            audioContext: audioContext,
+            play: function(fireRate = 1) {
+                try {
+                    if (this.audioContext.state === 'suspended') {
+                        this.audioContext.resume();
+                    }
+                    
+                    // Adjust base frequency based on fire rate (faster shooting = higher pitch)
+                    const baseFreq = 200;
+                    const freqMultiplier = 1 + (fireRate - 1) * 0.2; // Scale pitch with fire rate
+                    const frequency = baseFreq * freqMultiplier;
+                    const duration = 0.08; // Short, punchy sound
+                    
+                    // Generate sound on the fly
+                    const sampleRate = this.audioContext.sampleRate;
+                    const frameCount = sampleRate * duration;
+                    const buffer = this.audioContext.createBuffer(1, frameCount, sampleRate);
+                    const data = buffer.getChannelData(0);
+                    
+                    for (let i = 0; i < frameCount; i++) {
+                        const t = i / sampleRate;
+                        
+                        // Enhanced shooting sound: sharp, punchy, with pitch sweep
+                        const pitchSweep = 1 + (1 - t * 12.5) * 0.25; // Rise then fall (faster)
+                        const currentFreq = frequency * pitchSweep;
+                        
+                        // ADSR envelope: fast attack, quick decay
+                        let envelope = 0;
+                        if (t < 0.005) {
+                            // Attack: very fast rise
+                            envelope = t / 0.005;
+                        } else if (t < 0.03) {
+                            // Decay: quick fall
+                            envelope = 1 - ((t - 0.005) / 0.025) * 0.5;
+                        } else {
+                            // Sustain and release: exponential decay
+                            envelope = 0.5 * Math.exp(-(t - 0.03) * 40);
+                        }
+                        
+                        // Multiple frequencies for richer sound
+                        let value = 0;
+                        value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.45; // Main tone
+                        value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.25; // Octave
+                        value += Math.sin(2 * Math.PI * currentFreq * 1.5 * t) * envelope * 0.18; // Fifth
+                        // Add slight noise for punch
+                        value += (Math.random() * 2 - 1) * envelope * 0.06;
+                        
+                        data[i] = value;
+                    }
+                    
+                    const source = this.audioContext.createBufferSource();
+                    source.buffer = buffer;
+                    source.connect(this.audioContext.destination);
+                    source.start();
+                } catch (err) {
+                    console.debug('Dynamic shoot sound error:', err);
+                }
+            }
+        };
+        this.sounds['shoot'] = soundObj;
+    }
+
+    /**
+     * Play shoot sound with dynamic pitch based on fire rate
+     * @param {number} fireRate - Fire rate multiplier (1 = normal, higher = faster)
+     */
+    playShoot(fireRate = 1) {
+        if (!this.enabled) return;
+        
+        const now = Date.now();
+        const timeSinceLastShoot = now - (this.lastShootTime || 0);
+        this.lastShootTime = now;
+        
+        // Calculate fire rate (shots per second, normalized)
+        // If shooting very fast, increase pitch
+        const shotsPerSecond = timeSinceLastShoot > 0 ? 1000 / timeSinceLastShoot : 10;
+        const normalizedFireRate = Math.min(shotsPerSecond / 3, 3); // Cap at 3x normal rate
+        
+        if (this.sounds['shoot'] && this.sounds['shoot'].play) {
+            this.sounds['shoot'].play(normalizedFireRate);
+        }
     }
 
     /**
@@ -1113,7 +1272,7 @@ class AudioManager {
     }
 
     /**
-     * Start victory music - epic and triumphant
+     * Start victory music - epic and triumphant (short 6-7 second fanfare)
      */
     startVictoryMusic() {
         if (!this.musicEnabled || !this.musicContext) return;
@@ -1125,9 +1284,10 @@ class AudioManager {
                 this.musicContext.resume();
             }
 
-            // Epic victory tempo: 100 BPM
-            const tempo = 100;
+            // Epic victory tempo: 120 BPM (faster, more energetic)
+            const tempo = 120;
             const beatDuration = 60 / tempo;
+            const totalDuration = 7000; // 7 seconds total
 
             this.musicOscillators = [];
             
@@ -1136,7 +1296,7 @@ class AudioManager {
             bassOsc.type = 'sawtooth';
             bassOsc.frequency.value = 110; // A2
             const bassGain = this.musicContext.createGain();
-            bassGain.gain.value = 0.25;
+            bassGain.gain.value = 0.3;
             bassOsc.connect(bassGain);
             bassGain.connect(this.musicGainNode);
             this.musicOscillators.push({osc: bassOsc, gain: bassGain});
@@ -1146,7 +1306,7 @@ class AudioManager {
             melodyOsc.type = 'sine';
             melodyOsc.frequency.value = 440; // A4
             const melodyGain = this.musicContext.createGain();
-            melodyGain.gain.value = 0.2;
+            melodyGain.gain.value = 0.25;
             melodyOsc.connect(melodyGain);
             melodyGain.connect(this.musicGainNode);
             this.musicOscillators.push({osc: melodyOsc, gain: melodyGain});
@@ -1156,51 +1316,106 @@ class AudioManager {
             highOsc.type = 'triangle';
             highOsc.frequency.value = 880; // A5
             const highGain = this.musicContext.createGain();
-            highGain.gain.value = 0.15;
+            highGain.gain.value = 0.2;
             highOsc.connect(highGain);
             highGain.connect(this.musicGainNode);
             this.musicOscillators.push({osc: highOsc, gain: highGain});
+
+            // Harmonic layer for richness
+            const harmonicOsc = this.musicContext.createOscillator();
+            harmonicOsc.type = 'square';
+            harmonicOsc.frequency.value = 220; // A3
+            const harmonicGain = this.musicContext.createGain();
+            harmonicGain.gain.value = 0.15;
+            harmonicOsc.connect(harmonicGain);
+            harmonicGain.connect(this.musicGainNode);
+            this.musicOscillators.push({osc: harmonicOsc, gain: harmonicGain});
 
             // Start oscillators
             bassOsc.start();
             melodyOsc.start();
             highOsc.start();
+            harmonicOsc.start();
 
-            // Create triumphant melody pattern
+            // Create triumphant melody pattern - ascending fanfare
+            // More dramatic progression: C-D-E-F-G-A-B-C (major scale)
+            const bassNotes = [98, 110, 123, 131, 147, 165, 185, 196, 220, 247, 262, 294, 330, 370, 392, 440];
+            const melodyNotes = [392, 440, 494, 523, 587, 659, 740, 784, 880, 988, 1047, 1175, 1319, 1480, 1568, 1760];
+            const highNotes = [784, 880, 988, 1047, 1175, 1319, 1480, 1568, 1760, 1976, 2093, 2349, 2637, 2960, 3136, 3520];
+            const harmonicNotes = [196, 220, 247, 262, 294, 330, 370, 392, 440, 494, 523, 587, 659, 740, 784, 880];
+
             let noteIndex = 0;
-            const bassNotes = [110, 123, 131, 147, 165, 147, 131, 123];
-            const melodyNotes = [440, 494, 523, 587, 659, 587, 523, 494]; // Ascending then descending - triumphant
-            const highNotes = [880, 988, 1047, 1175, 1319, 1175, 1047, 988];
+            const totalBeats = Math.floor(totalDuration / (beatDuration * 1000));
+            let beatCount = 0;
 
-            const playNextNote = () => {
-                if (!this.musicOscillators.length) return;
+            // Use setInterval instead of recursive setTimeout
+            const victoryPatternInterval = setInterval(() => {
+                if (!this.musicOscillators.length || beatCount >= totalBeats) {
+                    clearInterval(victoryPatternInterval);
+                    // Fade out
+                    this.musicOscillators.forEach(({gain}) => {
+                        if (gain && gain.gain) {
+                            gain.gain.linearRampToValueAtTime(0, this.musicContext.currentTime + 0.5);
+                        }
+                    });
+                    // Stop after fade
+                    setTimeout(() => {
+                        this.stopMusic();
+                    }, 600);
+                    return;
+                }
 
-                this.musicOscillators[0].osc.frequency.setTargetAtTime(
-                    bassNotes[noteIndex], 
-                    this.musicContext.currentTime, 
-                    0.1
-                );
-                this.musicOscillators[1].osc.frequency.setTargetAtTime(
-                    melodyNotes[noteIndex], 
-                    this.musicContext.currentTime, 
-                    0.1
-                );
-                this.musicOscillators[2].osc.frequency.setTargetAtTime(
-                    highNotes[noteIndex], 
-                    this.musicContext.currentTime, 
-                    0.1
-                );
+                // Update frequencies with smooth transitions
+                if (this.musicOscillators[0] && this.musicOscillators[0].osc) {
+                    this.musicOscillators[0].osc.frequency.setTargetAtTime(
+                        bassNotes[noteIndex % bassNotes.length], 
+                        this.musicContext.currentTime, 
+                        0.05
+                    );
+                }
+                if (this.musicOscillators[1] && this.musicOscillators[1].osc) {
+                    this.musicOscillators[1].osc.frequency.setTargetAtTime(
+                        melodyNotes[noteIndex % melodyNotes.length], 
+                        this.musicContext.currentTime, 
+                        0.05
+                    );
+                }
+                if (this.musicOscillators[2] && this.musicOscillators[2].osc) {
+                    this.musicOscillators[2].osc.frequency.setTargetAtTime(
+                        highNotes[noteIndex % highNotes.length], 
+                        this.musicContext.currentTime, 
+                        0.05
+                    );
+                }
+                if (this.musicOscillators[3] && this.musicOscillators[3].osc) {
+                    this.musicOscillators[3].osc.frequency.setTargetAtTime(
+                        harmonicNotes[noteIndex % harmonicNotes.length], 
+                        this.musicContext.currentTime, 
+                        0.05
+                    );
+                }
 
-                noteIndex = (noteIndex + 1) % bassNotes.length;
-                
-                setTimeout(() => {
-                    if (this.musicOscillators.length) {
-                        playNextNote();
-                    }
-                }, beatDuration * 1000);
-            };
+                // Dynamic volume changes for emphasis
+                const beatInMeasure = beatCount % 4;
+                if (beatInMeasure === 0) {
+                    // Emphasize first beat
+                    this.musicOscillators.forEach(({gain}) => {
+                        if (gain && gain.gain) {
+                            gain.gain.setTargetAtTime(gain.gain.value * 1.2, this.musicContext.currentTime, 0.05);
+                            gain.gain.setTargetAtTime(gain.gain.value * 0.83, this.musicContext.currentTime + 0.1, 0.05);
+                        }
+                    });
+                }
 
-            playNextNote();
+                noteIndex++;
+                beatCount++;
+            }, beatDuration * 1000);
+
+            // Store interval for cleanup
+            if (!this.patternIntervals) {
+                this.patternIntervals = {};
+            }
+            this.patternIntervals.victory = victoryPatternInterval;
 
             this.currentMusic = 'victory';
         } catch (err) {

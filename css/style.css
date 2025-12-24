@@ -430,12 +430,38 @@ body {
 }
 
 .menu-screen h1,
-.game-over-screen h1,
+.game-over-screen h1 {
+    font-size: 48px;
+    margin-bottom: 30px;
+    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.8);
+    color: #ffd700;
+}
+
 .victory-screen h1 {
     font-size: 48px;
     margin-bottom: 30px;
     text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.8);
     color: #ffd700;
+    animation: victoryTitlePulse 2s ease-in-out infinite, victoryTitleGlow 1.5s ease-in-out infinite alternate;
+    transform-origin: center;
+}
+
+@keyframes victoryTitlePulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+@keyframes victoryTitleGlow {
+    0% {
+        text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.8), 0 0 10px rgba(255, 215, 0, 0.5);
+    }
+    100% {
+        text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 215, 0, 1), 0 0 50px rgba(255, 165, 0, 0.8);
+    }
 }
 
 .instructions {
@@ -452,6 +478,27 @@ body {
     margin-bottom: 20px;
     color: #ffd700;
     font-weight: bold;
+    animation: victoryMessageSlide 1s ease-out, victoryMessageFade 2s ease-in-out infinite 1s;
+}
+
+@keyframes victoryMessageSlide {
+    0% {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes victoryMessageFade {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
 }
 
 .continue-message {
@@ -460,6 +507,31 @@ body {
     margin-bottom: 30px;
     color: #4ecdc4;
     font-style: italic;
+    animation: continueMessageBlink 1.5s ease-in-out infinite;
+}
+
+@keyframes continueMessageBlink {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.victory-screen .final-score {
+    animation: scoreAppear 1.5s ease-out 0.5s both;
+}
+
+@keyframes scoreAppear {
+    0% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 .instructions strong {

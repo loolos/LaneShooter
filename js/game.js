@@ -32,6 +32,10 @@ class Game {
         this.victoryShown = false; // Track if victory has been shown (only show once at level 20)
         this.victoryLocked = false; // Lock victory screen for 3 seconds
         this.carrierSpawnedAtLevels = new Set(); // Track which levels have spawned a carrier
+        this.victoryParticles = []; // Victory screen particles
+        this.victoryStars = []; // Victory screen stars
+        this.victoryEnergyRings = []; // Victory screen energy rings
+        this.victoryTime = 0; // Time since victory screen appeared
 
         // Debug logging system
         this.lastLogTime = 0;
@@ -189,6 +193,10 @@ class Game {
         this.hasCarrier = false;
         this.victoryShown = false; // Reset victory flag on new game
         this.victoryLocked = false; // Reset victory lock on new game
+        this.victoryParticles = [];
+        this.victoryStars = [];
+        this.victoryEnergyRings = [];
+        this.victoryTime = 0;
         this.carrierSpawnedAtLevels = new Set(); // Reset carrier spawn tracking
 
         // Start background music
@@ -214,6 +222,10 @@ class Game {
         this.state = 'victory';
         this.victoryScoreElement.textContent = this.score;
         this.victoryScreen.style.display = 'flex';
+        this.victoryTime = 0;
+
+        // Initialize victory animation particles
+        this.initVictoryAnimation();
 
         // Play epic victory music
         this.audioManager.startVictoryMusic();
@@ -240,9 +252,233 @@ class Game {
         document.addEventListener('touchstart', continueHandler);
     }
 
+    /**
+     * Initialize victory screen animation particles
+     */
+    initVictoryAnimation() {
+        this.victoryParticles = [];
+        this.victoryStars = [];
+
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+
+        // Create burst particles (golden/rainbow)
+        for (let i = 0; i < 80; i++) {
+            const angle = (Math.PI * 2 * i) / 80 + Math.random() * 0.3;
+            const speed = 2 + Math.random() * 4;
+            this.victoryParticles.push({
+                x: centerX,
+                y: centerY,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: 3 + Math.random() * 5,
+                life: 0,
+                maxLife: 60 + Math.random() * 40,
+                color: `hsl(${Math.random() * 60 + 30}, 100%, ${50 + Math.random() * 30}%)`, // Golden to orange
+                glow: true
+            });
+        }
+
+        // Create floating stars
+        for (let i = 0; i < 50; i++) {
+            this.victoryStars.push({
+                x: Math.random() * this.canvas.width,
+                y: Math.random() * this.canvas.height,
+                size: 2 + Math.random() * 4,
+                speed: 0.3 + Math.random() * 0.5,
+                angle: Math.random() * Math.PI * 2,
+                twinkle: Math.random() * Math.PI * 2,
+                twinkleSpeed: 0.05 + Math.random() * 0.1,
+                color: `hsl(${Math.random() * 60 + 30}, 100%, ${70 + Math.random() * 30}%)`
+            });
+        }
+
+        // Create energy rings
+        this.victoryEnergyRings = [];
+        for (let i = 0; i < 3; i++) {
+            this.victoryEnergyRings.push({
+                x: centerX,
+                y: centerY,
+                radius: 0,
+                maxRadius: 200 + i * 100,
+                speed: 2 + i * 0.5,
+                life: 0,
+                maxLife: 120,
+                alpha: 1,
+                color: `hsl(${30 + i * 20}, 100%, 60%)`
+            });
+        }
+    }
+
+    /**
+     * Update victory screen animation
+     */
+    updateVictoryAnimation() {
+        this.victoryTime++;
+
+        // Update burst particles
+        this.victoryParticles = this.victoryParticles.filter(particle => {
+            particle.x += particle.vx;
+            particle.y += particle.vy;
+            particle.vx *= 0.98;
+            particle.vy *= 0.98;
+            particle.life++;
+            particle.size *= 0.98;
+            return particle.life < particle.maxLife;
+        });
+
+        // Update floating stars
+        this.victoryStars.forEach(star => {
+            star.x += Math.cos(star.angle) * star.speed;
+            star.y += Math.sin(star.angle) * star.speed;
+            star.twinkle += star.twinkleSpeed;
+            
+            // Wrap around screen
+            if (star.x < 0) star.x = this.canvas.width;
+            if (star.x > this.canvas.width) star.x = 0;
+            if (star.y < 0) star.y = this.canvas.height;
+            if (star.y > this.canvas.height) star.y = 0;
+        });
+
+        // Update energy rings
+        if (this.victoryEnergyRings) {
+            this.victoryEnergyRings.forEach(ring => {
+                ring.radius += ring.speed;
+                ring.life++;
+                ring.alpha = 1 - (ring.life / ring.maxLife);
+                
+                // Create new ring when old one fades
+                if (ring.life >= ring.maxLife && this.victoryTime % 60 === 0) {
+                    const centerX = this.canvas.width / 2;
+                    const centerY = this.canvas.height / 2;
+                    ring.radius = 0;
+                    ring.life = 0;
+                    ring.alpha = 1;
+                    ring.x = centerX;
+                    ring.y = centerY;
+                }
+            });
+        }
+
+        // Spawn new particles occasionally
+        if (this.victoryTime % 10 === 0 && this.victoryParticles.length < 100) {
+            const centerX = this.canvas.width / 2;
+            const centerY = this.canvas.height / 2;
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 1 + Math.random() * 3;
+            this.victoryParticles.push({
+                x: centerX,
+                y: centerY,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: 2 + Math.random() * 4,
+                life: 0,
+                maxLife: 40 + Math.random() * 30,
+                color: `hsl(${Math.random() * 60 + 30}, 100%, ${50 + Math.random() * 30}%)`,
+                glow: true
+            });
+        }
+    }
+
+    /**
+     * Draw victory screen animation
+     */
+    drawVictoryAnimation() {
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+
+        // Draw energy rings
+        if (this.victoryEnergyRings) {
+            this.victoryEnergyRings.forEach(ring => {
+                if (ring.alpha > 0) {
+                    this.ctx.save();
+                    this.ctx.globalAlpha = ring.alpha * 0.6;
+                    this.ctx.strokeStyle = ring.color;
+                    this.ctx.lineWidth = 3;
+                    this.ctx.shadowColor = ring.color;
+                    this.ctx.shadowBlur = 20;
+                    this.ctx.beginPath();
+                    this.ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI * 2);
+                    this.ctx.stroke();
+                    this.ctx.restore();
+                }
+            });
+        }
+
+        // Draw floating stars
+        this.victoryStars.forEach(star => {
+            const twinkle = Math.sin(star.twinkle) * 0.5 + 0.5;
+            this.ctx.save();
+            this.ctx.globalAlpha = twinkle;
+            this.ctx.fillStyle = star.color;
+            this.ctx.shadowColor = star.color;
+            this.ctx.shadowBlur = 10;
+            this.ctx.beginPath();
+            this.ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+        });
+
+        // Draw burst particles
+        this.victoryParticles.forEach(particle => {
+            const progress = particle.life / particle.maxLife;
+            const alpha = 1 - progress;
+            
+            this.ctx.save();
+            this.ctx.globalAlpha = alpha;
+            this.ctx.fillStyle = particle.color;
+            if (particle.glow) {
+                this.ctx.shadowColor = particle.color;
+                this.ctx.shadowBlur = 15;
+            }
+            this.ctx.beginPath();
+            this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+        });
+
+        // Draw central burst effect
+        const burstProgress = Math.min(this.victoryTime / 30, 1);
+        if (burstProgress < 1) {
+            const burstSize = burstProgress * 150;
+            const burstAlpha = (1 - burstProgress) * 0.8;
+            this.ctx.save();
+            this.ctx.globalAlpha = burstAlpha;
+            const gradient = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, burstSize);
+            gradient.addColorStop(0, 'rgba(255, 215, 0, 1)');
+            gradient.addColorStop(0.5, 'rgba(255, 165, 0, 0.5)');
+            gradient.addColorStop(1, 'rgba(255, 69, 0, 0)');
+            this.ctx.fillStyle = gradient;
+            this.ctx.beginPath();
+            this.ctx.arc(centerX, centerY, burstSize, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+        }
+
+        // Draw pulsing glow at center
+        const pulse = Math.sin(this.victoryTime * 0.1) * 0.3 + 0.7;
+        this.ctx.save();
+        this.ctx.globalAlpha = pulse * 0.4;
+        const pulseGradient = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 100);
+        pulseGradient.addColorStop(0, 'rgba(255, 215, 0, 1)');
+        pulseGradient.addColorStop(1, 'rgba(255, 215, 0, 0)');
+        this.ctx.fillStyle = pulseGradient;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, 100, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.restore();
+    }
+
     continueAfterVictory() {
         this.state = 'playing';
         this.victoryScreen.style.display = 'none';
+        
+        // Clear victory animation
+        this.victoryParticles = [];
+        this.victoryStars = [];
+        this.victoryEnergyRings = [];
+        this.victoryTime = 0;
+        
         // Resume music
         if (this.hasCarrier) {
             this.audioManager.startCarrierMusic();
@@ -368,8 +604,9 @@ class Game {
             }
         }
 
-        // If victory state, pause all game logic (only update levelUpText if needed)
+        // If victory state, pause all game logic but update victory animation
         if (this.state === 'victory') {
+            this.updateVictoryAnimation();
             return; // Completely pause game during victory screen
         }
 
@@ -813,6 +1050,12 @@ class Game {
 
         // Draw effects even after game over to show death animation
         this.effects.forEach(effect => effect.draw(this.ctx));
+
+        // Draw victory animation if in victory state
+        if (this.state === 'victory') {
+            this.drawVictoryAnimation();
+            return;
+        }
 
         if (this.state !== 'playing') return;
 

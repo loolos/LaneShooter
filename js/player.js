@@ -101,7 +101,13 @@ class Player {
             }
         }
 
-        audioManager.play('shoot');
+        // Use dynamic shoot sound that adjusts pitch based on fire rate
+        if (audioManager.playShoot) {
+            const fireRate = 300 / cooldown; // Calculate fire rate (shots per second normalized)
+            audioManager.playShoot(fireRate);
+        } else {
+            audioManager.play('shoot'); // Fallback to regular play
+        }
     }
 
     /**
