@@ -95,6 +95,14 @@ class Enemy {
             height: this.height
         };
     }
+    
+    /**
+     * Get the bottom Y coordinate of the enemy (for optimized y-axis collision detection)
+     * @returns {number} - Bottom Y coordinate
+     */
+    getBottomY() {
+        return this.y + this.height / 2;
+    }
 }
 
 /**
@@ -420,6 +428,19 @@ class FormationEnemy extends Enemy {
 
         // Base color (for shadow)
         this.color = '#ff4757';
+        
+        // Initialize cache flags
+        this._needsBottomYUpdate = true;
+        this._cachedBottomY = undefined;
+    }
+
+    /**
+     * Update enemy position and invalidate bottom Y cache when moving
+     */
+    update() {
+        super.update(); // Call parent update to move enemy
+        // Invalidate bottom Y cache since y position changed
+        this._needsBottomYUpdate = true;
     }
 
     /**
@@ -557,6 +578,11 @@ class FormationEnemy extends Enemy {
         const newAliveCount = this.enemyCount;
         const unitsKilled = oldAliveCount - newAliveCount;
 
+        // Invalidate bottom Y cache when units are killed
+        if (unitsKilled > 0) {
+            this._needsBottomYUpdate = true;
+        }
+
         if (this.health <= 0 || this.enemyCount === 0) {
             this.active = false;
             return { destroyed: true, unitsKilled: unitsKilled };
@@ -577,6 +603,34 @@ class FormationEnemy extends Enemy {
             width: totalWidth,
             height: totalHeight
         };
+    }
+    
+    /**
+     * Get the bottom Y coordinate of the bottommost row (for optimized y-axis collision detection)
+     * Uses cached value that's updated when enemy takes damage
+     * @returns {number} - Bottom Y coordinate of the bottommost row
+     */
+    getBottomY() {
+        // Use cached value if available and valid
+        if (this._cachedBottomY !== undefined && !this._needsBottomYUpdate) {
+            return this._cachedBottomY;
+        }
+        
+        // Calculate and cache
+        const aliveUnits = this.units.filter(u => u.health > 0);
+        if (aliveUnits.length === 0) {
+            this._cachedBottomY = this.y + this.height / 2;
+            this._needsBottomYUpdate = false;
+            return this._cachedBottomY;
+        }
+        
+        const maxRow = Math.max(...aliveUnits.map(u => u.row));
+        const totalHeight = (this.rows * this.enemyHeight) + ((this.rows - 1) * this.rowSpacing);
+        const startY = this.y - totalHeight / 2;
+        const rowY = startY + (maxRow * (this.enemyHeight + this.rowSpacing)) + (this.enemyHeight / 2);
+        this._cachedBottomY = rowY + this.enemyHeight / 2;
+        this._needsBottomYUpdate = false;
+        return this._cachedBottomY;
     }
 }
 
@@ -661,6 +715,19 @@ class SwarmEnemy extends Enemy {
 
         // Base color (for shadow)
         this.color = '#ffa500';
+        
+        // Initialize cache flags
+        this._needsBottomYUpdate = true;
+        this._cachedBottomY = undefined;
+    }
+
+    /**
+     * Update enemy position and invalidate bottom Y cache when moving
+     */
+    update() {
+        super.update(); // Call parent update to move enemy
+        // Invalidate bottom Y cache since y position changed
+        this._needsBottomYUpdate = true;
     }
 
     /**
@@ -846,6 +913,11 @@ class SwarmEnemy extends Enemy {
         const newAliveCount = this.unitCount;
         const unitsKilled = oldAliveCount - newAliveCount;
 
+        // Invalidate bottom Y cache when units are killed
+        if (unitsKilled > 0) {
+            this._needsBottomYUpdate = true;
+        }
+
         if (this.health <= 0 || this.unitCount === 0) {
             this.active = false;
             return { destroyed: true, unitsKilled: unitsKilled };
@@ -865,6 +937,39 @@ class SwarmEnemy extends Enemy {
             width: swarmRadius * 2,
             height: swarmRadius * 2
         };
+    }
+    
+    /**
+     * Get the bottom Y coordinate of the bottommost row (for optimized y-axis collision detection)
+     * Uses cached value that's updated when enemy takes damage
+     * @returns {number} - Bottom Y coordinate of the bottommost row
+     */
+    getBottomY() {
+        // Use cached value if available and valid
+        if (this._cachedBottomY !== undefined && !this._needsBottomYUpdate) {
+            return this._cachedBottomY;
+        }
+        
+        // Calculate and cache
+        const aliveUnits = this.units.filter(u => u.health > 0);
+        if (aliveUnits.length === 0) {
+            this._cachedBottomY = this.y + this.height / 2;
+            this._needsBottomYUpdate = false;
+            return this._cachedBottomY;
+        }
+        
+        const maxRow = Math.max(...aliveUnits.map(u => u.row));
+        const rowUnits = this.units.filter(u => u.row === maxRow);
+        if (rowUnits.length > 0) {
+            const firstUnit = rowUnits[0];
+            const rowY = this.y + firstUnit.offsetY;
+            this._cachedBottomY = rowY + this.unitSize / 2;
+            this._needsBottomYUpdate = false;
+            return this._cachedBottomY;
+        }
+        this._cachedBottomY = this.y + this.height / 2;
+        this._needsBottomYUpdate = false;
+        return this._cachedBottomY;
     }
 }
 

@@ -2,7 +2,7 @@
  * Bullet class - Represents player projectiles
  */
 class Bullet {
-    constructor(x, y, speed = CONFIG.BULLET_SPEED, speedboostLevel = 0) {
+    constructor(x, y, speed = CONFIG.BULLET_SPEED, speedboostLevel = 0, playerX = 0) {
         this.x = x;
         this.y = y;
         this.width = 5;
@@ -12,6 +12,11 @@ class Bullet {
         this.speedboostLevel = speedboostLevel; // Store upgrade level for color
         // Base damage is 1, will be calculated based on enemy type when hitting
         this.baseDamage = 1;
+        
+        // Lane tracking: determine lane based on player's x position when bullet was created
+        // Midpoint between lanes: (LANE_POSITIONS[0] + LANE_POSITIONS[1]) / 2
+        const laneMidpoint = (CONFIG.LANE_POSITIONS[0] + CONFIG.LANE_POSITIONS[CONFIG.LANE_COUNT - 1]) / 2;
+        this.laneIndex = playerX < laneMidpoint ? 0 : 1;
     }
     
     /**
@@ -42,6 +47,16 @@ class Bullet {
         if (this.y + this.height < 0) {
             this.active = false;
         }
+    }
+    
+    // getCurrentLane() removed - directly use laneIndex property instead
+    
+    /**
+     * Get the top Y position of the bullet (for collision detection)
+     * @returns {number} - Top Y coordinate
+     */
+    getTopY() {
+        return this.y;
     }
 
     /**

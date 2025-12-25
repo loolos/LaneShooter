@@ -727,156 +727,128 @@ class Game {
             xpTextIndex++;
         }
 
-        // Check bullet-enemy collisions
+        // Optimized bullet-enemy collision detection: lane-based y-axis only
         if (this.player) {
-            // Pre-filter active bullets and enemies to reduce nested loop iterations
             const activeBullets = this.player.bullets.filter(b => b.active);
             const activeEnemies = this.enemies.filter(e => e.active);
             
-            const bulletCount = activeBullets.length;
-            const enemyCount = activeEnemies.length;
-
-            // Safety check: prevent infinite loops and limit entity counts
-            if (bulletCount > 200 || enemyCount > 100) {
-                console.warn(`WARNING: Unusually high entity count - Bullets: ${bulletCount}, Enemies: ${enemyCount}`);
-                // Force cleanup if too many entities
-                if (bulletCount > 300) {
+            // Safety check: prevent excessive entity counts
+            if (activeBullets.length > 200 || activeEnemies.length > 100) {
+                console.warn(`WARNING: Unusually high entity count - Bullets: ${activeBullets.length}, Enemies: ${activeEnemies.length}`);
+                if (activeBullets.length > 300) {
                     this.player.bullets = this.player.bullets.filter(b => b.active).slice(0, 200);
                 }
-                if (enemyCount > 150) {
+                if (activeEnemies.length > 150) {
                     this.enemies = this.enemies.filter(e => e.active).slice(0, 100);
                 }
             }
 
-            // Optimized collision detection: only check active entities
-            activeBullets.forEach((bullet, bulletIndex) => {
-                activeEnemies.forEach((enemy, enemyIndex) => {
+            // Group bullets and enemies by lane - each lane is checked independently
+            const bulletsByLane = new Array(CONFIG.LANE_COUNT).fill(null).map(() => []);
+            const enemiesByLane = new Array(CONFIG.LANE_COUNT).fill(null).map(() => []);
 
-                    // For formation/swarm enemies, check collision with the entire bottom row as a solid block
-                    // This prevents bullets from passing through gaps where units were destroyed
-                    let collisionDetected = false;
+            // Group bullets by their lane (determined at creation time)
+            activeBullets.forEach(bullet => {
+                if (bullet.laneIndex >= 0 && bullet.laneIndex < CONFIG.LANE_COUNT) {
+                    bulletsByLane[bullet.laneIndex].push(bullet);
+                }
+            });
 
-                    if ((enemy.type === 'formation' || enemy.type === 'swarm') && enemy.units) {
-                        // Cache alive units calculation (only recalculate if enemy was hit)
-                        if (!enemy._cachedAliveUnits || enemy._needsCacheUpdate) {
-                            enemy._cachedAliveUnits = enemy.units.filter(u => u.health > 0);
-                            enemy._needsCacheUpdate = false;
+            // Group enemies by lane
+            activeEnemies.forEach(enemy => {
+                if (enemy.laneIndex >= 0 && enemy.laneIndex < CONFIG.LANE_COUNT) {
+                    enemiesByLane[enemy.laneIndex].push(enemy);
+                }
+            });
+
+            // For each lane, independently check collisions between bullets and enemies
+            // Each lane only checks its own bullets against its own most forward enemy
+            for (let laneIndex = 0; laneIndex < CONFIG.LANE_COUNT; laneIndex++) {
+                // Get bullets and enemies for this specific lane
+                const laneBullets = bulletsByLane[laneIndex];
+                const laneEnemies = enemiesByLane[laneIndex];
+
+                // Skip if no bullets or enemies in this lane
+                if (laneBullets.length === 0 || laneEnemies.length === 0) {
+                    continue;
+                }
+
+                // Find the most forward enemy in this lane (bottommost = closest to player)
+                // This is the enemy with the largest bottom Y value
+                const mostForwardEnemy = laneEnemies.reduce((forward, enemy) => {
+                    const enemyBottomY = enemy.getBottomY();
+                    const forwardBottomY = forward ? forward.getBottomY() : -Infinity;
+                    return enemyBottomY > forwardBottomY ? enemy : forward;
+                }, null);
+
+                if (!mostForwardEnemy) continue;
+
+                const mostForwardEnemyBottomY = mostForwardEnemy.getBottomY();
+
+                // Check all bullets in this lane, process all bullets that reach the enemy bottom
+                // Sort bullets by Y descending (most forward first) to process collisions in order
+                const sortedBullets = laneBullets
+                    .filter(b => b && b.active)
+                    .sort((a, b) => b.y - a.y); // Sort descending (most forward first)
+
+                // Process all bullets that collide with the enemy in this frame
+                for (const bullet of sortedBullets) {
+                    // Skip if bullet is no longer active (was destroyed by previous collision)
+                    if (!bullet.active) continue;
+                    
+                    // Y-axis collision detection: bullet top <= enemy bottom
+                    if (bullet.y <= mostForwardEnemyBottomY) {
+                        // Check if enemy is still active (might have been destroyed by previous bullet)
+                        if (!mostForwardEnemy.active) {
+                            // Enemy already destroyed, remaining bullets continue upward (don't destroy them)
+                            continue;
                         }
-                        const aliveUnits = enemy._cachedAliveUnits;
 
-                        if (aliveUnits.length > 0) {
-                            // Cache maxRow calculation
-                            if (enemy._cachedMaxRow === undefined || enemy._needsCacheUpdate) {
-                                enemy._cachedMaxRow = Math.max(...aliveUnits.map(u => u.row));
-                            }
-                            const maxRow = enemy._cachedMaxRow;
-
-                            // Calculate the bounding box for this entire row (solid block)
-                            let rowX, rowY, rowWidth, rowHeight;
-
-                            if (enemy.type === 'formation') {
-                                // For formation, the row width is the full formation width
-                                const totalWidth = (enemy.cols * enemy.enemyWidth) + ((enemy.cols - 1) * enemy.spacing);
-                                const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
-
-                                // Row Y position
-                                const startY = enemy.y - totalHeight / 2;
-                                rowY = startY + (maxRow * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
-
-                                // Row box center X is same as enemy X, width is total width
-                                rowX = enemy.x;
-                                rowWidth = totalWidth;
-                                rowHeight = enemy.enemyHeight;
-
-                            } else { // swarm
-                                // For swarm, find the Y of the row and the min/max X of units in that row (original positions)
-                                // We use ALL units in that row (even dead ones) to determine the "span" of the row
-                                const rowUnits = enemy.units.filter(u => u.row === maxRow);
-
-                                if (rowUnits.length > 0) {
-                                    // Calculate Y
-                                    const firstUnit = rowUnits[0];
-                                    rowY = enemy.y + firstUnit.offsetY;
-                                    rowHeight = enemy.unitSize || 15;
-
-                                    // Calculate X span
-                                    // Swarm units are centered relative to enemy.x
-                                    // We need to find the full width of this row
-                                    const minOffsetX = Math.min(...rowUnits.map(u => u.offsetX));
-                                    const maxOffsetX = Math.max(...rowUnits.map(u => u.offsetX));
-
-                                    rowWidth = (maxOffsetX - minOffsetX) + rowHeight; // Add unit size
-                                    rowX = enemy.x + (minOffsetX + maxOffsetX) / 2; // Center of the span
-                                } else {
-                                    // Fallback (shouldn't happen if maxRow came from aliveUnits)
-                                    rowX = enemy.x;
-                                    rowY = enemy.y;
-                                    rowWidth = enemy.width;
-                                    rowHeight = enemy.height;
-                                }
-                            }
-
-                            // Create collision bounds for the row
-                            const rowBounds = {
-                                x: rowX - rowWidth / 2,
-                                y: rowY - rowHeight / 2,
-                                width: rowWidth,
-                                height: rowHeight
-                            };
-
-                            // Check collision
-                            if (checkCollision(bullet.getBounds(), rowBounds)) {
-                                collisionDetected = true;
-                            }
-                        }
-                    } else {
-                        // For other enemies, use normal collision detection
-                        collisionDetected = checkCollision(bullet.getBounds(), enemy.getBounds());
-                    }
-
-                    if (collisionDetected) {
+                        // Collision detected!
                         bullet.active = false;
 
                         // Calculate actual damage based on bullet power and enemy type
-                        const actualDamage = bullet.getDamage(enemy);
+                        const actualDamage = bullet.getDamage(mostForwardEnemy);
 
                         // Store unit positions before damage for formation/swarm enemies
                         let destroyedUnitPositions = [];
-                        if ((enemy.type === 'formation' || enemy.type === 'swarm') && enemy.units) {
+                        if ((mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm') && mostForwardEnemy.units) {
+                            // Pre-calculate formation dimensions if needed
+                            let startX, startY, colSpacing, rowSpacing;
+                            if (mostForwardEnemy.type === 'formation') {
+                                const totalWidth = (mostForwardEnemy.cols * mostForwardEnemy.enemyWidth) + ((mostForwardEnemy.cols - 1) * mostForwardEnemy.spacing);
+                                const totalHeight = (mostForwardEnemy.rows * mostForwardEnemy.enemyHeight) + ((mostForwardEnemy.rows - 1) * mostForwardEnemy.rowSpacing);
+                                startX = mostForwardEnemy.x - totalWidth / 2;
+                                startY = mostForwardEnemy.y - totalHeight / 2;
+                                colSpacing = mostForwardEnemy.enemyWidth + mostForwardEnemy.spacing;
+                                rowSpacing = mostForwardEnemy.enemyHeight + mostForwardEnemy.rowSpacing;
+                            }
+                            
                             // Store positions of units that are about to be destroyed
-                            enemy.units.forEach(unit => {
+                            mostForwardEnemy.units.forEach(unit => {
                                 if (unit.health > 0 && unit.health <= actualDamage) {
-                                    let unitX, unitY;
-                                    if (enemy.type === 'formation') {
-                                        const totalWidth = (enemy.cols * enemy.enemyWidth) + ((enemy.cols - 1) * enemy.spacing);
-                                        const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
-                                        const startX = enemy.x - totalWidth / 2;
-                                        const startY = enemy.y - totalHeight / 2;
-                                        unitX = startX + (unit.col * (enemy.enemyWidth + enemy.spacing)) + (enemy.enemyWidth / 2);
-                                        unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
+                                    if (mostForwardEnemy.type === 'formation') {
+                                        destroyedUnitPositions.push({
+                                            x: startX + (unit.col * colSpacing) + (mostForwardEnemy.enemyWidth / 2),
+                                            y: startY + (unit.row * rowSpacing) + (mostForwardEnemy.enemyHeight / 2)
+                                        });
                                     } else { // swarm
-                                        unitX = enemy.x + unit.offsetX;
-                                        unitY = enemy.y + unit.offsetY;
+                                        destroyedUnitPositions.push({
+                                            x: mostForwardEnemy.x + unit.offsetX,
+                                            y: mostForwardEnemy.y + unit.offsetY
+                                        });
                                     }
-                                    destroyedUnitPositions.push({ x: unitX, y: unitY });
                                 }
                             });
                         }
 
-                        const result = enemy.takeDamage(actualDamage);
+                        const result = mostForwardEnemy.takeDamage(actualDamage);
                         const unitsKilled = result.unitsKilled || 0;
 
-                        // Invalidate cache for formation/swarm enemies when they take damage
-                        if ((enemy.type === 'formation' || enemy.type === 'swarm') && unitsKilled > 0) {
-                            enemy._needsCacheUpdate = true;
-                            enemy._cachedAliveUnits = null;
-                            enemy._cachedMaxRow = undefined;
-                        }
-
                         // Give score and experience for each unit killed (Formation/Swarm)
-                        if (unitsKilled > 0 && (enemy.type === 'formation' || enemy.type === 'swarm')) {
+                        if (unitsKilled > 0 && (mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm')) {
                             // Score: proportional to unit health, independent of total count
-                            const unitScore = enemy.healthPerUnit * CONFIG.SCORE_PER_ENEMY;
+                            const unitScore = mostForwardEnemy.healthPerUnit * CONFIG.SCORE_PER_ENEMY;
 
                             // Give score for each killed unit
                             this.score += unitScore * unitsKilled;
@@ -885,64 +857,61 @@ class Game {
                             const experienceChance = 0.5;
 
                             // Queue kill accent for each unit killed (but limit to avoid spam)
-                            // Only queue accent for first few units to avoid overwhelming the beat sync
                             const maxAccents = Math.min(unitsKilled, 3);
                             for (let i = 0; i < maxAccents; i++) {
-                                this.audioManager.queueKillAccent(enemy.type, 0.5);
+                                this.audioManager.queueKillAccent(mostForwardEnemy.type, 0.5);
                             }
 
                             for (let i = 0; i < unitsKilled; i++) {
                                 // Chance to gain experience from each unit
                                 if (Math.random() < experienceChance) {
-                                    this.gainExperienceFromEnemy(enemy, i);
+                                    this.gainExperienceFromEnemy(mostForwardEnemy, i);
                                 }
                             }
                         }
 
                         if (result.destroyed) {
                             // Only give score for non-multi-unit enemies (Formation/Swarm already handled above)
-                            if (enemy.type !== 'formation' && enemy.type !== 'swarm') {
-                                this.score += enemy.scoreValue;
+                            if (mostForwardEnemy.type !== 'formation' && mostForwardEnemy.type !== 'swarm') {
+                                this.score += mostForwardEnemy.scoreValue;
                             }
 
                             // Give experience when enemy is completely destroyed (for non-multi-unit enemies)
-                            // Multi-unit enemies already handled above
-                            if (enemy.type !== 'formation' && enemy.type !== 'swarm') {
+                            if (mostForwardEnemy.type !== 'formation' && mostForwardEnemy.type !== 'swarm') {
                                 // Get drop rate based on enemy type
                                 let dropRate = 0.2; // Default
-                                if (enemy.type === 'basic') {
+                                if (mostForwardEnemy.type === 'basic') {
                                     dropRate = 0.2; // 20%
-                                } else if (enemy.type === 'fast') {
+                                } else if (mostForwardEnemy.type === 'fast') {
                                     dropRate = 0.3; // 30%
-                                } else if (enemy.type === 'tank') {
+                                } else if (mostForwardEnemy.type === 'tank') {
                                     dropRate = 0.5; // 50%
-                                } else if (enemy.type === 'carrier') {
+                                } else if (mostForwardEnemy.type === 'carrier') {
                                     dropRate = 1.0; // 100%
                                 }
 
                                 // Check if should drop experience
                                 if (Math.random() < dropRate) {
-                                    this.gainExperienceFromEnemy(enemy, 0);
+                                    this.gainExperienceFromEnemy(mostForwardEnemy, 0);
                                 }
                             }
 
                             // Play enemy-specific death sound
-                            this.playEnemyDeathSound(enemy.type);
+                            this.playEnemyDeathSound(mostForwardEnemy.type);
 
                             // Queue kill accent for beat synchronization
-                            // Intensity based on enemy type
                             let accentIntensity = 0.5;
-                            if (enemy.type === 'tank' || enemy.type === 'carrier') {
-                                accentIntensity = 0.8; // Strong accent for powerful enemies
-                            } else if (enemy.type === 'formation' || enemy.type === 'swarm') {
-                                accentIntensity = 0.6; // Medium accent
+                            if (mostForwardEnemy.type === 'tank' || mostForwardEnemy.type === 'carrier') {
+                                accentIntensity = 0.8;
+                            } else if (mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm') {
+                                accentIntensity = 0.6;
                             } else {
-                                accentIntensity = 0.4; // Standard accent
+                                accentIntensity = 0.4;
                             }
-                            this.audioManager.queueKillAccent(enemy.type, accentIntensity);
+                            this.audioManager.queueKillAccent(mostForwardEnemy.type, accentIntensity);
 
                             // Create destruction effect
-                            const effect = EffectManager.createEffect(enemy.x, enemy.y, enemy.type);
+                            const effect = EffectManager.createEffect(mostForwardEnemy.x, mostForwardEnemy.y, mostForwardEnemy.type);
                             this.effects.push(effect);
 
                             this.updateUI();
@@ -953,17 +922,16 @@ class Game {
                             // Create effects for destroyed units
                             destroyedUnitPositions.forEach((pos, index) => {
                                 if (index < unitsKilled) {
-                                    const effect = EffectManager.createEffect(pos.x, pos.y, enemy.type === 'formation' ? 'formation' : 'swarm');
+                                    const effect = EffectManager.createEffect(pos.x, pos.y, mostForwardEnemy.type === 'formation' ? 'formation' : 'swarm');
                                     this.effects.push(effect);
                                 }
                             });
 
                             this.updateUI();
                         }
-                        return; // Bullet hit, no need to check other enemies
                     }
-                });
-            });
+                }
+            }
         }
 
         // Check player-enemy collisions (only check active enemies)

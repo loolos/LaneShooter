@@ -89,15 +89,16 @@ class Player {
         const bulletSpeed = this.getEffectiveBulletSpeed();
         const speedboostLevel = this.upgrades.speedboost; // Pass to bullet for color
 
-        // Create bullets
+        // Create bullets - lane is determined by player's x position (midpoint between lanes)
         if (bulletCount === 1) {
-            this.bullets.push(new Bullet(this.x, this.y - this.height / 2, bulletSpeed, speedboostLevel));
+            this.bullets.push(new Bullet(this.x, this.y - this.height / 2, bulletSpeed, speedboostLevel, this.x));
         } else {
             // Multi-shot: spread bullets evenly
+            // All bullets use the same player x position for lane determination
             const spread = 15;
             for (let i = 0; i < bulletCount; i++) {
                 const offset = (i - (bulletCount - 1) / 2) * spread;
-                this.bullets.push(new Bullet(this.x + offset, this.y - this.height / 2, bulletSpeed, speedboostLevel));
+                this.bullets.push(new Bullet(this.x + offset, this.y - this.height / 2, bulletSpeed, speedboostLevel, this.x));
             }
         }
 
