@@ -469,11 +469,14 @@ class MultiExplosionEffect extends Effect {
 class SpawnEffect extends Effect {
     constructor(x, y) {
         super(x, y, 'spawn');
-        this.maxLife = 30; // Longer duration for more spectacular effect
+        this.maxLife = 60; // Longer duration for portal effect
         this.particles = [];
         this.energyRings = [];
         this.sparks = [];
         this.lightning = [];
+        this.portalRings = []; // Portal rings for portal effect
+        this.portalPulse = 0; // Portal pulse animation
+        this.portalRotation = 0; // Portal rotation
         
         // Create upward particles (enemy emerging) - more particles
         const particleCount = 24;
@@ -528,10 +531,31 @@ class SpawnEffect extends Effect {
                 delay: Math.random() * 3
             });
         }
+        
+        // Create portal rings for portal effect (large portal)
+        const portalSize = 60; // Large portal size
+        for (let i = 0; i < 6; i++) {
+            this.portalRings.push({
+                radius: portalSize * (0.3 + i * 0.1),
+                baseRadius: portalSize * (0.3 + i * 0.1),
+                pulseSpeed: 0.05 + i * 0.02,
+                pulseAmount: 5 + i * 2,
+                rotation: (Math.PI * 2 * i) / 6,
+                rotationSpeed: 0.02 + i * 0.01,
+                opacity: 0.9 - i * 0.12,
+                color: `hsl(${200 + i * 20}, 100%, ${60 + i * 5}%)`,
+                thickness: 4 - i * 0.5,
+                delay: i * 2
+            });
+        }
     }
 
     update() {
         super.update();
+        
+        // Update portal animation
+        this.portalPulse += 0.15; // Faster pulse
+        this.portalRotation += 0.03; // Rotate portal
         
         // Update particles
         this.particles.forEach(particle => {
@@ -568,6 +592,15 @@ class SpawnEffect extends Effect {
             }
         });
         this.lightning = this.lightning.filter(l => l.life > 0);
+        
+        // Update portal rings
+        this.portalRings.forEach(ring => {
+            if (this.life > ring.delay) {
+                ring.rotation += ring.rotationSpeed;
+                // Pulse effect
+                ring.radius = ring.baseRadius + Math.sin(this.portalPulse + ring.delay) * ring.pulseAmount;
+            }
+        });
     }
 
     draw(ctx) {
@@ -668,34 +701,120 @@ class SpawnEffect extends Effect {
             ctx.restore();
         });
 
-        // Draw central glow (spawn point) - multiple layers
-        const glowSize = (1 - progress * 0.7) * 25;
+        // Draw large portal effect (flashing portal)
+        const portalSize = 60;
+        const portalProgress = Math.min(1, this.life / 30); // Portal appears in first half
+        const portalAlpha = portalProgress < 0.5 ? portalProgress * 2 : (1 - (portalProgress - 0.5) * 2);
+        const flashIntensity = Math.sin(this.portalPulse * 2) * 0.3 + 0.7; // Flashing effect
+        
+        // Draw portal rings (rotating and pulsing)
+        this.portalRings.forEach(ring => {
+            if (this.life > ring.delay) {
+                const ringAlpha = ring.opacity * portalAlpha * flashIntensity * alpha;
+                const hslMatch = ring.color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(ring.rotation);
+                
+                // Outer portal ring
+                ctx.strokeStyle = hslMatch ? `hsla(${hslMatch[1]}, ${hslMatch[2]}%, ${hslMatch[3]}%, ${ringAlpha})` : `rgba(100, 200, 255, ${ringAlpha})`;
+                ctx.lineWidth = ring.thickness;
+                ctx.shadowColor = ring.color;
+                ctx.shadowBlur = 20;
+                ctx.beginPath();
+                ctx.arc(0, 0, ring.radius, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Inner portal ring (brighter)
+                ctx.strokeStyle = hslMatch ? `hsla(${hslMatch[1]}, ${hslMatch[2]}%, ${Math.min(100, parseInt(hslMatch[3]) + 30)}%, ${ringAlpha * 0.8})` : `rgba(200, 240, 255, ${ringAlpha * 0.8})`;
+                ctx.lineWidth = ring.thickness * 0.6;
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.arc(0, 0, ring.radius * 0.85, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+        });
+        
+        // Draw portal center (flashing core)
+        const coreSize = portalSize * 0.4 * (1 + Math.sin(this.portalPulse * 3) * 0.2);
+        const coreGradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, coreSize);
+        coreGradient.addColorStop(0, `rgba(255, 255, 255, ${portalAlpha * flashIntensity * alpha * 0.95})`);
+        coreGradient.addColorStop(0.3, `rgba(200, 240, 255, ${portalAlpha * flashIntensity * alpha * 0.8})`);
+        coreGradient.addColorStop(0.6, `rgba(100, 200, 255, ${portalAlpha * flashIntensity * alpha * 0.5})`);
+        coreGradient.addColorStop(1, `rgba(0, 100, 200, 0)`);
+        
+        ctx.fillStyle = coreGradient;
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 30;
+        ctx.globalAlpha = portalAlpha * flashIntensity * alpha;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, coreSize, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw portal inner vortex (spiraling effect)
+        if (portalProgress < 0.8) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.portalRotation * 2);
+            
+            const vortexGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, coreSize * 0.7);
+            vortexGradient.addColorStop(0, `rgba(255, 255, 255, ${portalAlpha * flashIntensity * alpha * 0.6})`);
+            vortexGradient.addColorStop(0.5, `rgba(150, 220, 255, ${portalAlpha * flashIntensity * alpha * 0.4})`);
+            vortexGradient.addColorStop(1, `rgba(0, 0, 0, 0)`);
+            
+            ctx.fillStyle = vortexGradient;
+            ctx.shadowBlur = 25;
+            ctx.globalAlpha = portalAlpha * flashIntensity * alpha;
+            ctx.beginPath();
+            ctx.arc(0, 0, coreSize * 0.7, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw spiral lines
+            for (let i = 0; i < 8; i++) {
+                const angle = (Math.PI * 2 * i) / 8 + this.portalRotation;
+                ctx.strokeStyle = `rgba(255, 255, 255, ${portalAlpha * flashIntensity * alpha * 0.4})`;
+                ctx.lineWidth = 2;
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(Math.cos(angle) * coreSize * 0.6, Math.sin(angle) * coreSize * 0.6);
+                ctx.stroke();
+            }
+            
+            ctx.restore();
+        }
+        
+        // Draw central glow (spawn point) - multiple layers (enhanced)
+        const glowSize = (1 - progress * 0.7) * 35;
         const innerGlow = glowSize * 0.6;
         
         // Outer glow
         const outerGradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, glowSize);
-        outerGradient.addColorStop(0, `rgba(150, 220, 255, ${alpha * 0.8})`);
-        outerGradient.addColorStop(0.4, `rgba(100, 180, 255, ${alpha * 0.6})`);
-        outerGradient.addColorStop(0.7, `rgba(50, 150, 255, ${alpha * 0.3})`);
+        outerGradient.addColorStop(0, `rgba(150, 220, 255, ${alpha * flashIntensity * 0.8})`);
+        outerGradient.addColorStop(0.4, `rgba(100, 180, 255, ${alpha * flashIntensity * 0.6})`);
+        outerGradient.addColorStop(0.7, `rgba(50, 150, 255, ${alpha * flashIntensity * 0.3})`);
         outerGradient.addColorStop(1, `rgba(0, 100, 200, 0)`);
         
         ctx.fillStyle = outerGradient;
         ctx.shadowColor = '#66ccff';
-        ctx.shadowBlur = 25;
-        ctx.globalAlpha = alpha;
+        ctx.shadowBlur = 35;
+        ctx.globalAlpha = alpha * flashIntensity;
         ctx.beginPath();
         ctx.arc(this.x, this.y, glowSize, 0, Math.PI * 2);
         ctx.fill();
         
         // Inner bright core
         const innerGradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, innerGlow);
-        innerGradient.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.9})`);
-        innerGradient.addColorStop(0.5, `rgba(200, 240, 255, ${alpha * 0.7})`);
+        innerGradient.addColorStop(0, `rgba(255, 255, 255, ${alpha * flashIntensity * 0.9})`);
+        innerGradient.addColorStop(0.5, `rgba(200, 240, 255, ${alpha * flashIntensity * 0.7})`);
         innerGradient.addColorStop(1, `rgba(100, 200, 255, 0)`);
         
         ctx.fillStyle = innerGradient;
         ctx.shadowColor = '#ffffff';
-        ctx.shadowBlur = 20;
+        ctx.shadowBlur = 25;
         ctx.beginPath();
         ctx.arc(this.x, this.y, innerGlow, 0, Math.PI * 2);
         ctx.fill();

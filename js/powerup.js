@@ -42,7 +42,7 @@ class Powerup {
         const iconMap = {
             'rapidfire': '⚡',
             'multishot': '🔫',
-            'speedboost': '💨',
+            'powerboost': '💨',
             'lanespeed': '🚀',
             'experience': this.getExperienceIcon(), // Get icon based on upgrade type
             'default': '⭐'
@@ -98,7 +98,7 @@ class Powerup {
             const iconMap = {
                 'rapidfire': '⚡',
                 'multishot': '🔫',
-                'speedboost': '💨',
+                'powerboost': '💨',
                 'lanespeed': '🚀'
             };
             return iconMap[this.upgradeType] || '⭐';
@@ -162,18 +162,18 @@ class MultiShotPowerup extends Powerup {
 }
 
 /**
- * Speed Boost Powerup - Permanent upgrade: Increases bullet speed
+ * Power Boost Powerup - Permanent upgrade: Increases movement speed and damage
  */
-class SpeedBoostPowerup extends Powerup {
+class PowerBoostPowerup extends Powerup {
     constructor(x, y) {
         super(x, y, 5); // 5 XP
-        this.type = 'speedboost';
+        this.type = 'powerboost';
         this.color = '#ffe66d';
     }
 
     apply(player) {
         // Add experience instead of direct upgrade (5 XP per powerup)
-        player.addExperience('speedboost', this.experienceAmount);
+        player.addExperience('powerboost', this.experienceAmount);
     }
 }
 
@@ -206,7 +206,7 @@ class ExperiencePowerup extends Powerup {
         const upgradeColors = {
             'rapidfire': '#ff6b6b',
             'multishot': '#4ecdc4',
-            'speedboost': '#ffe66d',
+            'powerboost': '#ffe66d',
             'lanespeed': '#a29bfe'
         };
         this.color = upgradeColors[upgradeType] || '#ffd700';
@@ -233,7 +233,7 @@ class PowerupFactory {
         const powerupClasses = {
             'rapidfire': RapidFirePowerup,
             'multishot': MultiShotPowerup,
-            'speedboost': SpeedBoostPowerup,
+            'powerboost': PowerBoostPowerup,
             'lanespeed': LaneSpeedPowerup,
             'experience': ExperiencePowerup
         };
@@ -253,7 +253,7 @@ class PowerupFactory {
     }
 
     static createRandom(x, y) {
-        const types = ['rapidfire', 'multishot', 'speedboost', 'lanespeed'];
+        const types = ['rapidfire', 'multishot', 'powerboost', 'lanespeed'];
         const randomType = types[randomInt(0, types.length - 1)];
         return this.create(randomType, x, y);
     }

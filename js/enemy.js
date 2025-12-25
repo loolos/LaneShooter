@@ -254,10 +254,10 @@ class TankEnemy extends Enemy {
 
         // Health increases with level: A + B*LVL + C*LVL^2
         // Formula: 5 + 3*LVL + (1/4)*LVL^2
-        const A = 8;    // Constant term
-        const B = 4;    // Linear coefficient
-        const C = 1 / 3;  // Quadratic coefficient
-        const D = 1 / 30; // Cubic coefficient
+        const A = 10;    // Constant term
+        const B = 3;    // Linear coefficient
+        const C = 1 / 5;  // Quadratic coefficient
+        const D = 1 / 50; // Cubic coefficient
         const maxHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
         this.maxHealth = Math.floor(maxHealth);
         this.health = this.maxHealth;
@@ -373,8 +373,8 @@ class FormationEnemy extends Enemy {
         // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
         const A = 6;    // Constant term
         const B = 2;    // Linear coefficient
-        const C = 1 / 20;  // Quadratic coefficient
-        const D = 1 / 50; // Cubic coefficient
+        const C = 1 / 50;  // Quadratic coefficient
+        const D = 1 / 100; // Cubic coefficient
         const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
 
         // Randomly determine rows and columns within reasonable ranges
@@ -1002,7 +1002,7 @@ class CarrierEnemy extends Enemy {
 
         // Spawning system
         this.spawnCooldown = 0;
-        this.spawnInterval = 180; // Spawn every 180 frames (3 seconds at 60fps)
+        this.spawnInterval = 270; // Spawn every 270 frames (4.5 seconds at 60fps, 1.5x the original interval)
         this.spawnedEnemies = []; // Track spawned enemies for reference
 
         // Color - dark gray/blue for carrier

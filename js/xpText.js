@@ -42,7 +42,7 @@ class XPText {
         const upgradeColors = {
             'rapidfire': '#ff6b6b',
             'multishot': '#4ecdc4',
-            'speedboost': '#ffe66d',
+            'powerboost': '#ffe66d',
             'lanespeed': '#a29bfe'
         };
 

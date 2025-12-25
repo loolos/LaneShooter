@@ -21,7 +21,7 @@ class Player {
         this.upgrades = {
             rapidfire: 0,      // Current level
             multishot: 0,
-            speedboost: 0,
+            powerboost: 0,
             lanespeed: 0
         };
 
@@ -29,7 +29,7 @@ class Player {
         this.experience = {
             rapidfire: 0,
             multishot: 0,
-            speedboost: 0,
+            powerboost: 0,
             lanespeed: 0
         };
 
@@ -55,7 +55,9 @@ class Player {
      */
     update() {
         // Update move speed based on upgrades
-        this.moveSpeed = this.baseMoveSpeed * (1 + this.upgrades.lanespeed * 0.3);
+        // Lane Speed: +30% per level
+        // Power Boost: +10% of base speed per level (additive)
+        this.moveSpeed = this.baseMoveSpeed * (1 + this.upgrades.lanespeed * 0.3 + this.upgrades.powerboost * 0.1);
 
         // Fast lane switching
         const dx = this.targetX - this.x;
@@ -86,19 +88,19 @@ class Player {
 
         // Get bullet count from multishot upgrade
         const bulletCount = 1 + this.upgrades.multishot;
-        const bulletSpeed = this.getEffectiveBulletSpeed();
-        const speedboostLevel = this.upgrades.speedboost; // Pass to bullet for color
+        const bulletSpeed = CONFIG.BULLET_SPEED; // Bullet speed no longer affected by powerboost
+        const powerboostLevel = this.upgrades.powerboost; // Pass to bullet for damage calculation and color
 
         // Create bullets - lane is determined by player's x position (midpoint between lanes)
         if (bulletCount === 1) {
-            this.bullets.push(new Bullet(this.x, this.y - this.height / 2, bulletSpeed, speedboostLevel, this.x));
+            this.bullets.push(new Bullet(this.x, this.y - this.height / 2, bulletSpeed, powerboostLevel, this.x));
         } else {
             // Multi-shot: spread bullets evenly
             // All bullets use the same player x position for lane determination
             const spread = 15;
             for (let i = 0; i < bulletCount; i++) {
                 const offset = (i - (bulletCount - 1) / 2) * spread;
-                this.bullets.push(new Bullet(this.x + offset, this.y - this.height / 2, bulletSpeed, speedboostLevel, this.x));
+                this.bullets.push(new Bullet(this.x + offset, this.y - this.height / 2, bulletSpeed, powerboostLevel, this.x));
             }
         }
 
@@ -124,11 +126,11 @@ class Player {
     }
 
     /**
-     * Get effective bullet speed (affected by upgrades)
+     * Get effective bullet speed (no longer affected by powerboost)
+     * Power Boost now affects damage and movement speed instead
      */
     getEffectiveBulletSpeed() {
-        // Each level increases speed by 20%
-        return this.baseBulletSpeed * (1 + this.upgrades.speedboost * 0.2);
+        return this.baseBulletSpeed;
     }
 
     /**
@@ -138,13 +140,21 @@ class Player {
      */
     getRequiredExperience(type) {
         const currentLevel = this.upgrades[type] || 0;
-        // Formula: level² × 3 + level × 10 + level³ / 3 + 5
-        // Level 0->1: 0² × 3 + 0 × 10 + 0³/3 + 5 = 5
-        // Level 1->2: 1² × 3 + 1 × 10 + 1³/3 + 5 = 3 + 10 + 0.33 + 5 = 18
-        // Level 2->3: 2² × 3 + 2 × 10 + 2³/3 + 5 = 12 + 20 + 2.67 + 5 = 39
-        // Level 3->4: 3² × 3 + 3 × 10 + 3³/3 + 5 = 27 + 30 + 9 + 5 = 71
-        // Level 4->5: 4² × 3 + 4 × 10 + 4³/3 + 5 = 48 + 40 + 21.33 + 5 = 114
-        return Math.floor((currentLevel * currentLevel * 3) + (currentLevel * 10) + (currentLevel * currentLevel * currentLevel / 3) + 10);
+        // Polynomial formula: A + B*level + C*level² + D*level³ + E*level⁴
+        // Where: A = 10, B = 10, C = 3, D = 1/3, E = 1/10
+        // requiredExperience(level) = 10 + 10*level + 3*level² + (1/3)*level³ + (1/10)*level⁴
+        // Level 0->1: 10 + 10*0 + 3*0² + (1/3)*0³ + (1/10)*0⁴ = 10
+        // Level 1->2: 10 + 10*1 + 3*1² + (1/3)*1³ + (1/10)*1⁴ = 10 + 10 + 3 + 0.33 + 0.1 = 23
+        // Level 2->3: 10 + 10*2 + 3*2² + (1/3)*2³ + (1/10)*2⁴ = 10 + 20 + 12 + 2.67 + 1.6 = 46
+        // Level 3->4: 10 + 10*3 + 3*3² + (1/3)*3³ + (1/10)*3⁴ = 10 + 30 + 27 + 9 + 8.1 = 84
+        // Level 4->5: 10 + 10*4 + 3*4² + (1/3)*4³ + (1/10)*4⁴ = 10 + 40 + 48 + 21.33 + 25.6 = 144
+        const A = 10;     // Constant term
+        const B = 10;     // Linear coefficient
+        const C = 3;      // Quadratic coefficient
+        const D = 1 / 3;  // Cubic coefficient
+        const E = 1 / 10; // Quartic coefficient
+        const level = currentLevel;
+        return Math.floor(A + B * level + C * level * level + D * level * level * level + E * level * level * level * level);
     }
 
     /**
@@ -225,18 +235,26 @@ class Player {
         // Draw thrusters based on lane speed upgrade
         this.drawThrusters(ctx);
 
-        // Determine ship color based on rapidfire upgrade
+        // Determine ship color based on rapidfire upgrade - unlimited scaling
         const rapidfireLevel = this.upgrades.rapidfire;
         let shipColor = '#00d4ff';
         if (rapidfireLevel > 0) {
-            // Color changes from cyan to yellow to red as level increases
+            // Color changes from cyan to yellow to red to white as level increases infinitely
             if (rapidfireLevel <= 3) {
+                // Cyan phase
                 shipColor = `rgb(0, ${212 + rapidfireLevel * 14}, 255)`;
             } else if (rapidfireLevel <= 6) {
+                // Cyan to yellow phase
                 const intensity = (rapidfireLevel - 3) * 85;
                 shipColor = `rgb(${intensity}, 255, ${255 - intensity})`;
+            } else if (rapidfireLevel <= 12) {
+                // Yellow to red phase
+                const greenIntensity = Math.max(0, 255 - (rapidfireLevel - 6) * 42.5);
+                shipColor = `rgb(255, ${greenIntensity}, 0)`;
             } else {
-                shipColor = `rgb(255, ${255 - (rapidfireLevel - 6) * 30}, 0)`;
+                // Red to white phase (for very high levels)
+                const whiteIntensity = Math.min(255, (rapidfireLevel - 12) * 20);
+                shipColor = `rgb(255, ${Math.min(255, whiteIntensity)}, ${Math.min(255, whiteIntensity)})`;
             }
         }
 
@@ -327,24 +345,30 @@ class Player {
     drawThrusters(ctx) {
         const lanespeedLevel = this.upgrades.lanespeed;
         if (lanespeedLevel > 0) {
-            const thrusterCount = Math.min(3, lanespeedLevel); // Max 3 thrusters
-            const thrusterSpacing = 8;
+            // Unlimited thrusters: show up to level count, but adjust spacing for high levels
+            const thrusterCount = lanespeedLevel;
+            // Adjust spacing based on count to prevent overlap
+            const maxSpacing = 8;
+            const minSpacing = 4;
+            const thrusterSpacing = Math.max(minSpacing, maxSpacing - (thrusterCount - 1) * 0.2);
             const startX = this.x - (thrusterCount - 1) * thrusterSpacing / 2;
 
             for (let i = 0; i < thrusterCount; i++) {
                 const thrusterX = startX + i * thrusterSpacing;
                 const thrusterY = this.y + this.height / 2;
 
-                // Draw thruster flame
-                ctx.fillStyle = `rgba(255, ${100 + lanespeedLevel * 10}, 0, 0.8)`;
+                // Draw thruster flame - intensity increases with level
+                const greenIntensity = Math.min(255, 100 + lanespeedLevel * 10);
+                ctx.fillStyle = `rgba(255, ${greenIntensity}, 0, 0.8)`;
                 ctx.shadowColor = '#ff6b00';
-                ctx.shadowBlur = 10;
+                ctx.shadowBlur = 10 + lanespeedLevel * 0.5;
 
-                // Draw flame shape
+                // Draw flame shape - size increases with level
+                const flameLength = 8 + lanespeedLevel * 2;
                 ctx.beginPath();
                 ctx.moveTo(thrusterX, thrusterY);
-                ctx.lineTo(thrusterX - 4, thrusterY + 8 + lanespeedLevel * 2);
-                ctx.lineTo(thrusterX + 4, thrusterY + 8 + lanespeedLevel * 2);
+                ctx.lineTo(thrusterX - 4, thrusterY + flameLength);
+                ctx.lineTo(thrusterX + 4, thrusterY + flameLength);
                 ctx.closePath();
                 ctx.fill();
 
@@ -370,41 +394,58 @@ class Player {
      */
     drawAdditionalTriangles(ctx, level, color) {
         const smallTriangleSize = this.width * 0.6;
-        const offset = this.width * 0.8;
+        const baseOffset = this.width * 0.8;
 
-        // Draw small triangles on sides
-        for (let i = 0; i < Math.min(level, 2); i++) {
-            const side = i === 0 ? -1 : 1; // Left or right
-            const triangleX = this.x + side * offset;
-            const triangleY = this.y;
+        // Draw triangles on sides - unlimited, arranged in rows
+        // Each row can have up to 2 triangles (left and right)
+        const maxTrianglesPerRow = 2;
+        const rows = Math.ceil(level / maxTrianglesPerRow);
+        
+        for (let row = 0; row < rows; row++) {
+            const trianglesInRow = Math.min(maxTrianglesPerRow, level - row * maxTrianglesPerRow);
+            const verticalOffset = row * (this.width * 0.4); // Vertical spacing between rows
+            
+            for (let i = 0; i < trianglesInRow; i++) {
+                const side = i === 0 ? -1 : 1; // Left or right
+                const horizontalOffset = baseOffset + (row > 0 ? row * (this.width * 0.2) : 0); // Spread out for higher rows
+                const triangleX = this.x + side * horizontalOffset;
+                const triangleY = this.y - verticalOffset;
 
-            ctx.fillStyle = color;
-            ctx.shadowColor = color;
-            ctx.shadowBlur = 10;
+                ctx.fillStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 10 + row * 2; // Increase glow for higher rows
 
-            ctx.beginPath();
-            ctx.moveTo(triangleX, triangleY - smallTriangleSize / 2);
-            ctx.lineTo(triangleX - smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
-            ctx.lineTo(triangleX + smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
-            ctx.closePath();
-            ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(triangleX, triangleY - smallTriangleSize / 2);
+                ctx.lineTo(triangleX - smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
+                ctx.lineTo(triangleX + smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
+                ctx.closePath();
+                ctx.fill();
+            }
         }
 
-        // If level 3+, draw one more triangle above
+        // Draw additional triangles above for high levels (every 3 levels)
         if (level >= 3) {
-            const triangleX = this.x;
-            const triangleY = this.y - this.height * 0.8;
+            const trianglesAbove = Math.floor((level - 3) / 3) + 1; // One triangle per 3 levels after level 3
+            const maxTrianglesAbove = 5; // Limit to prevent visual clutter, but allow more than before
+            const trianglesToDraw = Math.min(trianglesAbove, maxTrianglesAbove);
+            
+            for (let i = 0; i < trianglesToDraw; i++) {
+                const spacing = this.width * 0.5;
+                const triangleX = this.x + (i - (trianglesToDraw - 1) / 2) * spacing;
+                const triangleY = this.y - this.height * (0.8 + i * 0.2);
 
-            ctx.fillStyle = color;
-            ctx.shadowColor = color;
-            ctx.shadowBlur = 10;
+                ctx.fillStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 10 + i * 2;
 
-            ctx.beginPath();
-            ctx.moveTo(triangleX, triangleY - smallTriangleSize / 2);
-            ctx.lineTo(triangleX - smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
-            ctx.lineTo(triangleX + smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
-            ctx.closePath();
-            ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(triangleX, triangleY - smallTriangleSize / 2);
+                ctx.lineTo(triangleX - smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
+                ctx.lineTo(triangleX + smallTriangleSize / 2, triangleY + smallTriangleSize / 2);
+                ctx.closePath();
+                ctx.fill();
+            }
         }
 
         ctx.shadowBlur = 0;

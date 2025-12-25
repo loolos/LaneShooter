@@ -537,7 +537,7 @@ class Game {
     spawnEnemies() {
         // Increase spawn rate with level - slow gradual increase
         // Uses square root for smoother progression: level 1 = 1.0x, level 5 = 1.4x, level 10 = 1.73x
-        const spawnRate = CONFIG.ENEMY_SPAWN_RATE * (1 + Math.sqrt(this.level - 1) * 0.15);
+        const spawnRate = CONFIG.ENEMY_SPAWN_RATE * Math.min(1 + Math.sqrt(this.level - 1) * 0.1, 2);
 
         if (Math.random() < spawnRate) {
             const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
@@ -546,9 +546,8 @@ class Game {
             this.enemies.push(enemy);
         }
 
-        // Spawn carrier enemy occasionally at level 5+ (if not at forced levels 5, 10, 15)
-        const carrierLevels = [5, 10, 15];
-        if (this.level >= 5 && !carrierLevels.includes(this.level)) {
+        // Spawn carrier enemy occasionally at level 5+ (if not at forced levels that are multiples of 5)
+        if (this.level >= 5 && this.level % 5 !== 0) {
             // Check if there's already a carrier
             const hasCarrier = this.enemies.some(e => e.type === 'carrier' && e.active);
             if (!hasCarrier && Math.random() < 0.001) { // Very low spawn rate for carrier
@@ -565,8 +564,14 @@ class Game {
 
     /**
      * Spawn powerups
+     * Random powerups (not from enemy drops) stop spawning after level 5
      */
     spawnPowerups() {
+        // Stop random powerup spawning after level 5
+        if (this.level >= 5) {
+            return;
+        }
+        
         if (Math.random() < CONFIG.POWERUP_SPAWN_RATE) {
             const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
             const x = CONFIG.LANE_POSITIONS[laneIndex];
@@ -675,18 +680,18 @@ class Game {
             }
             enemy.update();
 
-            // Handle carrier enemy spawning
-            if (enemy.type === 'carrier' && enemy.shouldSpawnEnemy()) {
-                // Spawn a random enemy from the carrier (equal probability, no carrier)
+            // Handle carrier enemy spawning (only if carrier is still active)
+            if (enemy.type === 'carrier' && enemy.active && enemy.shouldSpawnEnemy()) {
+                // Spawn a random enemy from the carrier (only heavy or formation enemies)
                 const spawnX = enemy.x;
                 const spawnY = enemy.y + enemy.height / 2 + 20; // Spawn below the carrier
 
-                // Create spawn animation effect
+                // Create spawn animation effect with portal
                 const spawnEffect = EffectManager.createEffect(spawnX, spawnY, 'spawn');
                 this.effects.push(spawnEffect);
 
-                // Randomly select from non-carrier enemy types with equal probability
-                const enemyTypes = ['basic', 'fast', 'tank', 'swarm', 'formation'];
+                // Only spawn heavy (tank) or formation enemies
+                const enemyTypes = ['tank', 'formation'];
                 const randomType = enemyTypes[randomInt(0, enemyTypes.length - 1)];
                 const spawnedEnemy = EnemyFactory.create(randomType, spawnX, spawnY, enemy.laneIndex, this.level);
                 this.enemies.push(spawnedEnemy);
@@ -1041,11 +1046,18 @@ class Game {
         let totalRequired = 0;
 
         // Calculate level based on score
-        // Formula: requiredForLevel(n) = (300 + (n - 1) × 100) + n² × 10
+        // Polynomial formula: A + B*n + C*n² + D*n³ + E*n⁴
+        // Where: A = 200, B = 100, C = 20, D = 1, E = 1
+        // requiredForLevel(n) = 200 + 100*n + 20*n² + 1*n³ + 1*n⁴
         while (true) {
-            const baseRequired = CONFIG.LEVEL_UP_SCORE + (scoreBasedLevel - 1) * CONFIG.LEVEL_UP_SCORE_INCREMENT;
-            const squaredBonus = scoreBasedLevel * scoreBasedLevel * 20;
-            const requiredForNext = baseRequired + squaredBonus;
+            const A = 200;  // Constant term
+            const B = 100;  // Linear coefficient
+            const C = 20;   // Quadratic coefficient
+            const D = 1;    // Cubic coefficient
+            const E = 1/10;    // Quartic coefficient
+            const n = scoreBasedLevel;
+            const requiredForNext = Math.floor(A + B * n + C * n * n + D * n * n * n + E * n * n * n * n);
+            
             if (this.score >= totalRequired + requiredForNext) {
                 totalRequired += requiredForNext;
                 scoreBasedLevel++;
@@ -1265,9 +1277,8 @@ class Game {
         // Play level up sound (if available)
         this.audioManager.play('powerup');
 
-        // Force spawn carrier at specific levels (5, 10, 15)
-        const carrierLevels = [5, 10, 15];
-        if (carrierLevels.includes(this.level)) {
+        // Force spawn carrier at all levels that are multiples of 5 (5, 10, 15, 20, 25, ...)
+        if (this.level % 5 === 0) {
             // Check if we've already spawned a carrier at this level
             if (!this.carrierSpawnedAtLevels.has(this.level)) {
                 // Force spawn carrier (even if there's already an active carrier)
@@ -1435,7 +1446,7 @@ class Game {
         }
 
         // Randomly select which upgrade type to gain XP for
-        const upgradeTypes = ['rapidfire', 'multishot', 'speedboost', 'lanespeed'];
+        const upgradeTypes = ['rapidfire', 'multishot', 'powerboost', 'lanespeed'];
         const randomType = upgradeTypes[randomInt(0, upgradeTypes.length - 1)];
 
         // Calculate position offset for multiple units
@@ -1496,10 +1507,10 @@ class Game {
                     desc: 'Bullet Count',
                     color: '#4ecdc4'
                 },
-                'speedboost': {
+                'powerboost': {
                     icon: '💨',
-                    name: 'Bullet Power',
-                    desc: 'Attack Power',
+                    name: 'Power Boost',
+                    desc: 'Damage & Speed',
                     color: '#ffe66d'
                 },
                 'lanespeed': {
