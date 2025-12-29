@@ -732,30 +732,30 @@ class Game {
             xpTextIndex++;
         }
 
-        // Optimized bullet-enemy collision detection: lane-based y-axis only
+        // Optimized bullet group-enemy collision detection: lane-based y-axis only
         if (this.player) {
-            const activeBullets = this.player.bullets.filter(b => b.active);
+            const activeBulletGroups = this.player.bulletGroups.filter(bg => bg.active && bg.remainingCount > 0);
             const activeEnemies = this.enemies.filter(e => e.active);
             
             // Safety check: prevent excessive entity counts
-            if (activeBullets.length > 200 || activeEnemies.length > 100) {
-                console.warn(`WARNING: Unusually high entity count - Bullets: ${activeBullets.length}, Enemies: ${activeEnemies.length}`);
-                if (activeBullets.length > 300) {
-                    this.player.bullets = this.player.bullets.filter(b => b.active).slice(0, 200);
+            if (activeBulletGroups.length > 200 || activeEnemies.length > 100) {
+                console.warn(`WARNING: Unusually high entity count - Bullet Groups: ${activeBulletGroups.length}, Enemies: ${activeEnemies.length}`);
+                if (activeBulletGroups.length > 300) {
+                    this.player.bulletGroups = this.player.bulletGroups.filter(bg => bg.active).slice(0, 200);
                 }
                 if (activeEnemies.length > 150) {
                     this.enemies = this.enemies.filter(e => e.active).slice(0, 100);
                 }
             }
 
-            // Group bullets and enemies by lane - each lane is checked independently
-            const bulletsByLane = new Array(CONFIG.LANE_COUNT).fill(null).map(() => []);
+            // Group bullet groups and enemies by lane - each lane is checked independently
+            const bulletGroupsByLane = new Array(CONFIG.LANE_COUNT).fill(null).map(() => []);
             const enemiesByLane = new Array(CONFIG.LANE_COUNT).fill(null).map(() => []);
 
-            // Group bullets by their lane (determined at creation time)
-            activeBullets.forEach(bullet => {
-                if (bullet.laneIndex >= 0 && bullet.laneIndex < CONFIG.LANE_COUNT) {
-                    bulletsByLane[bullet.laneIndex].push(bullet);
+            // Group bullet groups by their lane (determined at creation time)
+            activeBulletGroups.forEach(bulletGroup => {
+                if (bulletGroup.laneIndex >= 0 && bulletGroup.laneIndex < CONFIG.LANE_COUNT) {
+                    bulletGroupsByLane[bulletGroup.laneIndex].push(bulletGroup);
                 }
             });
 
@@ -766,173 +766,189 @@ class Game {
                 }
             });
 
-            // For each lane, independently check collisions between bullets and enemies
-            // Each lane only checks its own bullets against its own most forward enemy
+            // For each lane, independently check collisions between bullet groups and enemies
+            // Each lane only checks its own bullet groups against its own enemies
             for (let laneIndex = 0; laneIndex < CONFIG.LANE_COUNT; laneIndex++) {
-                // Get bullets and enemies for this specific lane
-                const laneBullets = bulletsByLane[laneIndex];
+                // Get bullet groups and enemies for this specific lane
+                const laneBulletGroups = bulletGroupsByLane[laneIndex];
                 const laneEnemies = enemiesByLane[laneIndex];
 
-                // Skip if no bullets or enemies in this lane
-                if (laneBullets.length === 0 || laneEnemies.length === 0) {
+                // Skip if no bullet groups or enemies in this lane
+                if (laneBulletGroups.length === 0 || laneEnemies.length === 0) {
                     continue;
                 }
 
-                // Find the most forward enemy in this lane (bottommost = closest to player)
-                // This is the enemy with the largest bottom Y value
-                const mostForwardEnemy = laneEnemies.reduce((forward, enemy) => {
-                    const enemyBottomY = enemy.getBottomY();
-                    const forwardBottomY = forward ? forward.getBottomY() : -Infinity;
-                    return enemyBottomY > forwardBottomY ? enemy : forward;
-                }, null);
-
-                if (!mostForwardEnemy) continue;
-
-                const mostForwardEnemyBottomY = mostForwardEnemy.getBottomY();
-
-                // Check all bullets in this lane, process all bullets that reach the enemy bottom
-                // Sort bullets by Y descending (most forward first) to process collisions in order
-                const sortedBullets = laneBullets
-                    .filter(b => b && b.active)
+                // Sort bullet groups by Y descending (most forward first) to process collisions in order
+                const sortedBulletGroups = laneBulletGroups
+                    .filter(bg => bg && bg.active && bg.remainingCount > 0)
                     .sort((a, b) => b.y - a.y); // Sort descending (most forward first)
 
-                // Process all bullets that collide with the enemy in this frame
-                for (const bullet of sortedBullets) {
-                    // Skip if bullet is no longer active (was destroyed by previous collision)
-                    if (!bullet.active) continue;
+                // Process each bullet group - it can hit multiple enemies in the same frame
+                for (const bulletGroup of sortedBulletGroups) {
+                    // Skip if bullet group is no longer active or has no bullets remaining
+                    if (!bulletGroup.active || bulletGroup.remainingCount <= 0) continue;
                     
-                    // Y-axis collision detection: bullet top <= enemy bottom
-                    if (bullet.y <= mostForwardEnemyBottomY) {
-                        // Check if enemy is still active (might have been destroyed by previous bullet)
-                        if (!mostForwardEnemy.active) {
-                            // Enemy already destroyed, remaining bullets continue upward (don't destroy them)
-                            continue;
+                    // Keep processing collisions until bullet group has no bullets left or no more enemies to hit
+                    let continueCollisionCheck = true;
+                    while (continueCollisionCheck && bulletGroup.active && bulletGroup.remainingCount > 0) {
+                        // Find the most forward active enemy in this lane (bottommost = closest to player)
+                        // This is the enemy with the largest bottom Y value that is still active
+                        const mostForwardEnemy = laneEnemies
+                            .filter(e => e.active)
+                            .reduce((forward, enemy) => {
+                                const enemyBottomY = enemy.getBottomY();
+                                const forwardBottomY = forward ? forward.getBottomY() : -Infinity;
+                                return enemyBottomY > forwardBottomY ? enemy : forward;
+                            }, null);
+
+                        if (!mostForwardEnemy) {
+                            // No more active enemies in this lane, bullet group continues upward
+                            continueCollisionCheck = false;
+                            break;
                         }
 
-                        // Collision detected!
-                        bullet.active = false;
+                        const mostForwardEnemyBottomY = mostForwardEnemy.getBottomY();
+                        
+                        // Y-axis collision detection: bullet group top <= enemy bottom
+                        if (bulletGroup.y <= mostForwardEnemyBottomY) {
+                            // Collision detected! Consume one bullet from the group
+                            // The bullet group will visually remove a random bullet
+                            bulletGroup.consumeBullets(1);
 
-                        // Calculate actual damage based on bullet power and enemy type
-                        const actualDamage = bullet.getDamage(mostForwardEnemy);
+                            // Calculate actual damage based on bullet group power and enemy type
+                            // Damage is per bullet, so we calculate for 1 bullet consumed
+                            const actualDamage = bulletGroup.getDamage(mostForwardEnemy, 1);
 
-                        // Store unit positions before damage for formation/swarm enemies
-                        let destroyedUnitPositions = [];
-                        if ((mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm') && mostForwardEnemy.units) {
-                            // Pre-calculate formation dimensions if needed
-                            let startX, startY, colSpacing, rowSpacing;
-                            if (mostForwardEnemy.type === 'formation') {
-                                const totalWidth = (mostForwardEnemy.cols * mostForwardEnemy.enemyWidth) + ((mostForwardEnemy.cols - 1) * mostForwardEnemy.spacing);
-                                const totalHeight = (mostForwardEnemy.rows * mostForwardEnemy.enemyHeight) + ((mostForwardEnemy.rows - 1) * mostForwardEnemy.rowSpacing);
-                                startX = mostForwardEnemy.x - totalWidth / 2;
-                                startY = mostForwardEnemy.y - totalHeight / 2;
-                                colSpacing = mostForwardEnemy.enemyWidth + mostForwardEnemy.spacing;
-                                rowSpacing = mostForwardEnemy.enemyHeight + mostForwardEnemy.rowSpacing;
+                            // Store unit positions before damage for formation/swarm enemies
+                            let destroyedUnitPositions = [];
+                            if ((mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm') && mostForwardEnemy.units) {
+                                // Pre-calculate formation dimensions if needed
+                                let startX, startY, colSpacing, rowSpacing;
+                                if (mostForwardEnemy.type === 'formation') {
+                                    const totalWidth = (mostForwardEnemy.cols * mostForwardEnemy.enemyWidth) + ((mostForwardEnemy.cols - 1) * mostForwardEnemy.spacing);
+                                    const totalHeight = (mostForwardEnemy.rows * mostForwardEnemy.enemyHeight) + ((mostForwardEnemy.rows - 1) * mostForwardEnemy.rowSpacing);
+                                    startX = mostForwardEnemy.x - totalWidth / 2;
+                                    startY = mostForwardEnemy.y - totalHeight / 2;
+                                    colSpacing = mostForwardEnemy.enemyWidth + mostForwardEnemy.spacing;
+                                    rowSpacing = mostForwardEnemy.enemyHeight + mostForwardEnemy.rowSpacing;
+                                }
+                                
+                                // Store positions of units that are about to be destroyed
+                                mostForwardEnemy.units.forEach(unit => {
+                                    if (unit.health > 0 && unit.health <= actualDamage) {
+                                        if (mostForwardEnemy.type === 'formation') {
+                                            destroyedUnitPositions.push({
+                                                x: startX + (unit.col * colSpacing) + (mostForwardEnemy.enemyWidth / 2),
+                                                y: startY + (unit.row * rowSpacing) + (mostForwardEnemy.enemyHeight / 2)
+                                            });
+                                        } else { // swarm
+                                            destroyedUnitPositions.push({
+                                                x: mostForwardEnemy.x + unit.offsetX,
+                                                y: mostForwardEnemy.y + unit.offsetY
+                                            });
+                                        }
+                                    }
+                                });
                             }
-                            
-                            // Store positions of units that are about to be destroyed
-                            mostForwardEnemy.units.forEach(unit => {
-                                if (unit.health > 0 && unit.health <= actualDamage) {
-                                    if (mostForwardEnemy.type === 'formation') {
-                                        destroyedUnitPositions.push({
-                                            x: startX + (unit.col * colSpacing) + (mostForwardEnemy.enemyWidth / 2),
-                                            y: startY + (unit.row * rowSpacing) + (mostForwardEnemy.enemyHeight / 2)
-                                        });
-                                    } else { // swarm
-                                        destroyedUnitPositions.push({
-                                            x: mostForwardEnemy.x + unit.offsetX,
-                                            y: mostForwardEnemy.y + unit.offsetY
-                                        });
+
+                            const result = mostForwardEnemy.takeDamage(actualDamage);
+                            const unitsKilled = result.unitsKilled || 0;
+
+                            // Give score and experience for each unit killed (Formation/Swarm)
+                            if (unitsKilled > 0 && (mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm')) {
+                                // Score: proportional to unit health, independent of total count
+                                const unitScore = mostForwardEnemy.healthPerUnit * CONFIG.SCORE_PER_ENEMY;
+
+                                // Give score for each killed unit
+                                this.score += unitScore * unitsKilled;
+
+                                // Swarm/Formation: each unit has 0.5 (50%) chance to drop XP
+                                const experienceChance = 0.5;
+
+                                // Queue kill accent for each unit killed (but limit to avoid spam)
+                                const maxAccents = Math.min(unitsKilled, 3);
+                                for (let i = 0; i < maxAccents; i++) {
+                                    this.audioManager.queueKillAccent(mostForwardEnemy.type, 0.5);
+                                }
+
+                                for (let i = 0; i < unitsKilled; i++) {
+                                    // Chance to gain experience from each unit
+                                    if (Math.random() < experienceChance) {
+                                        this.gainExperienceFromEnemy(mostForwardEnemy, i);
                                     }
                                 }
-                            });
-                        }
-
-                        const result = mostForwardEnemy.takeDamage(actualDamage);
-                        const unitsKilled = result.unitsKilled || 0;
-
-                        // Give score and experience for each unit killed (Formation/Swarm)
-                        if (unitsKilled > 0 && (mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm')) {
-                            // Score: proportional to unit health, independent of total count
-                            const unitScore = mostForwardEnemy.healthPerUnit * CONFIG.SCORE_PER_ENEMY;
-
-                            // Give score for each killed unit
-                            this.score += unitScore * unitsKilled;
-
-                            // Swarm/Formation: each unit has 0.5 (50%) chance to drop XP
-                            const experienceChance = 0.5;
-
-                            // Queue kill accent for each unit killed (but limit to avoid spam)
-                            const maxAccents = Math.min(unitsKilled, 3);
-                            for (let i = 0; i < maxAccents; i++) {
-                                this.audioManager.queueKillAccent(mostForwardEnemy.type, 0.5);
                             }
 
-                            for (let i = 0; i < unitsKilled; i++) {
-                                // Chance to gain experience from each unit
-                                if (Math.random() < experienceChance) {
-                                    this.gainExperienceFromEnemy(mostForwardEnemy, i);
-                                }
-                            }
-                        }
-
-                        if (result.destroyed) {
-                            // Only give score for non-multi-unit enemies (Formation/Swarm already handled above)
-                            if (mostForwardEnemy.type !== 'formation' && mostForwardEnemy.type !== 'swarm') {
-                                this.score += mostForwardEnemy.scoreValue;
-                            }
-
-                            // Give experience when enemy is completely destroyed (for non-multi-unit enemies)
-                            if (mostForwardEnemy.type !== 'formation' && mostForwardEnemy.type !== 'swarm') {
-                                // Get drop rate based on enemy type
-                                let dropRate = 0.2; // Default
-                                if (mostForwardEnemy.type === 'basic') {
-                                    dropRate = 0.2; // 20%
-                                } else if (mostForwardEnemy.type === 'fast') {
-                                    dropRate = 0.3; // 30%
-                                } else if (mostForwardEnemy.type === 'tank') {
-                                    dropRate = 0.5; // 50%
-                                } else if (mostForwardEnemy.type === 'carrier') {
-                                    dropRate = 1.0; // 100%
+                            if (result.destroyed) {
+                                // Only give score for non-multi-unit enemies (Formation/Swarm already handled above)
+                                if (mostForwardEnemy.type !== 'formation' && mostForwardEnemy.type !== 'swarm') {
+                                    this.score += mostForwardEnemy.scoreValue;
                                 }
 
-                                // Check if should drop experience
-                                if (Math.random() < dropRate) {
-                                    this.gainExperienceFromEnemy(mostForwardEnemy, 0);
+                                // Give experience when enemy is completely destroyed (for non-multi-unit enemies)
+                                if (mostForwardEnemy.type !== 'formation' && mostForwardEnemy.type !== 'swarm') {
+                                    // Get drop rate based on enemy type
+                                    let dropRate = 0.2; // Default
+                                    if (mostForwardEnemy.type === 'basic') {
+                                        dropRate = 0.2; // 20%
+                                    } else if (mostForwardEnemy.type === 'fast') {
+                                        dropRate = 0.3; // 30%
+                                    } else if (mostForwardEnemy.type === 'tank') {
+                                        dropRate = 0.5; // 50%
+                                    } else if (mostForwardEnemy.type === 'carrier') {
+                                        dropRate = 1.0; // 100%
+                                    }
+
+                                    // Check if should drop experience
+                                    if (Math.random() < dropRate) {
+                                        this.gainExperienceFromEnemy(mostForwardEnemy, 0);
+                                    }
                                 }
-                            }
 
-                            // Play enemy-specific death sound
-                            this.playEnemyDeathSound(mostForwardEnemy.type);
-
-                            // Queue kill accent for beat synchronization
-                            let accentIntensity = 0.5;
-                            if (mostForwardEnemy.type === 'tank' || mostForwardEnemy.type === 'carrier') {
-                                accentIntensity = 0.8;
-                            } else if (mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm') {
-                                accentIntensity = 0.6;
-                            } else {
-                                accentIntensity = 0.4;
-                            }
-                            this.audioManager.queueKillAccent(mostForwardEnemy.type, accentIntensity);
-
-                            // Create destruction effect
-                            const effect = EffectManager.createEffect(mostForwardEnemy.x, mostForwardEnemy.y, mostForwardEnemy.type);
-                            this.effects.push(effect);
-
-                            this.updateUI();
-                        } else if (unitsKilled > 0) {
-                            // Play hit sound even if not fully destroyed
-                            this.audioManager.play('hit');
-
-                            // Create effects for destroyed units
-                            destroyedUnitPositions.forEach((pos, index) => {
-                                if (index < unitsKilled) {
-                                    const effect = EffectManager.createEffect(pos.x, pos.y, mostForwardEnemy.type === 'formation' ? 'formation' : 'swarm');
-                                    this.effects.push(effect);
+                                // Play enemy-specific death sound
+                                this.playEnemyDeathSound(mostForwardEnemy.type);
+                                
+                                // Play special victory sound for carrier destruction
+                                if (mostForwardEnemy.type === 'carrier') {
+                                    this.audioManager.play('carrierVictory');
                                 }
-                            });
 
-                            this.updateUI();
+                                // Queue kill accent for beat synchronization
+                                let accentIntensity = 0.5;
+                                if (mostForwardEnemy.type === 'tank' || mostForwardEnemy.type === 'carrier') {
+                                    accentIntensity = 0.8;
+                                } else if (mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm') {
+                                    accentIntensity = 0.6;
+                                } else {
+                                    accentIntensity = 0.4;
+                                }
+                                this.audioManager.queueKillAccent(mostForwardEnemy.type, accentIntensity);
+
+                                // Create destruction effect
+                                const effect = EffectManager.createEffect(mostForwardEnemy.x, mostForwardEnemy.y, mostForwardEnemy.type);
+                                this.effects.push(effect);
+
+                                this.updateUI();
+                            } else if (unitsKilled > 0) {
+                                // Play hit sound even if not fully destroyed
+                                this.audioManager.play('hit');
+
+                                // Create effects for destroyed units
+                                destroyedUnitPositions.forEach((pos, index) => {
+                                    if (index < unitsKilled) {
+                                        const effect = EffectManager.createEffect(pos.x, pos.y, mostForwardEnemy.type === 'formation' ? 'formation' : 'swarm');
+                                        this.effects.push(effect);
+                                    }
+                                });
+
+                                this.updateUI();
+                            }
+                            
+                            // Continue checking for more collisions if bullet group still has bullets
+                            // The while loop will check again for the next most forward enemy
+                        } else {
+                            // Bullet group has passed all enemies, stop checking collisions
+                            continueCollisionCheck = false;
                         }
                     }
                 }
@@ -1118,12 +1134,12 @@ class Game {
         if (this.player) {
             this.player.draw(this.ctx);
 
-            // Draw bullets (only active ones, and only if on screen)
+            // Draw bullet groups (only active ones, and only if on screen)
             const canvasHeight = this.canvas.height;
             const canvasWidth = this.canvas.width;
-            this.player.bullets.forEach(bullet => {
-                if (bullet.active && bullet.y > -50 && bullet.y < canvasHeight + 50) {
-                    bullet.draw(this.ctx);
+            this.player.bulletGroups.forEach(bulletGroup => {
+                if (bulletGroup.active && bulletGroup.remainingCount > 0 && bulletGroup.y > -50 && bulletGroup.y < canvasHeight + 50) {
+                    bulletGroup.draw(this.ctx);
                 }
             });
         }
@@ -1433,12 +1449,12 @@ class Game {
             // Simple level-based XP calculation
             // Basic: Level 1: 2 XP, Level 5: 4 XP, Level 10: 6 XP
             // Fast: Level 1: 4 XP, Level 5: 8 XP, Level 10: 12 XP
-            // Carrier: Level 5: 20 XP, Level 10: 30 XP, Level 15: 40 XP
+            // Carrier: Level 5: 60 XP, Level 10: 84 XP, Level 15: 108 XP (doubled)
             let baseXPPerLevel = 2; // Base XP per level for Basic
             if (enemy.type === 'fast') {
                 baseXPPerLevel = 4; // Fast enemies give 2x Basic
             } else if (enemy.type === 'carrier') {
-                baseXPPerLevel = 30; // Carrier gives much more
+                baseXPPerLevel = 60; // Carrier gives much more (doubled from 30)
             }
 
             xpAmount = Math.floor(baseXPPerLevel + (this.level - 1) * (baseXPPerLevel / 5));
@@ -1658,7 +1674,7 @@ class Game {
             activeEnemyCount: this.enemies.filter(e => e.active).length,
             powerupCount: this.powerups.length,
             activePowerupCount: this.powerups.filter(p => p.active).length,
-            bulletCount: this.player ? this.player.bullets.length : 0,
+            bulletCount: this.player ? this.player.bulletGroups.length : 0,
             effectCount: this.effects.length,
             xpTextCount: this.xpTexts.length,
 

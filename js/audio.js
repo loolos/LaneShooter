@@ -124,6 +124,7 @@ class AudioManager {
         this.createEnemyDeathSound('formation', 100, 0.25);
         this.createEnemyDeathSound('swarm', 160, 0.18);
         this.createEnemyDeathSound('carrier', 60, 0.8); // Epic carrier explosion sound
+        this.createCarrierVictorySound(); // Special victory sound for carrier destruction
         
         // Create dynamic shoot sound generator (not pre-generated)
         this.createDynamicShootSound();
@@ -319,6 +320,102 @@ class AudioManager {
             }
         };
         this.sounds[name] = soundObj;
+    }
+
+    /**
+     * Create special victory sound for carrier destruction
+     * A longer, more epic sound with multiple phases
+     */
+    createCarrierVictorySound() {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const sampleRate = audioContext.sampleRate;
+        const duration = 2.0; // 2 seconds for epic victory sound
+        const frameCount = sampleRate * duration;
+        const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < frameCount; i++) {
+            const t = i / sampleRate;
+            let value = 0;
+            
+            // Phase 1 (0-0.5s): Epic explosion with dramatic pitch drop
+            if (t < 0.5) {
+                const phase1Progress = t / 0.5;
+                const pitchDrop = 1 - phase1Progress * 0.6; // Dramatic pitch drop
+                const currentFreq = 80 * pitchDrop; // Start at 80Hz, drop to 32Hz
+                const envelope = Math.exp(-phase1Progress * 2); // Fast initial decay
+                
+                // Multiple layers for epic explosion
+                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.4;
+                value += Math.sin(2 * Math.PI * currentFreq * 0.5 * t) * envelope * 0.3; // Deep bass
+                value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.2;
+                value += Math.sin(2 * Math.PI * currentFreq * 3 * t) * envelope * 0.15;
+                
+                // Explosion noise
+                const noiseEnvelope = Math.exp(-phase1Progress * 4);
+                value += (Math.random() * 2 - 1) * noiseEnvelope * 0.2;
+            }
+            // Phase 2 (0.5-1.2s): Victory fanfare - rising triumphant tones
+            else if (t < 1.2) {
+                const phase2Progress = (t - 0.5) / 0.7;
+                const phase2Envelope = Math.sin(phase2Progress * Math.PI); // Bell curve envelope
+                
+                // Victory chord progression: C major -> G major
+                const baseFreq1 = 130.81; // C3
+                const baseFreq2 = 196.00; // G3
+                const baseFreq3 = 261.63; // C4
+                
+                // Rising pitch for triumph
+                const pitchRise = 1 + phase2Progress * 0.3;
+                
+                value += Math.sin(2 * Math.PI * baseFreq1 * pitchRise * t) * phase2Envelope * 0.25;
+                value += Math.sin(2 * Math.PI * baseFreq2 * pitchRise * t) * phase2Envelope * 0.2;
+                value += Math.sin(2 * Math.PI * baseFreq3 * pitchRise * t) * phase2Envelope * 0.15;
+                
+                // Add harmonics for richness
+                value += Math.sin(2 * Math.PI * baseFreq1 * 2 * pitchRise * t) * phase2Envelope * 0.1;
+            }
+            // Phase 3 (1.2-2.0s): Epic conclusion with sustained tone and fade
+            else {
+                const phase3Progress = (t - 1.2) / 0.8;
+                const phase3Envelope = Math.exp(-phase3Progress * 2); // Fade out
+                
+                // Sustained triumphant tone
+                const sustainFreq = 220; // A3
+                value += Math.sin(2 * Math.PI * sustainFreq * t) * phase3Envelope * 0.3;
+                value += Math.sin(2 * Math.PI * sustainFreq * 2 * t) * phase3Envelope * 0.2; // Octave
+                value += Math.sin(2 * Math.PI * sustainFreq * 3 * t) * phase3Envelope * 0.15; // Fifth
+                
+                // Final sparkle
+                const sparkleFreq = 440 + phase3Progress * 220; // Rising sparkle
+                const sparkleEnvelope = Math.exp(-phase3Progress * 3);
+                value += Math.sin(2 * Math.PI * sparkleFreq * t) * sparkleEnvelope * 0.1;
+            }
+            
+            data[i] = value;
+        }
+
+        const audio = new Audio();
+        audio.volume = this.volume;
+        
+        const soundObj = {
+            buffer: buffer,
+            audioContext: audioContext,
+            play: function() {
+                try {
+                    if (this.audioContext.state === 'suspended') {
+                        this.audioContext.resume();
+                    }
+                    const source = this.audioContext.createBufferSource();
+                    source.buffer = this.buffer;
+                    source.connect(this.audioContext.destination);
+                    source.start();
+                } catch (err) {
+                    console.debug('Carrier victory sound play error:', err);
+                }
+            }
+        };
+        this.sounds['carrierVictory'] = soundObj;
     }
 
     /**

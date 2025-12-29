@@ -15,7 +15,7 @@ class Player {
         this.baseShootCooldown = 300; // Base cooldown in milliseconds
         this.shootCooldown = this.baseShootCooldown;
         this.lastShootTime = 0;
-        this.bullets = [];
+        this.bulletGroups = []; // Changed from bullets to bulletGroups
 
         // Experience-based Upgrades System
         this.upgrades = {
@@ -67,9 +67,9 @@ class Player {
             this.x = this.targetX;
         }
 
-        // Update bullets
-        this.bullets.forEach(bullet => bullet.update());
-        this.bullets = this.bullets.filter(bullet => bullet.active);
+        // Update bullet groups
+        this.bulletGroups.forEach(group => group.update());
+        this.bulletGroups = this.bulletGroups.filter(group => group.active);
     }
 
     /**
@@ -89,20 +89,12 @@ class Player {
         // Get bullet count from multishot upgrade
         const bulletCount = 1 + this.upgrades.multishot;
         const bulletSpeed = CONFIG.BULLET_SPEED; // Bullet speed no longer affected by powerboost
-        const powerboostLevel = this.upgrades.powerboost; // Pass to bullet for damage calculation and color
+        const powerboostLevel = this.upgrades.powerboost; // Pass to bullet group for damage calculation and color
 
-        // Create bullets - lane is determined by player's x position (midpoint between lanes)
-        if (bulletCount === 1) {
-            this.bullets.push(new Bullet(this.x, this.y - this.height / 2, bulletSpeed, powerboostLevel, this.x));
-        } else {
-            // Multi-shot: spread bullets evenly
-            // All bullets use the same player x position for lane determination
-            const spread = 15;
-            for (let i = 0; i < bulletCount; i++) {
-                const offset = (i - (bulletCount - 1) / 2) * spread;
-                this.bullets.push(new Bullet(this.x + offset, this.y - this.height / 2, bulletSpeed, powerboostLevel, this.x));
-            }
-        }
+        // Create a bullet group - all bullets in this group move together as a unit
+        const startY = this.y - this.height / 2;
+        const bulletGroup = new BulletGroup(this.x, startY, bulletCount, bulletSpeed, powerboostLevel, this.x);
+        this.bulletGroups.push(bulletGroup);
 
         // Use dynamic shoot sound that adjusts pitch based on fire rate
         if (audioManager.playShoot) {
