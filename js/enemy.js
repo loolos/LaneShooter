@@ -421,31 +421,72 @@ class TankEnemy extends Enemy {
         if (!this.active) return;
 
         ctx.save();
-        ctx.shadowColor = this.color;
+        
+        // Calculate health percentage for color fading
+        const healthPercent = this.health / this.maxHealth;
+        
+        // Helper function to blend color with gray based on health
+        const blendWithGray = (r, g, b, grayValue = 128) => {
+            const blendedR = Math.floor(r * healthPercent + grayValue * (1 - healthPercent));
+            const blendedG = Math.floor(g * healthPercent + grayValue * (1 - healthPercent));
+            const blendedB = Math.floor(b * healthPercent + grayValue * (1 - healthPercent));
+            return [blendedR, blendedG, blendedB];
+        };
+        
+        // Parse original color and blend with gray
+        const colorMatch = this.color.match(/\d+/g);
+        let baseR, baseG, baseB;
+        if (colorMatch && colorMatch.length >= 3) {
+            [baseR, baseG, baseB] = colorMatch.map(Number);
+            if (isNaN(baseR) || isNaN(baseG) || isNaN(baseB)) {
+                baseR = 255; baseG = 0; baseB = 0; // Default red
+            }
+        } else {
+            baseR = 255; baseG = 0; baseB = 0; // Default red
+        }
+        
+        // Blend base color with gray
+        const [blendedR, blendedG, blendedB] = blendWithGray(baseR, baseG, baseB);
+        const blendedColor = `rgb(${blendedR}, ${blendedG}, ${blendedB})`;
+        
+        ctx.shadowColor = blendedColor;
         ctx.shadowBlur = 20;
 
-        // Create gradient for main body
+        // Create gradient for main body with health-based color fading
         const gradient = ctx.createLinearGradient(
             this.x, this.y - this.height / 2,
             this.x, this.y + this.height / 2
         );
-        // Safely parse color values
-        const colorMatch = this.color.match(/\d+/g);
-        if (colorMatch && colorMatch.length >= 3) {
-            const [r, g, b] = colorMatch.map(Number);
-            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
-                gradient.addColorStop(0, this.color);
-                gradient.addColorStop(0.3, `rgb(${Math.max(0, r - 30)}, ${Math.max(0, g - 20)}, ${Math.max(0, b - 20)})`);
-                gradient.addColorStop(0.7, `rgb(${Math.max(0, r - 50)}, ${Math.max(0, g - 30)}, ${Math.max(0, b - 30)})`);
-                gradient.addColorStop(1, `rgb(${Math.max(0, r - 70)}, ${Math.max(0, g - 40)}, ${Math.max(0, b - 40)})`);
-            } else {
-                gradient.addColorStop(0, this.color);
-                gradient.addColorStop(1, this.color);
-            }
-        } else {
-            gradient.addColorStop(0, this.color);
-            gradient.addColorStop(1, this.color);
-        }
+        
+        // Top color (lighter, more original)
+        const [topR, topG, topB] = blendWithGray(baseR, baseG, baseB, 100);
+        gradient.addColorStop(0, `rgb(${topR}, ${topG}, ${topB})`);
+        
+        // Middle colors with gradient effect
+        const [mid1R, mid1G, mid1B] = blendWithGray(
+            Math.max(0, baseR - 30), 
+            Math.max(0, baseG - 20), 
+            Math.max(0, baseB - 20),
+            90
+        );
+        gradient.addColorStop(0.3, `rgb(${mid1R}, ${mid1G}, ${mid1B})`);
+        
+        const [mid2R, mid2G, mid2B] = blendWithGray(
+            Math.max(0, baseR - 50), 
+            Math.max(0, baseG - 30), 
+            Math.max(0, baseB - 30),
+            80
+        );
+        gradient.addColorStop(0.7, `rgb(${mid2R}, ${mid2G}, ${mid2B})`);
+        
+        // Bottom color (darker, more gray)
+        const [bottomR, bottomG, bottomB] = blendWithGray(
+            Math.max(0, baseR - 70), 
+            Math.max(0, baseG - 40), 
+            Math.max(0, baseB - 40),
+            70
+        );
+        gradient.addColorStop(1, `rgb(${bottomR}, ${bottomG}, ${bottomB})`);
 
         // Draw main body (wider, more armored) with enhanced shape
         ctx.fillStyle = gradient;
@@ -461,8 +502,10 @@ class TankEnemy extends Enemy {
         ctx.closePath();
         ctx.fill();
 
-        // Draw enhanced armor plates with highlights
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        // Draw enhanced armor plates with highlights (fade with health)
+        const armorAlpha = 0.3 + healthPercent * 0.3; // Fade from 0.3 to 0.6
+        const armorGray = Math.floor(128 + (255 - 128) * healthPercent);
+        ctx.strokeStyle = `rgba(${armorGray}, ${armorGray}, ${armorGray}, ${armorAlpha})`;
         ctx.lineWidth = 2.5;
         ctx.shadowBlur = 5;
         ctx.beginPath();
@@ -472,8 +515,9 @@ class TankEnemy extends Enemy {
         ctx.lineTo(this.x + this.width / 4, this.y);
         ctx.stroke();
 
-        // Draw armor plate highlights
-        ctx.strokeStyle = 'rgba(200, 200, 255, 0.4)';
+        // Draw armor plate highlights (fade with health)
+        const highlightGray = Math.floor(100 + (200 - 100) * healthPercent);
+        ctx.strokeStyle = `rgba(${highlightGray}, ${highlightGray}, ${highlightGray}, ${armorAlpha * 0.7})`;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(this.x - this.width / 3, this.y - this.height / 4 - 1);
@@ -503,8 +547,9 @@ class TankEnemy extends Enemy {
         ctx.fillStyle = 'rgba(80, 80, 80, 0.9)';
         ctx.fillRect(this.x - this.width / 12, this.y - this.height / 2 - 3, this.width / 6, 6);
 
-        // Draw corner reinforcements
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        // Draw corner reinforcements (fade with health)
+        const reinforcementGray = Math.floor(128 + (255 - 128) * healthPercent);
+        ctx.fillStyle = `rgba(${reinforcementGray}, ${reinforcementGray}, ${reinforcementGray}, ${0.2 + healthPercent * 0.1})`;
         ctx.beginPath();
         ctx.arc(this.x - this.width / 2, this.y - this.height / 3, 3, 0, Math.PI * 2);
         ctx.arc(this.x + this.width / 2, this.y - this.height / 3, 3, 0, Math.PI * 2);
@@ -522,8 +567,7 @@ class TankEnemy extends Enemy {
         ctx.fillStyle = '#333';
         ctx.fillRect(barX, barY, barWidth, barHeight);
 
-        // Health with gradient
-        const healthPercent = this.health / this.maxHealth;
+        // Health with gradient (healthPercent already calculated above)
         const healthGradient = ctx.createLinearGradient(barX, barY, barX + barWidth * healthPercent, barY);
         if (healthPercent > 0.5) {
             healthGradient.addColorStop(0, '#00ff00');
