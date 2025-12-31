@@ -157,29 +157,83 @@ class BasicEnemy extends Enemy {
     }
 
     /**
-     * Draw basic enemy as a simple fighter
+     * Draw basic enemy as a sleek fighter with enhanced visuals
      */
     draw(ctx) {
         if (!this.active) return;
 
         ctx.save();
+        
+        // Enhanced glow effect
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 15;
 
-        // Draw main body (triangle)
-        ctx.fillStyle = this.color;
+        // Create gradient for main body
+        const gradient = ctx.createLinearGradient(
+            this.x, this.y - this.height / 2,
+            this.x, this.y + this.height / 2
+        );
+        gradient.addColorStop(0, this.color);
+        gradient.addColorStop(0.5, this.color);
+        // Safely parse color values
+        const colorMatch = this.color.match(/\d+/g);
+        if (colorMatch && colorMatch.length >= 3) {
+            const [r, g, b] = colorMatch.map(Number);
+            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+                gradient.addColorStop(1, `rgb(${Math.max(0, r - 50)}, ${Math.max(0, g - 30)}, ${Math.max(0, b - 30)})`);
+            } else {
+                gradient.addColorStop(1, this.color);
+            }
+        } else {
+            gradient.addColorStop(1, this.color);
+        }
+        
+        // Draw main body with enhanced shape
+        ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.moveTo(this.x, this.y + this.height / 2);
         ctx.lineTo(this.x - this.width / 2, this.y - this.height / 2);
+        ctx.lineTo(this.x - this.width / 6, this.y - this.height / 3);
         ctx.lineTo(this.x, this.y - this.height / 2 + 3);
+        ctx.lineTo(this.x + this.width / 6, this.y - this.height / 3);
         ctx.lineTo(this.x + this.width / 2, this.y - this.height / 2);
         ctx.closePath();
         ctx.fill();
 
-        // Draw cockpit
-        ctx.fillStyle = 'rgba(255, 200, 200, 0.6)';
+        // Draw wing details with glow
+        ctx.strokeStyle = `rgba(255, 255, 255, 0.8)`;
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 8;
         ctx.beginPath();
-        ctx.arc(this.x, this.y - this.height / 4, this.width / 8, 0, Math.PI * 2);
+        ctx.moveTo(this.x - this.width / 3, this.y);
+        ctx.lineTo(this.x - this.width / 2, this.y - this.height / 3);
+        ctx.moveTo(this.x + this.width / 3, this.y);
+        ctx.lineTo(this.x + this.width / 2, this.y - this.height / 3);
+        ctx.stroke();
+
+        // Enhanced cockpit with inner glow
+        const cockpitGradient = ctx.createRadialGradient(
+            this.x, this.y - this.height / 4, 0,
+            this.x, this.y - this.height / 4, this.width / 6
+        );
+        cockpitGradient.addColorStop(0, 'rgba(255, 240, 200, 0.9)');
+        cockpitGradient.addColorStop(0.5, 'rgba(255, 200, 150, 0.6)');
+        cockpitGradient.addColorStop(1, 'rgba(255, 150, 100, 0.3)');
+        ctx.fillStyle = cockpitGradient;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - this.height / 4, this.width / 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw engine glow
+        ctx.fillStyle = `rgba(255, 100, 50, 0.5)`;
+        ctx.shadowColor = 'rgba(255, 100, 50, 0.8)';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.width / 8, this.y + this.height / 2);
+        ctx.lineTo(this.x, this.y + this.height / 2 + 4);
+        ctx.lineTo(this.x + this.width / 8, this.y + this.height / 2);
+        ctx.closePath();
         ctx.fill();
 
         ctx.restore();
@@ -202,40 +256,99 @@ class FastEnemy extends Enemy {
     }
 
     /**
-     * Draw fast enemy as a sleek interceptor
+     * Draw fast enemy as a sleek interceptor with speed effects
      */
     draw(ctx) {
         if (!this.active) return;
 
         ctx.save();
+        
+        // Enhanced glow for speed
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 18;
 
-        // Draw sleek pointed fighter
-        ctx.fillStyle = this.color;
+        // Create vibrant gradient
+        const gradient = ctx.createLinearGradient(
+            this.x, this.y - this.height / 2,
+            this.x, this.y + this.height / 2
+        );
+        gradient.addColorStop(0, '#ff6348');
+        gradient.addColorStop(0.3, '#ff8c69');
+        gradient.addColorStop(0.7, '#ff4500');
+        gradient.addColorStop(1, '#cc3300');
+
+        // Draw sleek pointed fighter with enhanced shape
+        ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.moveTo(this.x, this.y + this.height / 2);
         ctx.lineTo(this.x - this.width / 2.5, this.y - this.height / 2);
+        ctx.lineTo(this.x - this.width / 8, this.y - this.height / 3);
         ctx.lineTo(this.x - this.width / 6, this.y - this.height / 4);
         ctx.lineTo(this.x, this.y - this.height / 2 + 2);
         ctx.lineTo(this.x + this.width / 6, this.y - this.height / 4);
+        ctx.lineTo(this.x + this.width / 8, this.y - this.height / 3);
         ctx.lineTo(this.x + this.width / 2.5, this.y - this.height / 2);
         ctx.closePath();
         ctx.fill();
 
-        // Draw afterburner effect
-        ctx.fillStyle = 'rgba(255, 200, 0, 0.6)';
+        // Draw speed lines (trailing effect)
+        ctx.strokeStyle = 'rgba(255, 200, 100, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.shadowBlur = 5;
+        for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(this.x - this.width / 4 + i * 2, this.y + this.height / 2 - i * 3);
+            ctx.lineTo(this.x - this.width / 6 + i * 2, this.y + this.height / 2 + 2 - i * 3);
+            ctx.moveTo(this.x + this.width / 4 - i * 2, this.y + this.height / 2 - i * 3);
+            ctx.lineTo(this.x + this.width / 6 - i * 2, this.y + this.height / 2 + 2 - i * 3);
+            ctx.stroke();
+        }
+
+        // Enhanced afterburner effect with multiple layers
+        const time = Date.now() * 0.01;
+        const burnIntensity = 0.7 + Math.sin(time) * 0.3;
+        
+        // Outer flame
+        ctx.fillStyle = `rgba(255, 200, 0, ${0.6 * burnIntensity})`;
+        ctx.shadowColor = 'rgba(255, 200, 0, 0.9)';
+        ctx.shadowBlur = 15;
         ctx.beginPath();
-        ctx.moveTo(this.x - this.width / 8, this.y + this.height / 2);
-        ctx.lineTo(this.x, this.y + this.height / 2 + 3);
-        ctx.lineTo(this.x + this.width / 8, this.y + this.height / 2);
+        ctx.moveTo(this.x - this.width / 6, this.y + this.height / 2);
+        ctx.lineTo(this.x, this.y + this.height / 2 + 6);
+        ctx.lineTo(this.x + this.width / 6, this.y + this.height / 2);
         ctx.closePath();
         ctx.fill();
 
-        // Draw cockpit
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        // Inner flame
+        ctx.fillStyle = `rgba(255, 255, 200, ${0.8 * burnIntensity})`;
+        ctx.shadowBlur = 10;
         ctx.beginPath();
-        ctx.arc(this.x, this.y - this.height / 5, this.width / 10, 0, Math.PI * 2);
+        ctx.moveTo(this.x - this.width / 10, this.y + this.height / 2);
+        ctx.lineTo(this.x, this.y + this.height / 2 + 4);
+        ctx.lineTo(this.x + this.width / 10, this.y + this.height / 2);
+        ctx.closePath();
+        ctx.fill();
+
+        // Enhanced cockpit with glow
+        const cockpitGradient = ctx.createRadialGradient(
+            this.x, this.y - this.height / 5, 0,
+            this.x, this.y - this.height / 5, this.width / 8
+        );
+        cockpitGradient.addColorStop(0, 'rgba(200, 240, 255, 0.9)');
+        cockpitGradient.addColorStop(0.5, 'rgba(150, 200, 255, 0.6)');
+        cockpitGradient.addColorStop(1, 'rgba(100, 150, 255, 0.3)');
+        ctx.fillStyle = cockpitGradient;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - this.height / 5, this.width / 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Wing tips with glow
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(this.x - this.width / 2.5, this.y - this.height / 2, 2, 0, Math.PI * 2);
+        ctx.arc(this.x + this.width / 2.5, this.y - this.height / 2, 2, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();
@@ -256,7 +369,7 @@ class TankEnemy extends Enemy {
         // Formula: 5 + 3*LVL + (1/4)*LVL^2
         const A = 10;    // Constant term
         const B = 3;    // Linear coefficient
-        const C = 1 / 5;  // Quadratic coefficient
+        const C = 1 / 10;  // Quadratic coefficient
         const D = 1 / 50; // Cubic coefficient
         const maxHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
         this.maxHealth = Math.floor(maxHealth);
@@ -302,30 +415,56 @@ class TankEnemy extends Enemy {
     }
 
     /**
-     * Draw tank enemy as a heavy battleship
+     * Draw tank enemy as a heavy battleship with enhanced armor
      */
     draw(ctx) {
         if (!this.active) return;
 
         ctx.save();
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 20;
 
-        // Draw main body (wider, more armored)
-        ctx.fillStyle = this.color;
+        // Create gradient for main body
+        const gradient = ctx.createLinearGradient(
+            this.x, this.y - this.height / 2,
+            this.x, this.y + this.height / 2
+        );
+        // Safely parse color values
+        const colorMatch = this.color.match(/\d+/g);
+        if (colorMatch && colorMatch.length >= 3) {
+            const [r, g, b] = colorMatch.map(Number);
+            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+                gradient.addColorStop(0, this.color);
+                gradient.addColorStop(0.3, `rgb(${Math.max(0, r - 30)}, ${Math.max(0, g - 20)}, ${Math.max(0, b - 20)})`);
+                gradient.addColorStop(0.7, `rgb(${Math.max(0, r - 50)}, ${Math.max(0, g - 30)}, ${Math.max(0, b - 30)})`);
+                gradient.addColorStop(1, `rgb(${Math.max(0, r - 70)}, ${Math.max(0, g - 40)}, ${Math.max(0, b - 40)})`);
+            } else {
+                gradient.addColorStop(0, this.color);
+                gradient.addColorStop(1, this.color);
+            }
+        } else {
+            gradient.addColorStop(0, this.color);
+            gradient.addColorStop(1, this.color);
+        }
+
+        // Draw main body (wider, more armored) with enhanced shape
+        ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.moveTo(this.x, this.y + this.height / 2);
         ctx.lineTo(this.x - this.width / 2, this.y - this.height / 3);
         ctx.lineTo(this.x - this.width / 3, this.y - this.height / 2);
+        ctx.lineTo(this.x - this.width / 6, this.y - this.height / 2 + 2);
         ctx.lineTo(this.x, this.y - this.height / 2 + 5);
+        ctx.lineTo(this.x + this.width / 6, this.y - this.height / 2 + 2);
         ctx.lineTo(this.x + this.width / 3, this.y - this.height / 2);
         ctx.lineTo(this.x + this.width / 2, this.y - this.height / 3);
         ctx.closePath();
         ctx.fill();
 
-        // Draw armor plates
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.lineWidth = 2;
+        // Draw enhanced armor plates with highlights
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 2.5;
+        ctx.shadowBlur = 5;
         ctx.beginPath();
         ctx.moveTo(this.x - this.width / 3, this.y - this.height / 4);
         ctx.lineTo(this.x + this.width / 3, this.y - this.height / 4);
@@ -333,25 +472,72 @@ class TankEnemy extends Enemy {
         ctx.lineTo(this.x + this.width / 4, this.y);
         ctx.stroke();
 
-        // Draw cannon/weapon mount
-        ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+        // Draw armor plate highlights
+        ctx.strokeStyle = 'rgba(200, 200, 255, 0.4)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.arc(this.x, this.y - this.height / 3, this.width / 8, 0, Math.PI * 2);
+        ctx.moveTo(this.x - this.width / 3, this.y - this.height / 4 - 1);
+        ctx.lineTo(this.x + this.width / 3, this.y - this.height / 4 - 1);
+        ctx.stroke();
+
+        // Draw side armor panels
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fillRect(this.x - this.width / 2, this.y - this.height / 4, this.width / 8, this.height / 4);
+        ctx.fillRect(this.x + this.width / 2 - this.width / 8, this.y - this.height / 4, this.width / 8, this.height / 4);
+
+        // Enhanced cannon/weapon mount with glow
+        const cannonGradient = ctx.createRadialGradient(
+            this.x, this.y - this.height / 3, 0,
+            this.x, this.y - this.height / 3, this.width / 6
+        );
+        cannonGradient.addColorStop(0, 'rgba(150, 150, 150, 0.9)');
+        cannonGradient.addColorStop(0.5, 'rgba(100, 100, 100, 0.8)');
+        cannonGradient.addColorStop(1, 'rgba(50, 50, 50, 0.6)');
+        ctx.fillStyle = cannonGradient;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - this.height / 3, this.width / 6, 0, Math.PI * 2);
         ctx.fill();
 
-        // Draw health bar
-        const barWidth = this.width;
-        const barHeight = 5;
-        const barX = this.x - barWidth / 2;
-        const barY = this.y - this.height / 2 - 10;
+        // Draw cannon barrel
+        ctx.fillStyle = 'rgba(80, 80, 80, 0.9)';
+        ctx.fillRect(this.x - this.width / 12, this.y - this.height / 2 - 3, this.width / 6, 6);
 
-        // Background
+        // Draw corner reinforcements
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.beginPath();
+        ctx.arc(this.x - this.width / 2, this.y - this.height / 3, 3, 0, Math.PI * 2);
+        ctx.arc(this.x + this.width / 2, this.y - this.height / 3, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Enhanced health bar with glow
+        const barWidth = this.width;
+        const barHeight = 6;
+        const barX = this.x - barWidth / 2;
+        const barY = this.y - this.height / 2 - 12;
+
+        // Background with border
+        ctx.fillStyle = '#111';
+        ctx.fillRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
         ctx.fillStyle = '#333';
         ctx.fillRect(barX, barY, barWidth, barHeight);
 
-        // Health
+        // Health with gradient
         const healthPercent = this.health / this.maxHealth;
-        ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
+        const healthGradient = ctx.createLinearGradient(barX, barY, barX + barWidth * healthPercent, barY);
+        if (healthPercent > 0.5) {
+            healthGradient.addColorStop(0, '#00ff00');
+            healthGradient.addColorStop(1, '#00cc00');
+        } else if (healthPercent > 0.25) {
+            healthGradient.addColorStop(0, '#ffff00');
+            healthGradient.addColorStop(1, '#ffcc00');
+        } else {
+            healthGradient.addColorStop(0, '#ff0000');
+            healthGradient.addColorStop(1, '#cc0000');
+        }
+        ctx.fillStyle = healthGradient;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
         ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
 
         ctx.restore();
@@ -372,7 +558,7 @@ class FormationEnemy extends Enemy {
         // Total health increases with level: A + B*LVL + C*LVL^2 + D*LVL^3
         // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
         const A = 6;    // Constant term
-        const B = 2;    // Linear coefficient
+        const B = 3;    // Linear coefficient
         const C = 1 / 50;  // Quadratic coefficient
         const D = 1 / 100; // Cubic coefficient
         const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
@@ -491,19 +677,40 @@ class FormationEnemy extends Enemy {
             ctx.shadowColor = unitColor;
             ctx.shadowBlur = 10;
 
-            // Draw fighter shape
-            ctx.fillStyle = unitColor;
+            // Enhanced fighter shape with gradient
+            const unitGradient = ctx.createLinearGradient(
+                unitX, unitY - this.enemyHeight / 2,
+                unitX, unitY + this.enemyHeight / 2
+            );
+            unitGradient.addColorStop(0, unitColor);
+            // Safely parse color values
+            const colorMatch = unitColor.match(/\d+/g);
+            if (colorMatch && colorMatch.length >= 3) {
+                const [r, g, b] = colorMatch.map(Number);
+                if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+                    unitGradient.addColorStop(1, `rgb(${Math.max(0, r - 40)}, ${Math.max(0, g - 20)}, ${Math.max(0, b - 20)})`);
+                } else {
+                    unitGradient.addColorStop(1, unitColor);
+                }
+            } else {
+                unitGradient.addColorStop(1, unitColor);
+            }
+            
+            ctx.fillStyle = unitGradient;
             ctx.beginPath();
             ctx.moveTo(unitX, unitY + this.enemyHeight / 2);
             ctx.lineTo(unitX - this.enemyWidth / 2, unitY - this.enemyHeight / 2);
+            ctx.lineTo(unitX - this.enemyWidth / 6, unitY - this.enemyHeight / 3);
             ctx.lineTo(unitX, unitY - this.enemyHeight / 2 + 2);
+            ctx.lineTo(unitX + this.enemyWidth / 6, unitY - this.enemyHeight / 3);
             ctx.lineTo(unitX + this.enemyWidth / 2, unitY - this.enemyHeight / 2);
             ctx.closePath();
             ctx.fill();
 
-            // Draw wing details
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-            ctx.lineWidth = 1;
+            // Enhanced wing details with glow
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 1.5;
+            ctx.shadowBlur = 6;
             ctx.beginPath();
             ctx.moveTo(unitX - this.enemyWidth / 4, unitY);
             ctx.lineTo(unitX - this.enemyWidth / 2, unitY - this.enemyHeight / 3);
@@ -511,10 +718,29 @@ class FormationEnemy extends Enemy {
             ctx.lineTo(unitX + this.enemyWidth / 2, unitY - this.enemyHeight / 3);
             ctx.stroke();
 
-            // Draw cockpit
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            // Enhanced cockpit with inner glow
+            const cockpitGradient = ctx.createRadialGradient(
+                unitX, unitY - this.enemyHeight / 4, 0,
+                unitX, unitY - this.enemyHeight / 4, this.enemyWidth / 6
+            );
+            cockpitGradient.addColorStop(0, 'rgba(255, 240, 200, 0.8)');
+            cockpitGradient.addColorStop(0.5, 'rgba(255, 200, 150, 0.5)');
+            cockpitGradient.addColorStop(1, 'rgba(255, 150, 100, 0.2)');
+            ctx.fillStyle = cockpitGradient;
+            ctx.shadowBlur = 10;
             ctx.beginPath();
-            ctx.arc(unitX, unitY - this.enemyHeight / 4, this.enemyWidth / 10, 0, Math.PI * 2);
+            ctx.arc(unitX, unitY - this.enemyHeight / 4, this.enemyWidth / 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw engine glow
+            ctx.fillStyle = `rgba(255, 100, 50, 0.4)`;
+            ctx.shadowColor = 'rgba(255, 100, 50, 0.6)';
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.moveTo(unitX - this.enemyWidth / 10, unitY + this.enemyHeight / 2);
+            ctx.lineTo(unitX, unitY + this.enemyHeight / 2 + 2);
+            ctx.lineTo(unitX + this.enemyWidth / 10, unitY + this.enemyHeight / 2);
+            ctx.closePath();
             ctx.fill();
         }
 
@@ -776,26 +1002,55 @@ class SwarmEnemy extends Enemy {
             ctx.shadowColor = unitColor;
             ctx.shadowBlur = 6;
 
-            // Draw wings (transparent, behind body)
-            ctx.strokeStyle = `rgba(255, 200, 100, 0.4)`;
-            ctx.fillStyle = `rgba(255, 220, 150, 0.2)`;
-            ctx.lineWidth = 1;
+            // Enhanced wings with gradient and glow
+            const wingGradient = ctx.createRadialGradient(
+                unitX, unitY - wingOffset, 0,
+                unitX, unitY - wingOffset, this.unitSize * 0.4
+            );
+            wingGradient.addColorStop(0, 'rgba(255, 240, 150, 0.5)');
+            wingGradient.addColorStop(0.5, 'rgba(255, 220, 120, 0.3)');
+            wingGradient.addColorStop(1, 'rgba(255, 200, 100, 0.1)');
+            
+            ctx.strokeStyle = `rgba(255, 220, 120, 0.6)`;
+            ctx.fillStyle = wingGradient;
+            ctx.lineWidth = 1.5;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = 'rgba(255, 200, 100, 0.6)';
 
             // Left wing
             ctx.beginPath();
-            ctx.ellipse(unitX - this.unitSize * 0.3, unitY - wingOffset, this.unitSize * 0.4, this.unitSize * 0.25, -0.3, 0, Math.PI * 2);
+            ctx.ellipse(unitX - this.unitSize * 0.3, unitY - wingOffset, this.unitSize * 0.45, this.unitSize * 0.3, -0.3, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
 
             // Right wing
             ctx.beginPath();
-            ctx.ellipse(unitX + this.unitSize * 0.3, unitY - wingOffset, this.unitSize * 0.4, this.unitSize * 0.25, 0.3, 0, Math.PI * 2);
+            ctx.ellipse(unitX + this.unitSize * 0.3, unitY - wingOffset, this.unitSize * 0.45, this.unitSize * 0.3, 0.3, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
 
-            // Draw insect body (oval/ellipse shape)
-            ctx.fillStyle = unitColor;
-            ctx.shadowBlur = 8;
+            // Enhanced insect body with gradient
+            const bodyGradient = ctx.createRadialGradient(
+                unitX, unitY, 0,
+                unitX, unitY, this.unitSize * 0.5
+            );
+            bodyGradient.addColorStop(0, unitColor);
+            // Safely parse color values
+            const colorMatch = unitColor.match(/\d+/g);
+            if (colorMatch && colorMatch.length >= 3) {
+                const [r, g, b] = colorMatch.map(Number);
+                if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+                    bodyGradient.addColorStop(1, `rgb(${Math.max(0, r - 50)}, ${Math.max(0, g - 30)}, ${Math.max(0, b - 10)})`);
+                } else {
+                    bodyGradient.addColorStop(1, unitColor);
+                }
+            } else {
+                bodyGradient.addColorStop(1, unitColor);
+            }
+            
+            ctx.fillStyle = bodyGradient;
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = unitColor;
             ctx.beginPath();
             ctx.ellipse(unitX, unitY, this.unitSize * 0.35, this.unitSize * 0.5, 0, 0, Math.PI * 2);
             ctx.fill();
@@ -819,9 +1074,18 @@ class SwarmEnemy extends Enemy {
             ctx.arc(unitX, unitY - this.unitSize * 0.25, this.unitSize * 0.25, 0, Math.PI * 2);
             ctx.fill();
 
-            // Draw eyes (two small dots)
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-            ctx.shadowBlur = 3;
+            // Enhanced eyes with glow
+            const eyeGradient = ctx.createRadialGradient(
+                unitX - this.unitSize * 0.15, unitY - this.unitSize * 0.25, 0,
+                unitX - this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.08
+            );
+            eyeGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            eyeGradient.addColorStop(0.5, 'rgba(200, 240, 255, 0.8)');
+            eyeGradient.addColorStop(1, 'rgba(150, 200, 255, 0.5)');
+            
+            ctx.fillStyle = eyeGradient;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = 'rgba(150, 200, 255, 0.8)';
             // Left eye
             ctx.beginPath();
             ctx.arc(unitX - this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.08, 0, Math.PI * 2);
@@ -829,6 +1093,14 @@ class SwarmEnemy extends Enemy {
             // Right eye
             ctx.beginPath();
             ctx.arc(unitX + this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Eye pupils
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(unitX - this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.04, 0, Math.PI * 2);
+            ctx.arc(unitX + this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.04, 0, Math.PI * 2);
             ctx.fill();
 
             // Draw antennae (small lines)
@@ -1036,26 +1308,47 @@ class CarrierEnemy extends Enemy {
     }
 
     /**
-     * Draw carrier as a large stationary ship
+     * Draw carrier as a large stationary ship with enhanced visuals
      */
     draw(ctx) {
         if (!this.active) return;
 
         ctx.save();
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = 25;
 
-        // Draw main carrier body (large rectangular shape)
-        ctx.fillStyle = this.color;
-        ctx.fillRect(
-            this.x - this.width / 2,
-            this.y - this.height / 2,
-            this.width,
-            this.height
+        // Create gradient for main body
+        const bodyGradient = ctx.createLinearGradient(
+            this.x, this.y - this.height / 2,
+            this.x, this.y + this.height / 2
         );
+        bodyGradient.addColorStop(0, '#5a6578');
+        bodyGradient.addColorStop(0.3, '#4a5568');
+        bodyGradient.addColorStop(0.7, '#3a4558');
+        bodyGradient.addColorStop(1, '#2a3548');
 
-        // Draw carrier deck details
-        ctx.fillStyle = 'rgba(100, 100, 120, 0.8)';
+        // Draw main carrier body with rounded corners effect
+        ctx.fillStyle = bodyGradient;
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.width / 2 + 5, this.y - this.height / 2);
+        ctx.lineTo(this.x + this.width / 2 - 5, this.y - this.height / 2);
+        ctx.lineTo(this.x + this.width / 2, this.y - this.height / 2 + 5);
+        ctx.lineTo(this.x + this.width / 2, this.y + this.height / 2 - 5);
+        ctx.lineTo(this.x + this.width / 2 - 5, this.y + this.height / 2);
+        ctx.lineTo(this.x - this.width / 2 + 5, this.y + this.height / 2);
+        ctx.lineTo(this.x - this.width / 2, this.y + this.height / 2 - 5);
+        ctx.lineTo(this.x - this.width / 2, this.y - this.height / 2 + 5);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw carrier deck with enhanced details
+        const deckGradient = ctx.createLinearGradient(
+            this.x - this.width / 2, this.y - this.height / 2,
+            this.x - this.width / 2, this.y - this.height / 2 + this.height / 3
+        );
+        deckGradient.addColorStop(0, 'rgba(120, 120, 140, 0.9)');
+        deckGradient.addColorStop(1, 'rgba(80, 80, 100, 0.8)');
+        ctx.fillStyle = deckGradient;
         ctx.fillRect(
             this.x - this.width / 2 + 5,
             this.y - this.height / 2 + 5,
@@ -1063,8 +1356,27 @@ class CarrierEnemy extends Enemy {
             this.height / 3
         );
 
-        // Draw launch bay (opening at front)
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        // Draw deck lines
+        ctx.strokeStyle = 'rgba(200, 200, 220, 0.4)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(this.x - this.width / 2 + 10, this.y - this.height / 2 + 10 + i * 5);
+            ctx.lineTo(this.x + this.width / 2 - 10, this.y - this.height / 2 + 10 + i * 5);
+            ctx.stroke();
+        }
+
+        // Enhanced launch bay with inner glow
+        const bayGradient = ctx.createLinearGradient(
+            this.x - this.width / 2, this.y - this.height / 4,
+            this.x - this.width / 2 + this.width / 4, this.y + this.height / 4
+        );
+        bayGradient.addColorStop(0, 'rgba(0, 0, 0, 0.8)');
+        bayGradient.addColorStop(0.5, 'rgba(50, 0, 50, 0.6)');
+        bayGradient.addColorStop(1, 'rgba(0, 0, 0, 0.7)');
+        ctx.fillStyle = bayGradient;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = 'rgba(100, 0, 150, 0.5)';
         ctx.fillRect(
             this.x - this.width / 2,
             this.y - this.height / 4,
@@ -1072,38 +1384,80 @@ class CarrierEnemy extends Enemy {
             this.height / 2
         );
 
-        // Draw side details
-        ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)';
-        ctx.lineWidth = 2;
+        // Draw launch bay inner details
+        ctx.fillStyle = 'rgba(150, 0, 200, 0.3)';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(this.x - this.width / 2 + this.width / 8, this.y, this.width / 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Enhanced side details with glow
+        ctx.strokeStyle = 'rgba(200, 200, 255, 0.6)';
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(200, 200, 255, 0.4)';
         ctx.beginPath();
         ctx.moveTo(this.x - this.width / 2, this.y);
         ctx.lineTo(this.x + this.width / 2, this.y);
         ctx.stroke();
 
-        // Draw health bar (always visible for carrier)
-        const barWidth = this.width + 10;
-        const barHeight = 6;
-        const barX = this.x - barWidth / 2;
-        const barY = this.y - this.height / 2 - 15;
+        // Draw side panels
+        ctx.fillStyle = 'rgba(100, 100, 120, 0.5)';
+        ctx.fillRect(this.x - this.width / 2, this.y - this.height / 3, 8, this.height / 1.5);
+        ctx.fillRect(this.x + this.width / 2 - 8, this.y - this.height / 3, 8, this.height / 1.5);
 
-        // Background
+        // Draw corner reinforcements
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.shadowBlur = 5;
+        for (let i = 0; i < 4; i++) {
+            const cornerX = i % 2 === 0 ? this.x - this.width / 2 : this.x + this.width / 2;
+            const cornerY = i < 2 ? this.y - this.height / 2 : this.y + this.height / 2;
+            ctx.beginPath();
+            ctx.arc(cornerX, cornerY, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Enhanced health bar with glow (always visible for carrier)
+        const barWidth = this.width + 10;
+        const barHeight = 7;
+        const barX = this.x - barWidth / 2;
+        const barY = this.y - this.height / 2 - 18;
+
+        // Background with border
+        ctx.fillStyle = '#111';
+        ctx.fillRect(barX - 2, barY - 2, barWidth + 4, barHeight + 4);
         ctx.fillStyle = '#333';
         ctx.fillRect(barX, barY, barWidth, barHeight);
 
-        // Health
+        // Health with gradient
         const healthPercent = this.health / this.maxHealth;
-        ctx.fillStyle = healthPercent > 0.6 ? '#00ff00' : healthPercent > 0.3 ? '#ffff00' : '#ff0000';
+        const healthGradient = ctx.createLinearGradient(barX, barY, barX + barWidth * healthPercent, barY);
+        if (healthPercent > 0.6) {
+            healthGradient.addColorStop(0, '#00ff00');
+            healthGradient.addColorStop(1, '#00cc00');
+        } else if (healthPercent > 0.3) {
+            healthGradient.addColorStop(0, '#ffff00');
+            healthGradient.addColorStop(1, '#ffcc00');
+        } else {
+            healthGradient.addColorStop(0, '#ff0000');
+            healthGradient.addColorStop(1, '#cc0000');
+        }
+        ctx.fillStyle = healthGradient;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = healthPercent > 0.6 ? '#00ff00' : healthPercent > 0.3 ? '#ffff00' : '#ff0000';
         ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
 
-        // Health text
+        // Health text with glow
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 10px Arial';
+        ctx.font = 'bold 11px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
         ctx.fillText(
             `${Math.ceil(this.health)}/${this.maxHealth}`,
             this.x,
-            barY - 8
+            barY - 10
         );
 
         ctx.restore();

@@ -682,7 +682,7 @@ class Game {
 
             // Handle carrier enemy spawning (only if carrier is still active)
             if (enemy.type === 'carrier' && enemy.active && enemy.shouldSpawnEnemy()) {
-                // Spawn a random enemy from the carrier (only heavy or formation enemies)
+                // Spawn a random enemy from the carrier (only formation or swarm enemies)
                 const spawnX = enemy.x;
                 const spawnY = enemy.y + enemy.height / 2 + 20; // Spawn below the carrier
 
@@ -690,8 +690,8 @@ class Game {
                 const spawnEffect = EffectManager.createEffect(spawnX, spawnY, 'spawn');
                 this.effects.push(spawnEffect);
 
-                // Only spawn heavy (tank) or formation enemies
-                const enemyTypes = ['tank', 'formation'];
+                // Only spawn formation or swarm enemies
+                const enemyTypes = ['formation', 'swarm'];
                 const randomType = enemyTypes[randomInt(0, enemyTypes.length - 1)];
                 const spawnedEnemy = EnemyFactory.create(randomType, spawnX, spawnY, enemy.laneIndex, this.level);
                 this.enemies.push(spawnedEnemy);
