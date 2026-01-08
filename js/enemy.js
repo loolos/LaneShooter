@@ -157,39 +157,30 @@ class BasicEnemy extends Enemy {
     }
 
     /**
-     * Draw basic enemy as a sleek fighter with enhanced visuals
+     * Draw basic enemy as a sleek fighter with enhanced visuals (optimized for performance)
      */
     draw(ctx) {
         if (!this.active) return;
 
         ctx.save();
         
-        // Enhanced glow effect
+        // Reduced glow effect for better performance
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = 8; // Reduced from 15
 
-        // Create gradient for main body
-        const gradient = ctx.createLinearGradient(
-            this.x, this.y - this.height / 2,
-            this.x, this.y + this.height / 2
-        );
-        gradient.addColorStop(0, this.color);
-        gradient.addColorStop(0.5, this.color);
-        // Safely parse color values
+        // Use solid color instead of gradient for better performance
+        // Safely parse color values for darker shade
+        let darkerColor = this.color;
         const colorMatch = this.color.match(/\d+/g);
         if (colorMatch && colorMatch.length >= 3) {
             const [r, g, b] = colorMatch.map(Number);
             if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
-                gradient.addColorStop(1, `rgb(${Math.max(0, r - 50)}, ${Math.max(0, g - 30)}, ${Math.max(0, b - 30)})`);
-            } else {
-                gradient.addColorStop(1, this.color);
+                darkerColor = `rgb(${Math.max(0, r - 30)}, ${Math.max(0, g - 20)}, ${Math.max(0, b - 20)})`;
             }
-        } else {
-            gradient.addColorStop(1, this.color);
         }
         
         // Draw main body with enhanced shape
-        ctx.fillStyle = gradient;
+        ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.moveTo(this.x, this.y + this.height / 2);
         ctx.lineTo(this.x - this.width / 2, this.y - this.height / 2);
@@ -200,10 +191,20 @@ class BasicEnemy extends Enemy {
         ctx.closePath();
         ctx.fill();
 
-        // Draw wing details with glow
+        // Draw darker bottom section for depth (instead of gradient)
+        ctx.fillStyle = darkerColor;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y + this.height / 2);
+        ctx.lineTo(this.x - this.width / 6, this.y);
+        ctx.lineTo(this.x, this.y + this.height / 3);
+        ctx.lineTo(this.x + this.width / 6, this.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw wing details (reduced shadow)
         ctx.strokeStyle = `rgba(255, 255, 255, 0.8)`;
         ctx.lineWidth = 2;
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 0; // Removed shadow for performance
         ctx.beginPath();
         ctx.moveTo(this.x - this.width / 3, this.y);
         ctx.lineTo(this.x - this.width / 2, this.y - this.height / 3);
@@ -211,24 +212,17 @@ class BasicEnemy extends Enemy {
         ctx.lineTo(this.x + this.width / 2, this.y - this.height / 3);
         ctx.stroke();
 
-        // Enhanced cockpit with inner glow
-        const cockpitGradient = ctx.createRadialGradient(
-            this.x, this.y - this.height / 4, 0,
-            this.x, this.y - this.height / 4, this.width / 6
-        );
-        cockpitGradient.addColorStop(0, 'rgba(255, 240, 200, 0.9)');
-        cockpitGradient.addColorStop(0.5, 'rgba(255, 200, 150, 0.6)');
-        cockpitGradient.addColorStop(1, 'rgba(255, 150, 100, 0.3)');
-        ctx.fillStyle = cockpitGradient;
-        ctx.shadowBlur = 12;
+        // Simplified cockpit (solid color instead of gradient)
+        ctx.fillStyle = 'rgba(255, 240, 200, 0.9)';
+        ctx.shadowBlur = 6; // Reduced from 12
         ctx.beginPath();
         ctx.arc(this.x, this.y - this.height / 4, this.width / 6, 0, Math.PI * 2);
         ctx.fill();
 
-        // Draw engine glow
+        // Draw engine glow (simplified)
         ctx.fillStyle = `rgba(255, 100, 50, 0.5)`;
         ctx.shadowColor = 'rgba(255, 100, 50, 0.8)';
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 6; // Reduced from 10
         ctx.beginPath();
         ctx.moveTo(this.x - this.width / 8, this.y + this.height / 2);
         ctx.lineTo(this.x, this.y + this.height / 2 + 4);
@@ -394,24 +388,51 @@ class TankEnemy extends Enemy {
     }
 
     /**
-     * Update color based on health
+     * Update color based on current health (not max health)
+     * Color changes from red/orange (healthy) to darker red/gray as health decreases
      */
     updateColor() {
-        const healthRatio = this.maxHealth / this.initialHealth;
+        // Use current health percentage, not max health ratio
+        const healthPercent = Math.max(0, Math.min(1, this.health / this.maxHealth));
 
-        // Color changes from blue to purple to red as health increases
-        if (healthRatio <= 1.5) {
-            // Blue to purple
-            const intensity = (healthRatio - 1) * 2;
-            this.color = `rgb(${83 + intensity * 50}, ${82 - intensity * 50}, ${237 - intensity * 100})`;
-        } else if (healthRatio <= 2.5) {
-            // Purple to red
-            const intensity = (healthRatio - 1.5);
-            this.color = `rgb(${133 + intensity * 122}, ${32 - intensity * 32}, ${137 - intensity * 137})`;
+        // Color changes from bright red/orange (healthy) to dark red/brown (damaged)
+        // Ensure no green color is produced
+        if (healthPercent > 0.7) {
+            // Bright red to orange-red (healthy)
+            const intensity = (healthPercent - 0.7) / 0.3; // 0 to 1 as health goes from 0.7 to 1.0
+            const r = 255;
+            const g = Math.floor(50 + intensity * 100); // 50 to 150 (red to orange-red)
+            const b = 0;
+            this.color = `rgb(${r}, ${g}, ${b})`;
+        } else if (healthPercent > 0.4) {
+            // Orange-red to dark red (moderately damaged)
+            const intensity = (healthPercent - 0.4) / 0.3; // 0 to 1 as health goes from 0.4 to 0.7
+            const r = 255;
+            const g = Math.floor(30 + intensity * 20); // 30 to 50
+            const b = 0;
+            this.color = `rgb(${r}, ${g}, ${b})`;
         } else {
-            // Red
-            this.color = '#ff0000';
+            // Dark red to brown-red (heavily damaged)
+            const intensity = healthPercent / 0.4; // 0 to 1 as health goes from 0 to 0.4
+            const r = Math.floor(180 + intensity * 75); // 180 to 255
+            const g = Math.floor(30 * intensity); // 0 to 30
+            const b = 0;
+            this.color = `rgb(${r}, ${g}, ${b})`;
         }
+    }
+    
+    /**
+     * Take damage and update color
+     */
+    takeDamage(damage) {
+        this.health -= damage;
+        this.updateColor(); // Update color when health changes
+
+        if (this.health <= 0) {
+            this.active = false;
+            return { destroyed: true, unitsKilled: 1 };
+        }
+        return { destroyed: false, unitsKilled: 0 };
     }
 
     /**
@@ -710,7 +731,7 @@ class FormationEnemy extends Enemy {
         const startX = this.x - totalWidth / 2;
         const startY = this.y - totalHeight / 2;
 
-        // Draw each unit
+        // Draw each unit (optimized: reduced gradients and shadows)
         for (const unit of this.units) {
             if (unit.health <= 0) continue; // Skip destroyed units
 
@@ -719,28 +740,20 @@ class FormationEnemy extends Enemy {
             const unitColor = this.getUnitColor(unit);
 
             ctx.shadowColor = unitColor;
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 6; // Reduced from 10
 
-            // Enhanced fighter shape with gradient
-            const unitGradient = ctx.createLinearGradient(
-                unitX, unitY - this.enemyHeight / 2,
-                unitX, unitY + this.enemyHeight / 2
-            );
-            unitGradient.addColorStop(0, unitColor);
-            // Safely parse color values
+            // Use solid color instead of gradient for better performance
+            // Pre-calculate darker color
+            let darkerColor = unitColor;
             const colorMatch = unitColor.match(/\d+/g);
             if (colorMatch && colorMatch.length >= 3) {
                 const [r, g, b] = colorMatch.map(Number);
                 if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
-                    unitGradient.addColorStop(1, `rgb(${Math.max(0, r - 40)}, ${Math.max(0, g - 20)}, ${Math.max(0, b - 20)})`);
-                } else {
-                    unitGradient.addColorStop(1, unitColor);
+                    darkerColor = `rgb(${Math.max(0, r - 30)}, ${Math.max(0, g - 15)}, ${Math.max(0, b - 15)})`;
                 }
-            } else {
-                unitGradient.addColorStop(1, unitColor);
             }
             
-            ctx.fillStyle = unitGradient;
+            ctx.fillStyle = unitColor;
             ctx.beginPath();
             ctx.moveTo(unitX, unitY + this.enemyHeight / 2);
             ctx.lineTo(unitX - this.enemyWidth / 2, unitY - this.enemyHeight / 2);
@@ -751,10 +764,20 @@ class FormationEnemy extends Enemy {
             ctx.closePath();
             ctx.fill();
 
-            // Enhanced wing details with glow
+            // Draw darker bottom for depth
+            ctx.fillStyle = darkerColor;
+            ctx.beginPath();
+            ctx.moveTo(unitX, unitY + this.enemyHeight / 2);
+            ctx.lineTo(unitX - this.enemyWidth / 6, unitY);
+            ctx.lineTo(unitX, unitY + this.enemyHeight / 3);
+            ctx.lineTo(unitX + this.enemyWidth / 6, unitY);
+            ctx.closePath();
+            ctx.fill();
+
+            // Enhanced wing details (reduced shadow)
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.lineWidth = 1.5;
-            ctx.shadowBlur = 6;
+            ctx.shadowBlur = 0; // Removed shadow for performance
             ctx.beginPath();
             ctx.moveTo(unitX - this.enemyWidth / 4, unitY);
             ctx.lineTo(unitX - this.enemyWidth / 2, unitY - this.enemyHeight / 3);
@@ -762,24 +785,17 @@ class FormationEnemy extends Enemy {
             ctx.lineTo(unitX + this.enemyWidth / 2, unitY - this.enemyHeight / 3);
             ctx.stroke();
 
-            // Enhanced cockpit with inner glow
-            const cockpitGradient = ctx.createRadialGradient(
-                unitX, unitY - this.enemyHeight / 4, 0,
-                unitX, unitY - this.enemyHeight / 4, this.enemyWidth / 6
-            );
-            cockpitGradient.addColorStop(0, 'rgba(255, 240, 200, 0.8)');
-            cockpitGradient.addColorStop(0.5, 'rgba(255, 200, 150, 0.5)');
-            cockpitGradient.addColorStop(1, 'rgba(255, 150, 100, 0.2)');
-            ctx.fillStyle = cockpitGradient;
-            ctx.shadowBlur = 10;
+            // Simplified cockpit (solid color instead of gradient)
+            ctx.fillStyle = 'rgba(255, 240, 200, 0.8)';
+            ctx.shadowBlur = 5; // Reduced from 10
             ctx.beginPath();
             ctx.arc(unitX, unitY - this.enemyHeight / 4, this.enemyWidth / 6, 0, Math.PI * 2);
             ctx.fill();
 
-            // Draw engine glow
+            // Draw engine glow (simplified)
             ctx.fillStyle = `rgba(255, 100, 50, 0.4)`;
             ctx.shadowColor = 'rgba(255, 100, 50, 0.6)';
-            ctx.shadowBlur = 8;
+            ctx.shadowBlur = 5; // Reduced from 8
             ctx.beginPath();
             ctx.moveTo(unitX - this.enemyWidth / 10, unitY + this.enemyHeight / 2);
             ctx.lineTo(unitX, unitY + this.enemyHeight / 2 + 2);
@@ -1031,7 +1047,10 @@ class SwarmEnemy extends Enemy {
 
         ctx.save();
 
-        // Draw each unit as an insect
+        // Draw each unit as an insect (optimized: reduced gradients and shadows)
+        // Cache time calculation outside loop
+        const time = Date.now() * 0.01;
+        
         for (const unit of this.units) {
             if (unit.health <= 0) continue; // Skip destroyed units
 
@@ -1040,26 +1059,16 @@ class SwarmEnemy extends Enemy {
             const unitColor = this.getUnitColor(unit);
 
             // Animated wing flapping effect (subtle)
-            const time = Date.now() * 0.01;
             const wingOffset = Math.sin(time + unit.offsetX * 0.1) * 2; // Subtle wing animation
 
             ctx.shadowColor = unitColor;
-            ctx.shadowBlur = 6;
+            ctx.shadowBlur = 4; // Reduced from 6
 
-            // Enhanced wings with gradient and glow
-            const wingGradient = ctx.createRadialGradient(
-                unitX, unitY - wingOffset, 0,
-                unitX, unitY - wingOffset, this.unitSize * 0.4
-            );
-            wingGradient.addColorStop(0, 'rgba(255, 240, 150, 0.5)');
-            wingGradient.addColorStop(0.5, 'rgba(255, 220, 120, 0.3)');
-            wingGradient.addColorStop(1, 'rgba(255, 200, 100, 0.1)');
-            
+            // Simplified wings (solid color instead of gradient)
             ctx.strokeStyle = `rgba(255, 220, 120, 0.6)`;
-            ctx.fillStyle = wingGradient;
+            ctx.fillStyle = `rgba(255, 220, 120, 0.4)`; // Solid color instead of gradient
             ctx.lineWidth = 1.5;
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = 'rgba(255, 200, 100, 0.6)';
+            ctx.shadowBlur = 0; // Removed shadow for performance
 
             // Left wing
             ctx.beginPath();
@@ -1073,30 +1082,29 @@ class SwarmEnemy extends Enemy {
             ctx.fill();
             ctx.stroke();
 
-            // Enhanced insect body with gradient
-            const bodyGradient = ctx.createRadialGradient(
-                unitX, unitY, 0,
-                unitX, unitY, this.unitSize * 0.5
-            );
-            bodyGradient.addColorStop(0, unitColor);
-            // Safely parse color values
+            // Simplified insect body (solid color instead of gradient)
+            // Pre-calculate darker color
+            let darkerColor = unitColor;
             const colorMatch = unitColor.match(/\d+/g);
             if (colorMatch && colorMatch.length >= 3) {
                 const [r, g, b] = colorMatch.map(Number);
                 if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
-                    bodyGradient.addColorStop(1, `rgb(${Math.max(0, r - 50)}, ${Math.max(0, g - 30)}, ${Math.max(0, b - 10)})`);
-                } else {
-                    bodyGradient.addColorStop(1, unitColor);
+                    darkerColor = `rgb(${Math.max(0, r - 40)}, ${Math.max(0, g - 25)}, ${Math.max(0, b - 10)})`;
                 }
-            } else {
-                bodyGradient.addColorStop(1, unitColor);
             }
             
-            ctx.fillStyle = bodyGradient;
-            ctx.shadowBlur = 12;
+            ctx.fillStyle = unitColor;
+            ctx.shadowBlur = 6; // Reduced from 12
             ctx.shadowColor = unitColor;
             ctx.beginPath();
             ctx.ellipse(unitX, unitY, this.unitSize * 0.35, this.unitSize * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw darker center for depth
+            ctx.fillStyle = darkerColor;
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.ellipse(unitX, unitY, this.unitSize * 0.25, this.unitSize * 0.35, 0, 0, Math.PI * 2);
             ctx.fill();
 
             // Draw body segments (insect-like)
@@ -1118,18 +1126,10 @@ class SwarmEnemy extends Enemy {
             ctx.arc(unitX, unitY - this.unitSize * 0.25, this.unitSize * 0.25, 0, Math.PI * 2);
             ctx.fill();
 
-            // Enhanced eyes with glow
-            const eyeGradient = ctx.createRadialGradient(
-                unitX - this.unitSize * 0.15, unitY - this.unitSize * 0.25, 0,
-                unitX - this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.08
-            );
-            eyeGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-            eyeGradient.addColorStop(0.5, 'rgba(200, 240, 255, 0.8)');
-            eyeGradient.addColorStop(1, 'rgba(150, 200, 255, 0.5)');
-            
-            ctx.fillStyle = eyeGradient;
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = 'rgba(150, 200, 255, 0.8)';
+            // Simplified eyes (solid color instead of gradient)
+            ctx.fillStyle = 'rgba(200, 240, 255, 0.9)';
+            ctx.shadowBlur = 4; // Reduced from 8
+            ctx.shadowColor = 'rgba(150, 200, 255, 0.6)';
             // Left eye
             ctx.beginPath();
             ctx.arc(unitX - this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.08, 0, Math.PI * 2);

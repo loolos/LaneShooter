@@ -29,6 +29,12 @@ class Game {
         this.audioManager.initializeMusic();
         this.currentMusicLevel = 1;
         this.hasCarrier = false;
+        
+        // Performance testing system (only initialized if TestManager exists)
+        this.testManager = null;
+        if (typeof TestManager !== 'undefined') {
+            this.testManager = new TestManager(this);
+        }
         this.victoryShown = false; // Track if victory has been shown (only show once at level 20)
         this.victoryLocked = false; // Lock victory screen for 3 seconds
         this.carrierSpawnedAtLevels = new Set(); // Track which levels have spawned a carrier
@@ -600,9 +606,10 @@ class Game {
             effectIndex++;
         }
         
-        // Limit effects to prevent memory issues
-        if (this.effects.length > 100) {
-            this.effects = this.effects.slice(-100); // Keep only last 100 effects
+        // Limit effects more aggressively to prevent performance issues
+        if (this.effects.length > 50) {
+            // Remove oldest inactive effects first, then trim array
+            this.effects = this.effects.filter(e => e.active).slice(-50);
         }
 
         // Update level up text
@@ -1636,6 +1643,14 @@ class Game {
             const drawStart = performance.now();
             this.draw();
             const drawTime = performance.now() - drawStart;
+            
+            // Calculate total frame time
+            const totalFrameTime = inputTime + updateTime + drawTime;
+
+            // Update performance test system if available
+            if (this.testManager) {
+                this.testManager.update(totalFrameTime);
+            }
 
             // Log if any operation takes too long (>16ms for 60fps)
             if (updateTime > 16 || drawTime > 16 || inputTime > 16) {
