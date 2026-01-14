@@ -350,6 +350,193 @@ class FastEnemy extends Enemy {
 }
 
 /**
+ * Splinter Enemy - Splits into smaller shards on destruction
+ */
+class SplinterEnemy extends Enemy {
+    constructor(x, y, laneIndex, level = 1, isChild = false, childConfig = null) {
+        super(x, y, laneIndex);
+        this.type = 'splinter';
+        this.isChild = isChild;
+        this.level = level;
+
+        this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * (isChild ? 0.85 : 0.7);
+        this.speed = this.baseSpeed;
+
+        // Parent uses tank-like scaling (1/3), children use swarm-like scaling (total 1/3)
+        if (isChild) {
+            if (childConfig) {
+                this.maxUnits = childConfig.totalUnits;
+                this.healthPerUnit = childConfig.healthPerUnit;
+                this.maxHealth = this.healthPerUnit;
+            } else {
+                // Fallback: swarm-like unit health formula (total 1/3)
+                const A = 6;
+                const B = 2;
+                const C = 1 / 20;
+                const D = 1 / 50;
+                const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
+                const childTotalHealth = Math.max(1, Math.floor(totalHealth / 3));
+                const maxRows = Math.min(3, Math.floor(level / 10) + 1);
+                const rows = randomInt(1, maxRows);
+                const minCols = 4;
+                const maxCols = 8;
+                const unitsPerRow = randomInt(minCols, maxCols);
+                const totalUnits = rows * unitsPerRow;
+                this.maxUnits = totalUnits;
+                this.healthPerUnit = Math.max(1, Math.floor(childTotalHealth / totalUnits));
+                this.maxHealth = this.healthPerUnit;
+            }
+            this.width = 28;
+            this.height = 28;
+            // Swarm-like score formula, scaled to 1/3
+            const actualTotalHealth = this.healthPerUnit * (this.maxUnits || 1);
+            const baseTotalHealth = 5;
+            const baseScoreMultiplier = 2;
+            const scoreBonus = (actualTotalHealth - baseTotalHealth) * 0.1 + ((this.maxUnits || 1) - 3) * 0.2;
+            this.scoreValue = (CONFIG.SCORE_PER_ENEMY * (baseScoreMultiplier + scoreBonus)) / 3;
+        } else {
+            // Tank-like health scaling
+            const A = 10;
+            const B = 3;
+            const C = 1 / 10;
+            const D = 1 / 50;
+            const tankHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
+            this.maxHealth = Math.max(1, Math.floor(tankHealth / 3));
+            this.width = 44;
+            this.height = 44;
+            // Tank-like score formula, scaled to 1/3
+            this.scoreValue = (CONFIG.SCORE_PER_ENEMY * (5 + (level - 1) * 1)) / 3;
+
+            // Precompute split configuration using swarm-like algorithm (total 1/3)
+            const swarmA = 6;
+            const swarmB = 2;
+            const swarmC = 1 / 20;
+            const swarmD = 1 / 50;
+            const swarmTotalHealth = Math.floor(swarmA + swarmB * level + swarmC * level * level + swarmD * level * level * level);
+            const childTotalHealth = Math.max(1, Math.floor(swarmTotalHealth / 3));
+            const maxRows = Math.min(3, Math.floor(level / 10) + 1);
+            const rows = randomInt(1, maxRows);
+            const minCols = 4;
+            const maxCols = 8;
+            const unitsPerRow = randomInt(minCols, maxCols);
+            const totalUnits = rows * unitsPerRow;
+            const healthPerUnit = Math.max(1, Math.floor(childTotalHealth / totalUnits));
+            this.splitConfig = {
+                totalUnits,
+                healthPerUnit
+            };
+        }
+        this.health = this.maxHealth;
+
+        this.updateColor();
+    }
+
+    /**
+     * Update color based on remaining health
+     */
+    updateColor() {
+        const healthPercent = Math.max(0, Math.min(1, this.health / this.maxHealth));
+        const r = Math.floor(140 + 70 * healthPercent);
+        const g = Math.floor(30 + 40 * healthPercent);
+        const b = Math.floor(170 + 60 * healthPercent);
+        this.color = `rgb(${r}, ${g}, ${b})`;
+    }
+
+    /**
+     * Take damage and update color
+     */
+    takeDamage(damage) {
+        this.health -= damage;
+        this.updateColor();
+
+        if (this.health <= 0) {
+            this.active = false;
+            const result = { destroyed: true, unitsKilled: 1 };
+            if (!this.isChild) {
+                result.spawnChildren = true;
+                result.childConfig = {
+                    totalUnits: this.splitConfig.totalUnits,
+                    healthPerUnit: this.splitConfig.healthPerUnit
+                };
+                result.childCount = this.splitConfig.totalUnits;
+            }
+            return result;
+        }
+        return { destroyed: false, unitsKilled: 0 };
+    }
+
+    /**
+     * Draw splinter enemy with fracture seams
+     */
+    draw(ctx) {
+        if (!this.active) return;
+
+        ctx.save();
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 8;
+
+        // Main body (diamond)
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y - this.height / 2);
+        ctx.lineTo(this.x + this.width / 2, this.y);
+        ctx.lineTo(this.x, this.y + this.height / 2);
+        ctx.lineTo(this.x - this.width / 2, this.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Inner core
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.width / 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Fracture seams
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.width / 6, this.y - this.height / 6);
+        ctx.lineTo(this.x + this.width / 6, this.y + this.height / 6);
+        ctx.moveTo(this.x + this.width / 6, this.y - this.height / 6);
+        ctx.lineTo(this.x - this.width / 6, this.y + this.height / 6);
+        ctx.stroke();
+
+        if (!this.isChild) {
+            // Tank-like health bar for parent
+            const healthPercent = Math.max(0, Math.min(1, this.health / this.maxHealth));
+            const barWidth = this.width;
+            const barHeight = 6;
+            const barX = this.x - barWidth / 2;
+            const barY = this.y - this.height / 2 - 12;
+
+            ctx.fillStyle = '#111';
+            ctx.fillRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
+            ctx.fillStyle = '#333';
+            ctx.fillRect(barX, barY, barWidth, barHeight);
+
+            const healthGradient = ctx.createLinearGradient(barX, barY, barX + barWidth * healthPercent, barY);
+            if (healthPercent > 0.5) {
+                healthGradient.addColorStop(0, '#00ff00');
+                healthGradient.addColorStop(1, '#00cc00');
+            } else if (healthPercent > 0.25) {
+                healthGradient.addColorStop(0, '#ffff00');
+                healthGradient.addColorStop(1, '#ffcc00');
+            } else {
+                healthGradient.addColorStop(0, '#ff0000');
+                healthGradient.addColorStop(1, '#cc0000');
+            }
+            ctx.fillStyle = healthGradient;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
+            ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+        }
+
+        ctx.restore();
+    }
+}
+
+/**
  * Tank Enemy - Slower but has more health, health increases with level
  */
 class TankEnemy extends Enemy {
@@ -1525,6 +1712,7 @@ class EnemyFactory {
         const enemyClasses = {
             'basic': BasicEnemy,
             'fast': FastEnemy,
+            'splinter': SplinterEnemy,
             'tank': TankEnemy,
             'swarm': SwarmEnemy,
             'formation': FormationEnemy,
@@ -1538,7 +1726,7 @@ class EnemyFactory {
         }
 
         // Pass level to enemies that need it (all enemies now use level for health scaling)
-        if (type === 'tank' || type === 'swarm' || type === 'formation' || type === 'basic' || type === 'carrier') {
+        if (type === 'tank' || type === 'swarm' || type === 'formation' || type === 'basic' || type === 'carrier' || type === 'splinter') {
             return new EnemyClass(x, y, laneIndex, level);
         }
 
@@ -1557,6 +1745,7 @@ class EnemyFactory {
         const weights = {
             'basic': 50,
             'fast': 15 + (level - 1) * 4,
+            'splinter': 10 + (level - 1) * 2,
             'tank': 10 + (level - 1) * 3,
             'swarm': 12 + (level - 1) * 2,
             'formation': 13 + (level - 1) * 2,
@@ -1577,6 +1766,13 @@ class EnemyFactory {
 
         // Fallback to basic
         return this.create('basic', x, y, laneIndex, level);
+    }
+
+    /**
+     * Create a splinter child (does not split again)
+     */
+    static createSplinterChild(x, y, laneIndex, level = 1, childConfig = null) {
+        return new SplinterEnemy(x, y, laneIndex, level, true, childConfig);
     }
 }
 

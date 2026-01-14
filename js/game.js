@@ -902,6 +902,8 @@ class Game {
                                         dropRate = 0.3; // 30%
                                     } else if (mostForwardEnemy.type === 'tank') {
                                         dropRate = 0.5; // 50%
+                                    } else if (mostForwardEnemy.type === 'splinter') {
+                                        dropRate = mostForwardEnemy.isChild ? 0.1 : 0.25;
                                     } else if (mostForwardEnemy.type === 'carrier') {
                                         dropRate = 1.0; // 100%
                                     }
@@ -934,6 +936,26 @@ class Game {
                                 // Create destruction effect
                                 const effect = EffectManager.createEffect(mostForwardEnemy.x, mostForwardEnemy.y, mostForwardEnemy.type);
                                 this.effects.push(effect);
+
+                                // Splinter enemies break into smaller shards on destruction
+                                if (mostForwardEnemy.type === 'splinter' && result.spawnChildren) {
+                                    const childCount = Math.max(1, result.childCount || 2);
+                                    const spread = 12;
+                                    const childConfig = result.childConfig || null;
+                                    for (let i = 0; i < childCount; i++) {
+                                        const offsetX = (i - (childCount - 1) / 2) * spread;
+                                        const childX = mostForwardEnemy.x + offsetX;
+                                        const childY = mostForwardEnemy.y - 6;
+                                        const child = EnemyFactory.createSplinterChild(
+                                            childX,
+                                            childY,
+                                            mostForwardEnemy.laneIndex,
+                                            this.level,
+                                            childConfig
+                                        );
+                                        this.enemies.push(child);
+                                    }
+                                }
 
                                 this.updateUI();
                             } else if (unitsKilled > 0) {
@@ -1373,6 +1395,7 @@ class Game {
             'tank': 2.0,
             'formation': 1.5,
             'swarm': 1.5,
+            'splinter': 1.3,
             'fast': 1.2,
             'basic': 1.0
         };
@@ -1416,6 +1439,7 @@ class Game {
             'tank': 'tank',
             'formation': 'formation',
             'swarm': 'swarm',
+            'splinter': 'basic',
             'carrier': 'carrier'
         };
 
@@ -1434,15 +1458,15 @@ class Game {
 
         let xpAmount = 1;
 
-        // Tank enemies: XP only depends on level (doubled)
-        if (enemy.type === 'tank') {
+        // Tank-like enemies: XP only depends on level (doubled)
+        if (enemy.type === 'tank' || (enemy.type === 'splinter' && !enemy.isChild)) {
             // Simple formula: level-based XP for tanks (doubled from original)
             // Level 1: 20 XP, Level 5: 22 XP, Level 10: 24 XP, Level 20: 28 XP
             xpAmount = Math.floor(20 + (this.level - 1) * 1); // Doubled: 10->20, 0.5->1
             xpAmount = Math.max(1, xpAmount);
         }
         // Formation/Swarm enemies: XP depends on level and unit count (inverse relationship, doubled)
-        else if (enemy.type === 'formation' || enemy.type === 'swarm') {
+        else if (enemy.type === 'formation' || enemy.type === 'swarm' || (enemy.type === 'splinter' && enemy.isChild)) {
             const maxUnits = enemy.maxUnits || enemy.maxEnemies || 1;
             // Base XP per unit based on level, inversely proportional to unit count (doubled)
             // Level 1: base 20 XP, Level 5: base 30 XP, Level 10: base 40 XP
