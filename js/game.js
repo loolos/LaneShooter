@@ -1528,7 +1528,7 @@ class Game {
      * Update UI elements
      */
     updateUI() {
-        this.scoreElement.textContent = this.score;
+        this.scoreElement.textContent = Math.floor(this.score);
         this.levelElement.textContent = this.level;
 
         // Update time display

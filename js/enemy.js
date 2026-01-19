@@ -393,7 +393,7 @@ class SplinterEnemy extends Enemy {
             const baseTotalHealth = 5;
             const baseScoreMultiplier = 2;
             const scoreBonus = (actualTotalHealth - baseTotalHealth) * 0.1 + ((this.maxUnits || 1) - 3) * 0.2;
-            this.scoreValue = (CONFIG.SCORE_PER_ENEMY * (baseScoreMultiplier + scoreBonus)) / 3;
+            this.scoreValue = Math.floor((CONFIG.SCORE_PER_ENEMY * (baseScoreMultiplier + scoreBonus)) / 3);
         } else {
             // Tank-like health scaling
             const A = 10;
