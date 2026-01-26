@@ -226,7 +226,7 @@ class Game {
         if (this.state === 'victory') return; // Prevent multiple calls
 
         this.state = 'victory';
-        this.victoryScoreElement.textContent = this.score;
+        this.victoryScoreElement.textContent = Math.floor(this.score);
         this.victoryScreen.style.display = 'flex';
         this.victoryTime = 0;
 
