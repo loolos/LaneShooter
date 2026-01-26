@@ -43,7 +43,7 @@ class Powerup {
             'rapidfire': '⚡',
             'multishot': '🔫',
             'powerboost': '💨',
-            'lanespeed': '🚀',
+            'altlane': '🚀',
             'experience': this.getExperienceIcon(), // Get icon based on upgrade type
             'default': '⭐'
         };
@@ -99,7 +99,7 @@ class Powerup {
                 'rapidfire': '⚡',
                 'multishot': '🔫',
                 'powerboost': '💨',
-                'lanespeed': '🚀'
+                'altlane': '🚀'
             };
             return iconMap[this.upgradeType] || '⭐';
         }
@@ -178,18 +178,18 @@ class PowerBoostPowerup extends Powerup {
 }
 
 /**
- * Lane Speed Powerup - Permanent upgrade: Increases lane switching speed
+ * Alt Lane Powerup - Permanent upgrade: Increases lane switching speed, unlocks alt ship at level 3
  */
-class LaneSpeedPowerup extends Powerup {
+class AltLanePowerup extends Powerup {
     constructor(x, y) {
         super(x, y, 5); // 5 XP
-        this.type = 'lanespeed';
+        this.type = 'altlane';
         this.color = '#a29bfe';
     }
 
     apply(player) {
         // Add experience instead of direct upgrade (5 XP per powerup)
-        player.addExperience('lanespeed', this.experienceAmount);
+        player.addExperience('altlane', this.experienceAmount);
     }
 }
 
@@ -207,7 +207,7 @@ class ExperiencePowerup extends Powerup {
             'rapidfire': '#ff6b6b',
             'multishot': '#4ecdc4',
             'powerboost': '#ffe66d',
-            'lanespeed': '#a29bfe'
+            'altlane': '#a29bfe'
         };
         this.color = upgradeColors[upgradeType] || '#ffd700';
     }
@@ -234,7 +234,7 @@ class PowerupFactory {
             'rapidfire': RapidFirePowerup,
             'multishot': MultiShotPowerup,
             'powerboost': PowerBoostPowerup,
-            'lanespeed': LaneSpeedPowerup,
+            'altlane': AltLanePowerup,
             'experience': ExperiencePowerup
         };
 
@@ -253,7 +253,7 @@ class PowerupFactory {
     }
 
     static createRandom(x, y) {
-        const types = ['rapidfire', 'multishot', 'powerboost', 'lanespeed'];
+        const types = ['rapidfire', 'multishot', 'powerboost', 'altlane'];
         const randomType = types[randomInt(0, types.length - 1)];
         return this.create(randomType, x, y);
     }

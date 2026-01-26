@@ -655,6 +655,10 @@ class Game {
         // Auto-shoot
         if (this.player) {
             this.player.shoot(this.audioManager);
+            // Auto-shoot alt ship if exists
+            if (this.player.altShip) {
+                this.player.altShip.shoot(this.audioManager);
+            }
         }
 
         // Spawn enemies and powerups
@@ -741,7 +745,10 @@ class Game {
 
         // Optimized bullet group-enemy collision detection: lane-based y-axis only
         if (this.player) {
-            const activeBulletGroups = this.player.bulletGroups.filter(bg => bg.active && bg.remainingCount > 0);
+            // Combine player and alt ship bullet groups
+            const playerBulletGroups = this.player.bulletGroups.filter(bg => bg.active && bg.remainingCount > 0);
+            const altShipBulletGroups = this.player.altShip ? this.player.altShip.bulletGroups.filter(bg => bg.active && bg.remainingCount > 0) : [];
+            const activeBulletGroups = [...playerBulletGroups, ...altShipBulletGroups];
             const activeEnemies = this.enemies.filter(e => e.active);
             
             // Safety check: prevent excessive entity counts
@@ -1171,6 +1178,15 @@ class Game {
                     bulletGroup.draw(this.ctx);
                 }
             });
+            
+            // Draw alt ship bullet groups if exists
+            if (this.player.altShip) {
+                this.player.altShip.bulletGroups.forEach(bulletGroup => {
+                    if (bulletGroup.active && bulletGroup.remainingCount > 0 && bulletGroup.y > -50 && bulletGroup.y < canvasHeight + 50) {
+                        bulletGroup.draw(this.ctx);
+                    }
+                });
+            }
         }
 
         // Draw enemies (only active ones, and only if on screen or near screen)
@@ -1493,7 +1509,7 @@ class Game {
         }
 
         // Randomly select which upgrade type to gain XP for
-        const upgradeTypes = ['rapidfire', 'multishot', 'powerboost', 'lanespeed'];
+        const upgradeTypes = ['rapidfire', 'multishot', 'powerboost', 'altlane'];
         const randomType = upgradeTypes[randomInt(0, upgradeTypes.length - 1)];
 
         // Calculate position offset for multiple units
@@ -1560,10 +1576,10 @@ class Game {
                     desc: 'Damage & Speed',
                     color: '#ffe66d'
                 },
-                'lanespeed': {
+                'altlane': {
                     icon: '🚀',
-                    name: 'Lane Speed',
-                    desc: 'Movement Speed',
+                    name: 'Alt Lane',
+                    desc: 'Movement Speed & Alt Ship',
                     color: '#a29bfe'
                 }
             };

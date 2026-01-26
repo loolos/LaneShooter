@@ -375,7 +375,7 @@ class SplinterEnemy extends Enemy {
                 const C = 1 / 20;
                 const D = 1 / 50;
                 const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
-                const childTotalHealth = Math.max(1, Math.floor(totalHealth / 3));
+                const childTotalHealth = Math.max(1, Math.floor(totalHealth / 2));
                 const maxRows = Math.min(3, Math.floor(level / 10) + 1);
                 const rows = randomInt(1, maxRows);
                 const minCols = 4;
@@ -397,7 +397,7 @@ class SplinterEnemy extends Enemy {
         } else {
             // Tank-like health scaling
             const A = 10;
-            const B = 3;
+            const B = 4;
             const C = 1 / 10;
             const D = 1 / 50;
             const tankHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
@@ -811,8 +811,8 @@ class FormationEnemy extends Enemy {
         // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
         const A = 6;    // Constant term
         const B = 3;    // Linear coefficient
-        const C = 1 / 50;  // Quadratic coefficient
-        const D = 1 / 100; // Cubic coefficient
+        const C = 1 / 30;  // Quadratic coefficient
+        const D = 1 / 50; // Cubic coefficient
         const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
 
         // Randomly determine rows and columns within reasonable ranges
@@ -1121,7 +1121,7 @@ class SwarmEnemy extends Enemy {
         // Total health increases with level: A + B*LVL + C*LVL^2 + D*LVL^3
         // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
         const A = 6;    // Constant term
-        const B = 2;    // Linear coefficient
+        const B = 3;    // Linear coefficient
         const C = 1 / 20;  // Quadratic coefficient
         const D = 1 / 50; // Cubic coefficient
         const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
@@ -1489,7 +1489,7 @@ class CarrierEnemy extends Enemy {
         // Very high health that increases with level (4x original)
         // Health formula: A + B*LVL (only appears at level 5+)
         // Formula: -200 + 80*LVL (equivalent to 200 + (LVL - 5) * 80)
-        const A = 100;    // Constant term
+        const A = 120;    // Constant term
         const B = 40;    // Linear coefficient
         const C = 1 / 3;  // Quadratic coefficient
         const D = 1 / 10; // Cubic coefficient
