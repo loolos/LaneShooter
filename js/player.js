@@ -252,7 +252,53 @@ class Player {
      * Draw player
      * @param {CanvasRenderingContext2D} ctx
      */
-    draw(ctx) {
+    draw(ctx, upgradeFlash = null) {
+        // Draw upgrade flash effect if active
+        if (upgradeFlash && upgradeFlash.type) {
+            const elapsed = Date.now() - upgradeFlash.startTime;
+            const duration = upgradeFlash.duration;
+            if (elapsed < duration) {
+                const progress = elapsed / duration;
+                // Flash intensity: quick pulse then fade
+                let intensity = 0;
+                if (progress < 0.3) {
+                    // Quick pulse
+                    intensity = Math.sin(progress * Math.PI / 0.3) * 0.8;
+                } else {
+                    // Fade out
+                    intensity = (1 - (progress - 0.3) / 0.7) * 0.5;
+                }
+
+                // Get upgrade color
+                const upgradeColors = {
+                    'rapidfire': '#ff6b6b',
+                    'multishot': '#4ecdc4',
+                    'powerboost': '#ffe66d',
+                    'altlane': '#a29bfe'
+                };
+                const flashColor = upgradeColors[upgradeFlash.type] || '#ffffff';
+
+                // Draw flash glow around player
+                ctx.save();
+                ctx.shadowColor = flashColor;
+                ctx.shadowBlur = 30 * intensity;
+                ctx.globalAlpha = intensity;
+                ctx.strokeStyle = flashColor;
+                ctx.lineWidth = 4 * intensity;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.width / 2 + 10, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Draw outer glow
+                ctx.shadowBlur = 50 * intensity;
+                ctx.globalAlpha = intensity * 0.5;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.width / 2 + 20, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
         // Draw thrusters based on lane speed upgrade
         this.drawThrusters(ctx);
 

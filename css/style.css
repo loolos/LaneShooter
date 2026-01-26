@@ -381,6 +381,83 @@ body {
     background: #a29bfe;
 }
 
+/* Upgrade flash effect */
+.upgrade-icon.flash.rapidfire {
+    animation: upgradeFlashRed 0.5s ease-out;
+}
+
+.upgrade-icon.flash.multishot {
+    animation: upgradeFlashCyan 0.5s ease-out;
+}
+
+.upgrade-icon.flash.powerboost {
+    animation: upgradeFlashYellow 0.5s ease-out;
+}
+
+.upgrade-icon.flash.altlane {
+    animation: upgradeFlashPurple 0.5s ease-out;
+}
+
+@keyframes upgradeFlashRed {
+    0% {
+        box-shadow: 0 0 0 #ff6b6b;
+        transform: scale(1);
+    }
+    30% {
+        box-shadow: 0 0 30px #ff6b6b, 0 0 50px #ff6b6b;
+        transform: scale(1.2);
+    }
+    100% {
+        box-shadow: 0 0 0 #ff6b6b;
+        transform: scale(1);
+    }
+}
+
+@keyframes upgradeFlashCyan {
+    0% {
+        box-shadow: 0 0 0 #4ecdc4;
+        transform: scale(1);
+    }
+    30% {
+        box-shadow: 0 0 30px #4ecdc4, 0 0 50px #4ecdc4;
+        transform: scale(1.2);
+    }
+    100% {
+        box-shadow: 0 0 0 #4ecdc4;
+        transform: scale(1);
+    }
+}
+
+@keyframes upgradeFlashYellow {
+    0% {
+        box-shadow: 0 0 0 #ffe66d;
+        transform: scale(1);
+    }
+    30% {
+        box-shadow: 0 0 30px #ffe66d, 0 0 50px #ffe66d;
+        transform: scale(1.2);
+    }
+    100% {
+        box-shadow: 0 0 0 #ffe66d;
+        transform: scale(1);
+    }
+}
+
+@keyframes upgradeFlashPurple {
+    0% {
+        box-shadow: 0 0 0 #a29bfe;
+        transform: scale(1);
+    }
+    30% {
+        box-shadow: 0 0 30px #a29bfe, 0 0 50px #a29bfe;
+        transform: scale(1.2);
+    }
+    100% {
+        box-shadow: 0 0 0 #a29bfe;
+        transform: scale(1);
+    }
+}
+
 /* Mobile responsive - upgrade panel adjustments */
 @media (max-width: 900px) and (min-width: 601px) {
     .upgrade-panel {

@@ -22,6 +22,7 @@ class Game {
         this.xpTexts = []; // Floating XP text
         this.effects = []; // Visual effects
         this.levelUpText = null; // Level up text display
+        this.upgradeFlash = null; // Upgrade flash effect { type: string, startTime: number, duration: number }
 
         // Systems
         this.audioManager = new AudioManager();
@@ -633,6 +634,26 @@ class Game {
             }
         }
 
+        // Update upgrade flash effect
+        if (this.upgradeFlash) {
+            const elapsed = Date.now() - this.upgradeFlash.startTime;
+            if (elapsed >= this.upgradeFlash.duration) {
+                // Remove flash class from upgrade icon before removing flash effect
+                const upgradeIcon = document.querySelector(`.upgrade-icon.${this.upgradeFlash.type}`);
+                if (upgradeIcon) {
+                    upgradeIcon.classList.remove('flash');
+                }
+                // Remove flash effect
+                this.upgradeFlash = null;
+            } else {
+                // Update flash class on upgrade icon
+                const upgradeIcon = document.querySelector(`.upgrade-icon.${this.upgradeFlash.type}`);
+                if (upgradeIcon && !upgradeIcon.classList.contains('flash')) {
+                    upgradeIcon.classList.add('flash');
+                }
+            }
+        }
+
         // If victory state, pause all game logic but update victory animation
         if (this.state === 'victory') {
             this.updateVictoryAnimation();
@@ -1070,9 +1091,16 @@ class Game {
                     // Show XP text for experience powerup
                     this.xpTexts.push(new XPText(powerup.x, powerup.y, powerup.experienceAmount, powerup.upgradeType));
 
-                    // If leveled up, show level up effect
+                    // If leveled up, play upgrade sound and trigger flash
                     if (leveledUp) {
-                        // Could add level up effect here
+                        const upgradeSoundName = powerup.upgradeType + 'Upgrade';
+                        if (this.audioManager.sounds[upgradeSoundName]) {
+                            this.audioManager.play(upgradeSoundName);
+                        }
+                        // Trigger flash effect
+                        this.triggerUpgradeFlash(powerup.upgradeType);
+                    } else {
+                        this.audioManager.play('powerup');
                     }
                 } else {
                     // Handle regular powerups
@@ -1083,13 +1111,19 @@ class Game {
                     // Show XP text for powerup
                     this.xpTexts.push(new XPText(powerup.x, powerup.y, powerup.experienceAmount || 5, powerup.type));
 
-                    // If leveled up, show level up effect
+                    // If leveled up, play upgrade sound and trigger flash
                     if (newLevel > oldLevel) {
-                        // Could add level up effect here
+                        const upgradeSoundName = powerup.type + 'Upgrade';
+                        if (this.audioManager.sounds[upgradeSoundName]) {
+                            this.audioManager.play(upgradeSoundName);
+                        }
+                        // Trigger flash effect
+                        this.triggerUpgradeFlash(powerup.type);
+                    } else {
+                        this.audioManager.play('powerup');
                     }
                 }
 
-                this.audioManager.play('powerup');
                 this.updateUI();
             }
         });
@@ -1106,8 +1140,8 @@ class Game {
         // requiredForLevel(n) = 200 + 100*n + 20*n² + 1*n³ + 1*n⁴
         while (true) {
             const A = 200;  // Constant term
-            const B = 100;  // Linear coefficient
-            const C = 20;   // Quadratic coefficient
+            const B = 120;  // Linear coefficient
+            const C = 30;   // Quadratic coefficient
             const D = 1;    // Cubic coefficient
             const E = 1/10;    // Quartic coefficient
             const n = scoreBasedLevel;
@@ -1171,7 +1205,7 @@ class Game {
 
         // Draw player
         if (this.player) {
-            this.player.draw(this.ctx);
+            this.player.draw(this.ctx, this.upgradeFlash);
 
             // Draw bullet groups (only active ones, and only if on screen)
             const canvasHeight = this.canvas.height;
@@ -1344,8 +1378,8 @@ class Game {
             alpha: 1.0
         };
 
-        // Play level up sound (if available)
-        this.audioManager.play('powerup');
+        // Play level up sound
+        this.audioManager.play('levelup');
 
         // Force spawn carrier at all levels that are multiples of 5 (5, 10, 15, 20, 25, ...)
         if (this.level % 5 === 0) {
@@ -1540,13 +1574,30 @@ class Game {
             // Show XP text at enemy position with offset
             this.xpTexts.push(new XPText(enemy.x + offsetX, enemy.y - offsetY, xpAmount, randomType));
 
-            // If leveled up, show level up effect
+            // If leveled up, play upgrade sound and trigger flash
             if (newLevel > oldLevel) {
-                // Could add level up effect here
+                const upgradeSoundName = randomType + 'Upgrade';
+                if (this.audioManager.sounds[upgradeSoundName]) {
+                    this.audioManager.play(upgradeSoundName);
+                }
+                // Trigger flash effect
+                this.triggerUpgradeFlash(randomType);
             }
 
             this.updateUI();
         }
+    }
+
+    /**
+     * Trigger upgrade flash effect
+     * @param {string} upgradeType - Type of upgrade (rapidfire, multishot, powerboost, altlane)
+     */
+    triggerUpgradeFlash(upgradeType) {
+        this.upgradeFlash = {
+            type: upgradeType,
+            startTime: Date.now(),
+            duration: 500 // 0.5 seconds
+        };
     }
 
     /**

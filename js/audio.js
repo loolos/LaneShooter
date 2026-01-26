@@ -117,6 +117,15 @@ class AudioManager {
         this.createToneSound('powerup', 400, 0.2);
         this.createToneSound('gameover', 100, 0.5);
         
+        // Level up sound - fun ascending melody
+        this.createLevelUpSound();
+        
+        // Upgrade sounds for different upgrade types
+        this.createUpgradeSound('rapidfire', 600, 0.15); // Fast, sharp (lightning)
+        this.createUpgradeSound('multishot', 500, 0.12); // Multi-tone (multiple shots)
+        this.createUpgradeSound('powerboost', 300, 0.18); // Powerful low tone (strength)
+        this.createUpgradeSound('altlane', 450, 0.14); // Smooth ascending (speed)
+        
         // Enemy destruction sounds
         this.createEnemyDeathSound('basic', 120, 0.2);
         this.createEnemyDeathSound('fast', 180, 0.15);
@@ -212,6 +221,164 @@ class AudioManager {
             }
         };
         this.sounds[name] = soundObj;
+    }
+
+    /**
+     * Create level up sound - fun ascending melody (do-re-mi-fa-sol-la-ti-do)
+     * @param {number} duration - Duration in seconds (default 0.6)
+     */
+    createLevelUpSound(duration = 0.6) {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const sampleRate = audioContext.sampleRate;
+        const frameCount = sampleRate * duration;
+        const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
+        const data = buffer.getChannelData(0);
+
+        // Major scale frequencies starting from C4 (261.63 Hz)
+        const scale = [
+            261.63, // C
+            293.66, // D
+            329.63, // E
+            349.23, // F
+            392.00, // G
+            440.00, // A
+            493.88, // B
+            523.25  // C (octave)
+        ];
+
+        const noteDuration = duration / scale.length;
+
+        for (let i = 0; i < frameCount; i++) {
+            const t = i / sampleRate;
+            let value = 0;
+
+            // Determine which note to play
+            const noteIndex = Math.min(Math.floor(t / noteDuration), scale.length - 1);
+            const noteStartTime = noteIndex * noteDuration;
+            const noteTime = t - noteStartTime;
+            const frequency = scale[noteIndex];
+
+            // Envelope for each note: quick attack, sustain, release
+            let envelope = 0;
+            if (noteTime < 0.02) {
+                // Attack
+                envelope = noteTime / 0.02;
+            } else if (noteTime < noteDuration - 0.05) {
+                // Sustain
+                envelope = 1;
+            } else {
+                // Release
+                envelope = 1 - ((noteTime - (noteDuration - 0.05)) / 0.05);
+            }
+
+            // Calculate phase for this note (relative to note start time)
+            const phase = 2 * Math.PI * frequency * noteTime;
+
+            // Add harmonics for richer sound (increased volume for level up)
+            value += Math.sin(phase) * envelope * 0.4;
+            value += Math.sin(phase * 2) * envelope * 0.2; // Octave
+            value += Math.sin(phase * 3) * envelope * 0.15; // Third harmonic
+        }
+
+        const soundObj = {
+            buffer: buffer,
+            audioContext: audioContext,
+            play: function() {
+                try {
+                    const ctx = this.audioContext;
+                    const buf = this.buffer;
+                    if (ctx.state === 'suspended') {
+                        ctx.resume();
+                    }
+                    const source = ctx.createBufferSource();
+                    source.buffer = buf;
+                    source.connect(ctx.destination);
+                    source.start();
+                } catch (err) {
+                    console.debug('Audio play error:', err);
+                }
+            }
+        };
+        this.sounds['levelup'] = soundObj;
+    }
+
+    /**
+     * Create upgrade sound for different upgrade types
+     * @param {string} name - Upgrade type (rapidfire, multishot, powerboost, altlane)
+     * @param {number} baseFrequency - Base frequency in Hz
+     * @param {number} duration - Duration in seconds
+     */
+    createUpgradeSound(name, baseFrequency, duration) {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const sampleRate = audioContext.sampleRate;
+        const frameCount = sampleRate * duration;
+        const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < frameCount; i++) {
+            const t = i / sampleRate;
+            let value = 0;
+            let envelope = 0;
+
+            if (name === 'rapidfire') {
+                // Fast, sharp sound with quick pitch sweep up (lightning effect)
+                const pitchSweep = 1 + t * 0.5; // Quick rise
+                const currentFreq = baseFrequency * pitchSweep;
+                envelope = Math.exp(-t * 8); // Quick decay
+                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.4;
+                value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.2; // Octave
+                // Add slight noise for sharpness
+                value += (Math.random() * 2 - 1) * envelope * 0.1;
+            } else if (name === 'multishot') {
+                // Multi-tone sound (like multiple shots)
+                envelope = Math.exp(-t * 6);
+                // Play multiple frequencies simultaneously
+                value += Math.sin(2 * Math.PI * baseFrequency * t) * envelope * 0.25;
+                value += Math.sin(2 * Math.PI * baseFrequency * 1.5 * t) * envelope * 0.2; // Fifth
+                value += Math.sin(2 * Math.PI * baseFrequency * 2 * t) * envelope * 0.15; // Octave
+            } else if (name === 'powerboost') {
+                // Powerful low tone with slight pitch drop (strength effect)
+                const pitchSweep = 1 - t * 0.2; // Slight drop
+                const currentFreq = baseFrequency * pitchSweep;
+                envelope = Math.exp(-t * 4); // Slower decay
+                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.35;
+                value += Math.sin(2 * Math.PI * currentFreq * 0.5 * t) * envelope * 0.2; // Sub-octave for power
+            } else if (name === 'altlane') {
+                // Smooth ascending sound (speed effect)
+                const pitchSweep = 1 + t * 0.4; // Smooth rise
+                const currentFreq = baseFrequency * pitchSweep;
+                envelope = Math.exp(-t * 5);
+                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.3;
+                value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.15; // Octave
+            } else {
+                // Default: simple tone
+                envelope = Math.exp(-t * 5);
+                value = Math.sin(2 * Math.PI * baseFrequency * t) * envelope * 0.3;
+            }
+
+            data[i] = value;
+        }
+
+        const soundObj = {
+            buffer: buffer,
+            audioContext: audioContext,
+            play: function() {
+                try {
+                    const ctx = this.audioContext;
+                    const buf = this.buffer;
+                    if (ctx.state === 'suspended') {
+                        ctx.resume();
+                    }
+                    const source = ctx.createBufferSource();
+                    source.buffer = buf;
+                    source.connect(ctx.destination);
+                    source.start();
+                } catch (err) {
+                    console.debug('Audio play error:', err);
+                }
+            }
+        };
+        this.sounds[name + 'Upgrade'] = soundObj;
     }
 
     /**
