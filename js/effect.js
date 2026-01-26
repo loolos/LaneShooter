@@ -989,8 +989,8 @@ class ShockwaveEffect extends Effect {
                             // distanceRatio: 0 at bottom 30% threshold, 1 at top
                             const distanceFromBottom = canvasHeight - enemyY;
                             const distanceRatio = Math.min(1, distanceFromBottom / (canvasHeight * 0.7));
-                            // Damage percentage: 10% at top to 50% at bottom 30% threshold
-                            const baseDamagePercent = 0.1 + ((1 - distanceRatio) * 0.4);
+                            // Damage percentage: 5% at top to 45% at bottom 30% threshold
+                            const baseDamagePercent = 0.05 + ((1 - distanceRatio) * 0.4);
                             // Random factor: 0.8 to 1.2
                             const randomFactor = 0.8 + Math.random() * 0.4;
                             damagePercent = baseDamagePercent * randomFactor;
@@ -1048,8 +1048,8 @@ class ShockwaveEffect extends Effect {
                             // distanceRatio: 0 at bottom 30% threshold, 1 at top
                             const distanceFromBottom = canvasHeight - enemy.y;
                             const distanceRatio = Math.min(1, distanceFromBottom / (canvasHeight * 0.7));
-                            // Damage percentage: 10% at top to 50% at bottom 30% threshold
-                            const baseDamagePercent = 0.1 + ((1 - distanceRatio) * 0.4);
+                            // Damage percentage: 5% at top to 45% at bottom 30% threshold
+                            const baseDamagePercent = 0.05 + ((1 - distanceRatio) * 0.4);
                             // Random factor: 0.8 to 1.2
                             const randomFactor = 0.8 + Math.random() * 0.4;
                             damagePercent = baseDamagePercent * randomFactor;

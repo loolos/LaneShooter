@@ -319,56 +319,82 @@ class AudioManager {
 
     /**
      * Create upgrade sound for different upgrade types
+     * Two-note short and fun sounds for each upgrade type
      * @param {string} name - Upgrade type (rapidfire, multishot, powerboost, altlane)
-     * @param {number} baseFrequency - Base frequency in Hz
-     * @param {number} duration - Duration in seconds
+     * @param {number} baseFrequency - Base frequency in Hz (not used directly, but kept for compatibility)
+     * @param {number} duration - Duration in seconds (not used directly, but kept for compatibility)
      */
     createUpgradeSound(name, baseFrequency, duration) {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const sampleRate = audioContext.sampleRate;
-        const frameCount = sampleRate * duration;
+        
+        // Two notes, each 0.08 seconds, total 0.16 seconds
+        const noteDuration = 0.08;
+        const totalDuration = noteDuration * 2;
+        const frameCount = Math.floor(sampleRate * totalDuration);
         const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
         const data = buffer.getChannelData(0);
+
+        // Define two-note melodies for each upgrade type
+        let note1Freq, note2Freq;
+        
+        if (name === 'rapidfire') {
+            // Rapid ascending: C (261.63) -> E (329.63) - major third, energetic
+            note1Freq = 261.63;
+            note2Freq = 329.63;
+        } else if (name === 'multishot') {
+            // Quick double tap: C (261.63) -> C (261.63) - same note, rapid fire feel
+            note1Freq = 261.63;
+            note2Freq = 261.63;
+        } else if (name === 'powerboost') {
+            // Powerful low interval: Low C (130.81) -> Low G (196.00) - perfect fifth, strong
+            note1Freq = 130.81;
+            note2Freq = 196.00;
+        } else if (name === 'altlane') {
+            // Smooth ascending: D (293.66) -> A (440.00) - perfect fifth, smooth
+            note1Freq = 293.66;
+            note2Freq = 440.00;
+        } else {
+            // Default: simple two-note sequence
+            note1Freq = 261.63;
+            note2Freq = 329.63;
+        }
 
         for (let i = 0; i < frameCount; i++) {
             const t = i / sampleRate;
             let value = 0;
+            
+            // Determine which note we're playing
+            const noteTime = t % noteDuration;
+            const noteIndex = Math.floor(t / noteDuration);
+            const currentFreq = noteIndex === 0 ? note1Freq : note2Freq;
+            
+            // Create envelope for each note (quick attack, fast decay)
             let envelope = 0;
-
-            if (name === 'rapidfire') {
-                // Fast, sharp sound with quick pitch sweep up (lightning effect)
-                const pitchSweep = 1 + t * 0.5; // Quick rise
-                const currentFreq = baseFrequency * pitchSweep;
-                envelope = Math.exp(-t * 8); // Quick decay
-                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.4;
-                value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.2; // Octave
-                // Add slight noise for sharpness
-                value += (Math.random() * 2 - 1) * envelope * 0.1;
-            } else if (name === 'multishot') {
-                // Multi-tone sound (like multiple shots)
-                envelope = Math.exp(-t * 6);
-                // Play multiple frequencies simultaneously
-                value += Math.sin(2 * Math.PI * baseFrequency * t) * envelope * 0.25;
-                value += Math.sin(2 * Math.PI * baseFrequency * 1.5 * t) * envelope * 0.2; // Fifth
-                value += Math.sin(2 * Math.PI * baseFrequency * 2 * t) * envelope * 0.15; // Octave
-            } else if (name === 'powerboost') {
-                // Powerful low tone with slight pitch drop (strength effect)
-                const pitchSweep = 1 - t * 0.2; // Slight drop
-                const currentFreq = baseFrequency * pitchSweep;
-                envelope = Math.exp(-t * 4); // Slower decay
-                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.35;
-                value += Math.sin(2 * Math.PI * currentFreq * 0.5 * t) * envelope * 0.2; // Sub-octave for power
-            } else if (name === 'altlane') {
-                // Smooth ascending sound (speed effect)
-                const pitchSweep = 1 + t * 0.4; // Smooth rise
-                const currentFreq = baseFrequency * pitchSweep;
-                envelope = Math.exp(-t * 5);
-                value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.3;
-                value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.15; // Octave
-            } else {
-                // Default: simple tone
-                envelope = Math.exp(-t * 5);
-                value = Math.sin(2 * Math.PI * baseFrequency * t) * envelope * 0.3;
+            if (noteTime < noteDuration) {
+                const attackTime = 0.01; // Quick attack
+                const decayTime = noteDuration - attackTime;
+                
+                if (noteTime < attackTime) {
+                    // Attack phase
+                    envelope = noteTime / attackTime;
+                } else {
+                    // Decay phase
+                    const decayProgress = (noteTime - attackTime) / decayTime;
+                    envelope = Math.exp(-decayProgress * 6); // Fast decay
+                }
+            }
+            
+            // Generate tone with harmonics for richer sound
+            value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.3;
+            value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.15; // Octave harmonic
+            
+            // Add slight variation for multishot (same note repeated)
+            if (name === 'multishot' && noteIndex === 1) {
+                // Slight pitch bend on second note for variation
+                const bendFreq = currentFreq * (1 + Math.sin(noteTime * Math.PI * 2) * 0.05);
+                value = Math.sin(2 * Math.PI * bendFreq * t) * envelope * 0.3;
+                value += Math.sin(2 * Math.PI * bendFreq * 2 * t) * envelope * 0.15;
             }
 
             data[i] = value;

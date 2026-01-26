@@ -375,8 +375,8 @@ class SplinterEnemy extends Enemy {
                 unitsPerRowValue = Math.ceil(totalUnits / rowsValue);
             } else {
                 // Fallback: swarm-like unit health formula (total 1/3)
-                const A = 6;
-                const B = 2;
+                const A = 3;
+                const B = 4;
                 const C = 1 / 20;
                 const D = 1 / 50;
                 const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
