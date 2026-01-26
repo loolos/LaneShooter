@@ -57,6 +57,7 @@ class Game {
 
         // UI elements
         this.scoreElement = document.getElementById('score');
+        this.scoreToNextElement = document.getElementById('scoreToNext');
         this.levelElement = document.getElementById('level');
         this.timeElement = document.getElementById('time');
         this.upgradePanel = document.getElementById('upgradePanel');
@@ -1589,6 +1590,43 @@ class Game {
     }
 
     /**
+     * Calculate score needed to reach next level
+     * @returns {number} Score needed to reach next level
+     */
+    getScoreToNextLevel() {
+        // Calculate current score-based level
+        let scoreBasedLevel = 1;
+        let totalRequired = 0;
+
+        const A = 200;  // Constant term
+        const B = 120;  // Linear coefficient
+        const C = 30;   // Quadratic coefficient
+        const D = 1;    // Cubic coefficient
+        const E = 1/10;    // Quartic coefficient
+
+        // Find current score-based level
+        while (true) {
+            const n = scoreBasedLevel;
+            const requiredForNext = Math.floor(A + B * n + C * n * n + D * n * n * n + E * n * n * n * n);
+            
+            if (this.score >= totalRequired + requiredForNext) {
+                totalRequired += requiredForNext;
+                scoreBasedLevel++;
+            } else {
+                break;
+            }
+        }
+
+        // Calculate score needed for next level
+        const nextLevel = scoreBasedLevel + 1;
+        const requiredForNext = Math.floor(A + B * nextLevel + C * nextLevel * nextLevel + D * nextLevel * nextLevel * nextLevel + E * nextLevel * nextLevel * nextLevel * nextLevel);
+        const totalForNext = totalRequired + requiredForNext;
+        const scoreNeeded = Math.max(0, totalForNext - this.score);
+
+        return scoreNeeded;
+    }
+
+    /**
      * Trigger upgrade flash effect
      * @param {string} upgradeType - Type of upgrade (rapidfire, multishot, powerboost, altlane)
      */
@@ -1606,6 +1644,12 @@ class Game {
     updateUI() {
         this.scoreElement.textContent = Math.floor(this.score);
         this.levelElement.textContent = this.level;
+
+        // Update score to next level
+        if (this.scoreToNextElement) {
+            const scoreToNext = this.getScoreToNextLevel();
+            this.scoreToNextElement.textContent = Math.floor(scoreToNext);
+        }
 
         // Update time display
         if (this.timeElement) {

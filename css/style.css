@@ -234,11 +234,25 @@ body {
 
 .score-panel {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 5px;
     color: #fff;
     font-size: 18px;
     font-weight: bold;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.score-panel .score,
+.score-panel .score-to-next,
+.score-panel .level,
+.score-panel .time {
+    display: block;
+}
+
+.score-to-next {
+    font-size: 14px;
+    color: #ffd700;
+    opacity: 0.9;
 }
 
 .game-info {

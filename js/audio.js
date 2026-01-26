@@ -224,60 +224,75 @@ class AudioManager {
     }
 
     /**
-     * Create level up sound - fun ascending melody (do-re-mi-fa-sol-la-ti-do)
-     * @param {number} duration - Duration in seconds (default 0.6)
+     * Create level up sound - melody: 1421518
+     * @param {number} duration - Duration in seconds (7 notes * 0.2s = 1.4s)
      */
-    createLevelUpSound(duration = 0.6) {
+    createLevelUpSound(duration = 1.2) {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const sampleRate = audioContext.sampleRate;
         const frameCount = sampleRate * duration;
         const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
         const data = buffer.getChannelData(0);
 
-        // Major scale frequencies starting from C4 (261.63 Hz)
-        const scale = [
-            261.63, // C
-            293.66, // D
-            329.63, // E
-            349.23, // F
-            392.00, // G
-            440.00, // A
-            493.88, // B
-            523.25  // C (octave)
-        ];
+        // Note frequencies (C4=261.63Hz, D4=293.66Hz, F4=349.23Hz, G4=392.00Hz, C5=523.25Hz)
+        const C4 = 261.63;  // 1 (do)
+        const D4 = 293.66;  // 2 (re)
+        const F4 = 349.23;  // 4 (fa)
+        const G4 = 392.00;  // 5 (sol)
+        const C5 = 523.25;  // 8 (do, octave)
 
-        const noteDuration = duration / scale.length;
+        // Melody: 1421518
+        // Sequence: C-F-D-C-G-C-C5 (each note 0.2 seconds)
+        const noteDuration = 0.2; // Each note is 0.2 seconds
+        const notes = [
+            { freq: C4, start: 0.0, duration: noteDuration },   // 1
+            { freq: F4, start: 0.2, duration: noteDuration },  // 4
+            { freq: D4, start: 0.4, duration: noteDuration },   // 2
+            { freq: C4, start: 0.6, duration: noteDuration },  // 1
+            { freq: G4, start: 0.8, duration: noteDuration },  // 5
+            { freq: C5, start: 1.0, duration: noteDuration }    // 8 (octave)
+        ];
 
         for (let i = 0; i < frameCount; i++) {
             const t = i / sampleRate;
             let value = 0;
 
-            // Determine which note to play
-            const noteIndex = Math.min(Math.floor(t / noteDuration), scale.length - 1);
-            const noteStartTime = noteIndex * noteDuration;
-            const noteTime = t - noteStartTime;
-            const frequency = scale[noteIndex];
+            // Find which note is playing at this time
+            for (const note of notes) {
+                const noteEnd = note.start + note.duration;
+                if (t >= note.start && t < noteEnd) {
+                    if (note.freq === 0) {
+                        // Pause - no sound
+                        value = 0;
+                    } else {
+                        const noteTime = t - note.start;
+                        const noteProgress = noteTime / note.duration;
+                        
+                        // Envelope: quick attack, sustain, quick release
+                        let envelope = 0;
+                        if (noteProgress < 0.1) {
+                            // Attack
+                            envelope = noteProgress / 0.1;
+                        } else if (noteProgress < 0.8) {
+                            // Sustain
+                            envelope = 1;
+                        } else {
+                            // Release
+                            envelope = 1 - ((noteProgress - 0.8) / 0.2);
+                        }
 
-            // Envelope for each note: quick attack, sustain, release
-            let envelope = 0;
-            if (noteTime < 0.02) {
-                // Attack
-                envelope = noteTime / 0.02;
-            } else if (noteTime < noteDuration - 0.05) {
-                // Sustain
-                envelope = 1;
-            } else {
-                // Release
-                envelope = 1 - ((noteTime - (noteDuration - 0.05)) / 0.05);
+                        // Calculate phase
+                        const phase = 2 * Math.PI * note.freq * noteTime;
+
+                        // Add harmonics
+                        value += Math.sin(phase) * envelope * 0.4;
+                        value += Math.sin(phase * 2) * envelope * 0.15; // Octave
+                    }
+                    break;
+                }
             }
 
-            // Calculate phase for this note (relative to note start time)
-            const phase = 2 * Math.PI * frequency * noteTime;
-
-            // Add harmonics for richer sound (increased volume for level up)
-            value += Math.sin(phase) * envelope * 0.4;
-            value += Math.sin(phase * 2) * envelope * 0.2; // Octave
-            value += Math.sin(phase * 3) * envelope * 0.15; // Third harmonic
+            data[i] = value;
         }
 
         const soundObj = {
