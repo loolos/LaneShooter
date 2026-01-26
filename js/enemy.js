@@ -364,10 +364,15 @@ class SplinterEnemy extends Enemy {
 
         // Parent uses tank-like scaling (1/3), children use swarm-like scaling (total 1/3)
         if (isChild) {
+            let totalUnits, healthPerUnitValue, rowsValue, unitsPerRowValue;
+            
             if (childConfig) {
-                this.maxUnits = childConfig.totalUnits;
-                this.healthPerUnit = childConfig.healthPerUnit;
-                this.maxHealth = this.healthPerUnit;
+                totalUnits = childConfig.totalUnits;
+                healthPerUnitValue = childConfig.healthPerUnit;
+                // Calculate rows and cols from totalUnits
+                const maxRows = Math.min(3, Math.floor(level / 10) + 1);
+                rowsValue = Math.min(maxRows, Math.floor(Math.sqrt(totalUnits)) || 1);
+                unitsPerRowValue = Math.ceil(totalUnits / rowsValue);
             } else {
                 // Fallback: swarm-like unit health formula (total 1/3)
                 const A = 6;
@@ -377,23 +382,64 @@ class SplinterEnemy extends Enemy {
                 const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
                 const childTotalHealth = Math.max(1, Math.floor(totalHealth / 2));
                 const maxRows = Math.min(3, Math.floor(level / 10) + 1);
-                const rows = randomInt(1, maxRows);
+                rowsValue = randomInt(1, maxRows);
                 const minCols = 4;
                 const maxCols = 8;
-                const unitsPerRow = randomInt(minCols, maxCols);
-                const totalUnits = rows * unitsPerRow;
-                this.maxUnits = totalUnits;
-                this.healthPerUnit = Math.max(1, Math.floor(childTotalHealth / totalUnits));
-                this.maxHealth = this.healthPerUnit;
+                unitsPerRowValue = randomInt(minCols, maxCols);
+                totalUnits = rowsValue * unitsPerRowValue;
+                healthPerUnitValue = Math.max(1, Math.floor(childTotalHealth / totalUnits));
             }
+            
+            this.maxUnits = totalUnits;
+            this.healthPerUnit = healthPerUnitValue;
+            this.rows = rowsValue;
+            this.unitsPerRow = unitsPerRowValue;
+            
+            // Recalculate actual total health
+            const actualTotalHealth = this.healthPerUnit * totalUnits;
+            this.maxHealth = actualTotalHealth;
+            this.health = actualTotalHealth;
+            
+            // Initialize units array - each unit has individual health and position (like swarm)
+            this.units = [];
+            this.unitSize = 12; // Size of each unit
+            this.spread = 80; // Spread between units
+            
+            for (let row = 0; row < this.rows; row++) {
+                for (let col = 0; col < this.unitsPerRow; col++) {
+                    const unitIndex = row * this.unitsPerRow + col;
+                    if (unitIndex >= totalUnits) break;
+                    
+                    const rowSpread = row === 0 ? this.spread : this.spread * 0.85;
+                    const spacingMultiplier = row === 0 ? 1.2 : 1.0;
+                    const offsetX = (col - (this.unitsPerRow - 1) / 2) * (rowSpread / this.unitsPerRow) * spacingMultiplier;
+                    const offsetY = (row - (this.rows - 1) / 2) * (this.spread / this.unitsPerRow);
+                    
+                    this.units.push({
+                        row: row,
+                        col: col,
+                        offsetX: offsetX,
+                        offsetY: offsetY,
+                        health: this.healthPerUnit,
+                        maxHealth: this.healthPerUnit
+                    });
+                }
+            }
+            
+            this.unitCount = this.maxUnits;
+            
             this.width = 28;
             this.height = 28;
             // Swarm-like score formula, scaled to 1/3
-            const actualTotalHealth = this.healthPerUnit * (this.maxUnits || 1);
             const baseTotalHealth = 5;
             const baseScoreMultiplier = 2;
-            const scoreBonus = (actualTotalHealth - baseTotalHealth) * 0.1 + ((this.maxUnits || 1) - 3) * 0.2;
+            const scoreBonus = (actualTotalHealth - baseTotalHealth) * 0.1 + (totalUnits - 3) * 0.2;
             this.scoreValue = Math.floor((CONFIG.SCORE_PER_ENEMY * (baseScoreMultiplier + scoreBonus)) / 3);
+            
+            // Initialize cache flags
+            this._needsBottomYUpdate = true;
+            this._cachedBottomY = undefined;
+            this._needsCacheUpdate = false;
         } else {
             // Tank-like health scaling
             const A = 10;
@@ -446,6 +492,76 @@ class SplinterEnemy extends Enemy {
      * Take damage and update color
      */
     takeDamage(damage) {
+        // Child splinters use unit system with random death (like swarm/formation)
+        if (this.isChild && this.units) {
+            const oldAliveCount = this.units.filter(u => u.health > 0).length;
+            let remainingDamage = damage;
+
+            // Keep applying damage until no damage remains or all units are destroyed
+            while (remainingDamage > 0) {
+                // Get all alive units
+                const aliveUnits = this.units.filter(u => u.health > 0);
+
+                if (aliveUnits.length === 0) {
+                    // All units destroyed
+                    this.active = false;
+                    return { destroyed: true, unitsKilled: this.maxUnits };
+                }
+
+                // Find the bottommost row (highest row number)
+                const maxRow = Math.max(...aliveUnits.map(u => u.row));
+
+                // Get units in the bottommost row
+                const bottomRowUnits = aliveUnits.filter(u => u.row === maxRow);
+
+                if (bottomRowUnits.length === 0) {
+                    // Should not happen, but break to avoid infinite loop
+                    break;
+                }
+
+                // Distribute damage randomly among bottom row units
+                while (remainingDamage > 0 && bottomRowUnits.length > 0) {
+                    // Randomly select a unit from bottom row
+                    const randomIndex = randomInt(0, bottomRowUnits.length - 1);
+                    const unit = bottomRowUnits[randomIndex];
+
+                    // Apply damage
+                    const damageToApply = Math.min(remainingDamage, unit.health);
+                    unit.health -= damageToApply;
+                    remainingDamage -= damageToApply;
+
+                    // Remove unit from bottom row list if destroyed
+                    if (unit.health <= 0) {
+                        bottomRowUnits.splice(randomIndex, 1);
+                    }
+                }
+            }
+
+            // Update total health
+            this.health = this.units.reduce((sum, u) => sum + Math.max(0, u.health), 0);
+            this.unitCount = this.units.filter(u => u.health > 0).length;
+
+            const newAliveCount = this.unitCount;
+            const unitsKilled = oldAliveCount - newAliveCount;
+
+            // Invalidate bottom Y cache and alive units cache when units are killed
+            if (unitsKilled > 0) {
+                this._needsBottomYUpdate = true;
+                this._needsCacheUpdate = true;
+            }
+
+            // Update color based on remaining health
+            this.updateColor();
+
+            if (this.health <= 0 || this.unitCount === 0) {
+                this.active = false;
+                return { destroyed: true, unitsKilled: unitsKilled };
+            }
+
+            return { destroyed: false, unitsKilled: unitsKilled };
+        }
+        
+        // Parent splinter uses simple health system
         this.health -= damage;
         this.updateColor();
 
@@ -466,11 +582,81 @@ class SplinterEnemy extends Enemy {
     }
 
     /**
+     * Update enemy position and invalidate bottom Y cache when moving (for child splinters)
+     */
+    update() {
+        super.update(); // Call parent update to move enemy
+        if (this.isChild) {
+            // Invalidate bottom Y cache since y position changed
+            this._needsBottomYUpdate = true;
+        }
+    }
+
+    /**
+     * Get color for a unit based on its health (for child splinters)
+     */
+    getUnitColor(unit) {
+        const healthPercent = unit.health / unit.maxHealth;
+        const r = Math.floor(140 + 70 * healthPercent);
+        const g = Math.floor(30 + 40 * healthPercent);
+        const b = Math.floor(170 + 60 * healthPercent);
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    /**
      * Draw splinter enemy with fracture seams
      */
     draw(ctx) {
         if (!this.active) return;
 
+        // Child splinters draw multiple units (like swarm/formation)
+        if (this.isChild && this.units) {
+            ctx.save();
+            
+            // Draw each unit
+            for (const unit of this.units) {
+                if (unit.health <= 0) continue; // Skip dead units
+                
+                const unitX = this.x + unit.offsetX;
+                const unitY = this.y + unit.offsetY;
+                const unitColor = this.getUnitColor(unit);
+                
+                ctx.shadowColor = unitColor;
+                ctx.shadowBlur = 6;
+                
+                // Main body (diamond)
+                ctx.fillStyle = unitColor;
+                ctx.beginPath();
+                ctx.moveTo(unitX, unitY - this.unitSize / 2);
+                ctx.lineTo(unitX + this.unitSize / 2, unitY);
+                ctx.lineTo(unitX, unitY + this.unitSize / 2);
+                ctx.lineTo(unitX - this.unitSize / 2, unitY);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Inner core
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.beginPath();
+                ctx.arc(unitX, unitY, this.unitSize / 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Fracture seams
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.lineWidth = 0.5;
+                ctx.beginPath();
+                ctx.moveTo(unitX - this.unitSize / 6, unitY - this.unitSize / 6);
+                ctx.lineTo(unitX + this.unitSize / 6, unitY + this.unitSize / 6);
+                ctx.moveTo(unitX + this.unitSize / 6, unitY - this.unitSize / 6);
+                ctx.lineTo(unitX - this.unitSize / 6, unitY + this.unitSize / 6);
+                ctx.stroke();
+            }
+            
+            ctx.restore();
+            return;
+        }
+
+        // Parent splinter draws single unit
         ctx.save();
         ctx.shadowColor = this.color;
         ctx.shadowBlur = 8;
@@ -533,6 +719,50 @@ class SplinterEnemy extends Enemy {
         }
 
         ctx.restore();
+    }
+    
+    /**
+     * Get the bottom Y coordinate of the bottommost row (for child splinters)
+     * Uses cached value that's updated when enemy takes damage
+     * @returns {number} - Bottom Y coordinate
+     */
+    getBottomY() {
+        if (this.isChild && this.units) {
+            // Use cached value if available and valid
+            if (this._cachedBottomY !== undefined && !this._needsBottomYUpdate) {
+                return this._cachedBottomY;
+            }
+            
+            // Calculate and cache
+            const aliveUnits = this.units.filter(u => u.health > 0);
+            if (aliveUnits.length === 0) {
+                this._cachedBottomY = this.y + this.height / 2;
+                this._needsBottomYUpdate = false;
+                return this._cachedBottomY;
+            }
+            
+            const maxRow = Math.max(...aliveUnits.map(u => u.row));
+            const maxRowUnits = aliveUnits.filter(u => u.row === maxRow);
+            if (maxRowUnits.length === 0) {
+                this._cachedBottomY = this.y + this.height / 2;
+                this._needsBottomYUpdate = false;
+                return this._cachedBottomY;
+            }
+            
+            // Find the bottommost unit in the bottommost row
+            const bottommostUnit = maxRowUnits.reduce((bottom, unit) => {
+                const unitY = this.y + unit.offsetY;
+                const bottomY = this.y + bottom.offsetY;
+                return unitY > bottomY ? unit : bottom;
+            });
+            
+            this._cachedBottomY = this.y + bottommostUnit.offsetY + this.unitSize / 2;
+            this._needsBottomYUpdate = false;
+            return this._cachedBottomY;
+        }
+        
+        // Parent splinter uses standard bottom Y
+        return super.getBottomY();
     }
 }
 

@@ -833,9 +833,9 @@ class Game {
                             // Damage is per bullet, so we calculate for 1 bullet consumed
                             const actualDamage = bulletGroup.getDamage(mostForwardEnemy, 1);
 
-                            // Store unit positions before damage for formation/swarm enemies
+                            // Store unit positions before damage for formation/swarm/splinter child enemies
                             let destroyedUnitPositions = [];
-                            if ((mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm') && mostForwardEnemy.units) {
+                            if ((mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm' || (mostForwardEnemy.type === 'splinter' && mostForwardEnemy.isChild && mostForwardEnemy.units)) && mostForwardEnemy.units) {
                                 // Pre-calculate formation dimensions if needed
                                 let startX, startY, colSpacing, rowSpacing;
                                 if (mostForwardEnemy.type === 'formation') {
@@ -855,7 +855,7 @@ class Game {
                                                 x: startX + (unit.col * colSpacing) + (mostForwardEnemy.enemyWidth / 2),
                                                 y: startY + (unit.row * rowSpacing) + (mostForwardEnemy.enemyHeight / 2)
                                             });
-                                        } else { // swarm
+                                        } else { // swarm or splinter child
                                             destroyedUnitPositions.push({
                                                 x: mostForwardEnemy.x + unit.offsetX,
                                                 y: mostForwardEnemy.y + unit.offsetY
@@ -868,8 +868,8 @@ class Game {
                             const result = mostForwardEnemy.takeDamage(actualDamage);
                             const unitsKilled = result.unitsKilled || 0;
 
-                            // Give score and experience for each unit killed (Formation/Swarm)
-                            if (unitsKilled > 0 && (mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm')) {
+                            // Give score and experience for each unit killed (Formation/Swarm/Splinter Child)
+                            if (unitsKilled > 0 && (mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm' || (mostForwardEnemy.type === 'splinter' && mostForwardEnemy.isChild && mostForwardEnemy.units))) {
                                 // Score: proportional to unit health, independent of total count
                                 const unitScore = mostForwardEnemy.healthPerUnit * CONFIG.SCORE_PER_ENEMY;
 
@@ -894,13 +894,14 @@ class Game {
                             }
 
                             if (result.destroyed) {
-                                // Only give score for non-multi-unit enemies (Formation/Swarm already handled above)
-                                if (mostForwardEnemy.type !== 'formation' && mostForwardEnemy.type !== 'swarm') {
+                                // Only give score for non-multi-unit enemies (Formation/Swarm/Splinter Child already handled above)
+                                const isMultiUnitEnemy = mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm' || (mostForwardEnemy.type === 'splinter' && mostForwardEnemy.isChild && mostForwardEnemy.units);
+                                if (!isMultiUnitEnemy) {
                                     this.score += mostForwardEnemy.scoreValue;
                                 }
 
                                 // Give experience when enemy is completely destroyed (for non-multi-unit enemies)
-                                if (mostForwardEnemy.type !== 'formation' && mostForwardEnemy.type !== 'swarm') {
+                                if (!isMultiUnitEnemy) {
                                     // Get drop rate based on enemy type
                                     let dropRate = 0.2; // Default
                                     if (mostForwardEnemy.type === 'basic') {
@@ -933,7 +934,7 @@ class Game {
                                 let accentIntensity = 0.5;
                                 if (mostForwardEnemy.type === 'tank' || mostForwardEnemy.type === 'carrier') {
                                     accentIntensity = 0.8;
-                                } else if (mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm') {
+                                } else if (mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm' || (mostForwardEnemy.type === 'splinter' && mostForwardEnemy.isChild && mostForwardEnemy.units)) {
                                     accentIntensity = 0.6;
                                 } else {
                                     accentIntensity = 0.4;
@@ -945,23 +946,19 @@ class Game {
                                 this.effects.push(effect);
 
                                 // Splinter enemies break into smaller shards on destruction
+                                // Create ONE child enemy with multiple units (like swarm/formation)
                                 if (mostForwardEnemy.type === 'splinter' && result.spawnChildren) {
-                                    const childCount = Math.max(1, result.childCount || 2);
-                                    const spread = 12;
                                     const childConfig = result.childConfig || null;
-                                    for (let i = 0; i < childCount; i++) {
-                                        const offsetX = (i - (childCount - 1) / 2) * spread;
-                                        const childX = mostForwardEnemy.x + offsetX;
-                                        const childY = mostForwardEnemy.y - 6;
-                                        const child = EnemyFactory.createSplinterChild(
-                                            childX,
-                                            childY,
-                                            mostForwardEnemy.laneIndex,
-                                            this.level,
-                                            childConfig
-                                        );
-                                        this.enemies.push(child);
-                                    }
+                                    const childX = mostForwardEnemy.x;
+                                    const childY = mostForwardEnemy.y - 6;
+                                    const child = EnemyFactory.createSplinterChild(
+                                        childX,
+                                        childY,
+                                        mostForwardEnemy.laneIndex,
+                                        this.level,
+                                        childConfig
+                                    );
+                                    this.enemies.push(child);
                                 }
 
                                 this.updateUI();
@@ -972,7 +969,13 @@ class Game {
                                 // Create effects for destroyed units
                                 destroyedUnitPositions.forEach((pos, index) => {
                                     if (index < unitsKilled) {
-                                        const effect = EffectManager.createEffect(pos.x, pos.y, mostForwardEnemy.type === 'formation' ? 'formation' : 'swarm');
+                                        let effectType = 'swarm';
+                                        if (mostForwardEnemy.type === 'formation') {
+                                            effectType = 'formation';
+                                        } else if (mostForwardEnemy.type === 'splinter' && mostForwardEnemy.isChild) {
+                                            effectType = 'splinter';
+                                        }
+                                        const effect = EffectManager.createEffect(pos.x, pos.y, effectType);
                                         this.effects.push(effect);
                                     }
                                 });
@@ -994,9 +997,9 @@ class Game {
         // Check player-enemy collisions (only check active enemies)
         const activeEnemiesForPlayer = this.enemies.filter(e => e.active);
         activeEnemiesForPlayer.forEach(enemy => {
-            // For formation and swarm enemies, only check collision with actual units
+            // For formation, swarm, and splinter child enemies, only check collision with actual units
             // (especially bottom row units that can actually hit the player)
-            if (enemy.type === 'formation' || enemy.type === 'swarm') {
+            if (enemy.type === 'formation' || enemy.type === 'swarm' || (enemy.type === 'splinter' && enemy.isChild && enemy.units)) {
                 // Use cached alive units if available
                 if (!enemy._cachedAliveUnits || enemy._needsCacheUpdate) {
                     enemy._cachedAliveUnits = enemy.units.filter(u => u.health > 0);
@@ -1016,7 +1019,7 @@ class Game {
                         const startY = enemy.y - totalHeight / 2;
                         unitX = startX + (unit.col * (enemy.enemyWidth + enemy.spacing)) + (enemy.enemyWidth / 2);
                         unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
-                    } else { // swarm
+                    } else { // swarm or splinter child
                         unitX = enemy.x + unit.offsetX;
                         unitY = enemy.y + unit.offsetY;
                     }
@@ -1026,7 +1029,7 @@ class Game {
                     if (enemy.type === 'formation') {
                         unitWidth = enemy.enemyWidth;
                         unitHeight = enemy.enemyHeight;
-                    } else { // swarm
+                    } else { // swarm or splinter child
                         unitWidth = enemy.unitSize;
                         unitHeight = enemy.unitSize;
                     }
@@ -1260,7 +1263,7 @@ class Game {
 
             // Check if enemy is in bottom half (y > bottomHalfY)
             // For multi-unit enemies, check if any unit is in bottom half
-            if (enemy.type === 'formation' || enemy.type === 'swarm') {
+            if (enemy.type === 'formation' || enemy.type === 'swarm' || (enemy.type === 'splinter' && enemy.isChild && enemy.units)) {
                 // Check if any unit is in bottom half
                 const hasUnitInBottomHalf = enemy.units.some(unit => {
                     if (unit.health <= 0) return false;
@@ -1269,7 +1272,7 @@ class Game {
                         const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
                         const startY = enemy.y - totalHeight / 2;
                         unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
-                    } else { // swarm
+                    } else { // swarm or splinter child
                         unitY = enemy.y + unit.offsetY;
                     }
                     return unitY > bottomHalfY;
@@ -1289,7 +1292,7 @@ class Game {
         // Destroy enemies in bottom half (no XP gain)
         enemiesToDestroy.forEach(enemy => {
             // Create explosion effects
-            if (enemy.type === 'formation' || enemy.type === 'swarm') {
+            if (enemy.type === 'formation' || enemy.type === 'swarm' || (enemy.type === 'splinter' && enemy.isChild && enemy.units)) {
                 // Create effects for each unit in bottom half
                 enemy.units.forEach(unit => {
                     if (unit.health <= 0) return;
@@ -1301,13 +1304,19 @@ class Game {
                         const startY = enemy.y - totalHeight / 2;
                         unitX = startX + (unit.col * (enemy.enemyWidth + enemy.spacing)) + (enemy.enemyWidth / 2);
                         unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
-                    } else { // swarm
+                    } else { // swarm or splinter child
                         unitX = enemy.x + unit.offsetX;
                         unitY = enemy.y + unit.offsetY;
                     }
 
                     if (unitY > bottomHalfY) {
-                        const effect = EffectManager.createEffect(unitX, unitY, enemy.type === 'formation' ? 'formation' : 'swarm');
+                        let effectType = 'swarm';
+                        if (enemy.type === 'formation') {
+                            effectType = 'formation';
+                        } else if (enemy.type === 'splinter' && enemy.isChild) {
+                            effectType = 'splinter';
+                        }
+                        const effect = EffectManager.createEffect(unitX, unitY, effectType);
                         this.effects.push(effect);
                     }
                 });
