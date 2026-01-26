@@ -734,6 +734,20 @@ class Game {
             enemyIndex++;
         }
 
+        // Check carrier status again after removing inactive enemies
+        // This ensures music stops immediately when carrier is destroyed
+        const hasCarrierAfterUpdate = this.enemies.some(e => e.type === 'carrier' && e.active);
+        if (hasCarrierAfterUpdate !== this.hasCarrier) {
+            this.hasCarrier = hasCarrierAfterUpdate;
+            if (hasCarrierAfterUpdate) {
+                // Carrier appeared, switch to intense music
+                this.audioManager.startCarrierMusic();
+            } else {
+                // Carrier destroyed, switch back to background music
+                this.audioManager.startBackgroundMusic(this.level);
+            }
+        }
+
         // Update powerups (optimized: remove inactive ones during iteration)
         let powerupIndex = 0;
         while (powerupIndex < this.powerups.length) {
@@ -1329,6 +1343,7 @@ class Game {
 
     /**
      * Update music based on game state
+     * Note: Carrier status check is done after enemy updates to ensure accuracy
      */
     updateMusic() {
         if (this.state !== 'playing') {
@@ -1336,20 +1351,8 @@ class Game {
             return;
         }
 
-        // Check for carrier status
-        const hasCarrier = this.enemies.some(e => e.type === 'carrier' && e.active);
-
-        // If carrier status changed, switch music
-        if (hasCarrier !== this.hasCarrier) {
-            this.hasCarrier = hasCarrier;
-            if (hasCarrier) {
-                // Carrier appeared, switch to intense music
-                this.audioManager.startCarrierMusic();
-            } else {
-                // Carrier destroyed, switch back to background music
-                this.audioManager.startBackgroundMusic(this.level);
-            }
-        }
+        // Carrier status is checked after enemy updates in update() method
+        // This ensures accurate detection when carriers are destroyed
 
         // Update music tempo if level changed (for background music)
         if (this.level !== this.currentMusicLevel && !this.hasCarrier) {
