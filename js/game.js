@@ -511,7 +511,7 @@ class Game {
         setTimeout(() => {
             this.state = 'gameover';
             this.audioManager.play('gameover');
-            this.finalScoreElement.textContent = this.score;
+            this.finalScoreElement.textContent = Math.floor(this.score);
             this.gameOverScreen.style.display = 'flex';
         }, 500); // 500ms delay for explosion animation
     }
