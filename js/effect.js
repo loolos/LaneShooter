@@ -847,6 +847,415 @@ class SpawnEffect extends Effect {
 }
 
 /**
+ * Shockwave Effect - Epic level up shockwave from bottom center
+ */
+class ShockwaveEffect extends Effect {
+    constructor(game) {
+        const startX = CONFIG.CANVAS_WIDTH / 2;
+        const startY = CONFIG.CANVAS_HEIGHT;
+        super(startX, startY, 'shockwave');
+        
+        this.game = game;
+        this.startX = startX;
+        this.startY = startY;
+        this.currentY = startY;
+        this.speed = 8; // Pixels per frame
+        // Continue beyond screen and fade out
+        const extraDistance = 200; // Extra distance beyond screen
+        this.maxLife = Math.ceil((CONFIG.CANVAS_HEIGHT + extraDistance) / this.speed) + 30; // Time to reach beyond screen + fade
+        
+        // Semi-circle shape parameters (180 degrees)
+        this.fanAngle = Math.PI; // 180 degrees (semi-circle)
+        this.maxRadius = Math.sqrt(CONFIG.CANVAS_WIDTH * CONFIG.CANVAS_WIDTH + (CONFIG.CANVAS_HEIGHT + extraDistance) * (CONFIG.CANVAS_HEIGHT + extraDistance));
+        
+        // Track which enemies have been hit (to avoid multiple hits)
+        this.hitEnemies = new Set();
+        this.hitUnits = new Map(); // Map of enemy -> Set of unit indices
+        
+        // Particles array
+        this.particles = [];
+        
+        // Shockwave rings (expanding from center)
+        this.shockwaveRings = [];
+        for (let i = 0; i < 5; i++) {
+            this.shockwaveRings.push({
+                radius: 0,
+                maxRadius: 150 + i * 30,
+                speed: 3 + i * 0.5,
+                delay: i * 5,
+                opacity: 0.8 - i * 0.15,
+                y: startY
+            });
+        }
+        
+        // Bottom flash effect
+        this.bottomFlash = {
+            life: 0,
+            maxLife: 15,
+            intensity: 1.0
+        };
+        
+        // Generate initial particles
+        this.generateParticles();
+    }
+    
+    generateParticles() {
+        // Generate particles from bottom center area
+        const particleCount = 30;
+        for (let i = 0; i < particleCount; i++) {
+            const angle = (Math.random() - 0.5) * Math.PI * 0.6; // Upward angle with some spread
+            const speed = 2 + Math.random() * 4;
+            this.particles.push({
+                x: this.startX + (Math.random() - 0.5) * 100,
+                y: this.startY,
+                vx: Math.sin(angle) * (Math.random() - 0.5) * 2,
+                vy: -Math.cos(angle) * speed,
+                size: 2 + Math.random() * 3,
+                color: `hsl(${Math.random() * 60 + 20}, 100%, ${50 + Math.random() * 40}%)`, // Orange to yellow
+                life: 20 + Math.random() * 30,
+                maxLife: 20 + Math.random() * 30
+            });
+        }
+    }
+    
+    update() {
+        super.update();
+        
+        // Move shockwave upward
+        const previousY = this.currentY;
+        this.currentY -= this.speed;
+        
+        // Calculate current shockwave radius (distance from start to current position)
+        const distanceFromStart = this.startY - this.currentY;
+        const currentRadius = distanceFromStart;
+        
+        // Check for enemy collisions in the current shockwave area
+        if (this.game && this.game.enemies) {
+            const canvasHeight = CONFIG.CANVAS_HEIGHT;
+            const bottom30PercentY = canvasHeight * 0.7;
+            
+            this.game.enemies.forEach((enemy, enemyIndex) => {
+                if (!enemy.active) return;
+                
+                // Handle multi-unit enemies (formation, swarm, splinter child)
+                if (enemy.type === 'formation' || enemy.type === 'swarm' || (enemy.type === 'splinter' && enemy.isChild && enemy.units)) {
+                    if (this.hitEnemies.has(enemyIndex)) return; // Already hit
+                    
+                    // Check if any unit of the enemy is in the semi-circle shockwave area
+                    // For multi-unit enemies, check each unit's position
+                    let enemyHit = false;
+                    let minUnitY = Infinity;
+                    
+                    enemy.units.forEach(unit => {
+                        if (unit.health <= 0) return;
+                        
+                        let unitY, unitX;
+                        if (enemy.type === 'formation') {
+                            const totalHeight = (enemy.rows * enemy.enemyHeight) + ((enemy.rows - 1) * enemy.rowSpacing);
+                            const startY = enemy.y - totalHeight / 2;
+                            unitY = startY + (unit.row * (enemy.enemyHeight + enemy.rowSpacing)) + (enemy.enemyHeight / 2);
+                            const totalWidth = (enemy.cols * enemy.enemyWidth) + ((enemy.cols - 1) * enemy.spacing);
+                            const startX = enemy.x - totalWidth / 2;
+                            unitX = startX + (unit.col * (enemy.enemyWidth + enemy.spacing)) + (enemy.enemyWidth / 2);
+                        } else {
+                            unitY = enemy.y + unit.offsetY;
+                            unitX = enemy.x + unit.offsetX;
+                        }
+                        
+                        if (unitY < minUnitY) minUnitY = unitY;
+                        
+                        const dx = unitX - this.startX;
+                        const dy = unitY - this.startY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // Check if unit is within current radius (all enemies are affected, not just semi-circle)
+                        if (distance <= currentRadius && distance >= currentRadius - this.speed) {
+                            enemyHit = true;
+                        }
+                    });
+                    
+                    if (enemyHit && !this.hitEnemies.has(enemyIndex)) {
+                        this.hitEnemies.add(enemyIndex);
+                        
+                        // Calculate damage based on enemy's lowest unit Y position (or center Y for formation)
+                        const enemyY = minUnitY < Infinity ? minUnitY : enemy.y;
+                        let damagePercent;
+                        
+                        if (enemyY >= bottom30PercentY) {
+                            // Bottom 30%: destroy completely (100% damage)
+                            damagePercent = 1.0;
+                        } else {
+                            // Above bottom 30%: damage based on distance from bottom
+                            // distanceRatio: 0 at bottom 30% threshold, 1 at top
+                            const distanceFromBottom = canvasHeight - enemyY;
+                            const distanceRatio = Math.min(1, distanceFromBottom / (canvasHeight * 0.7));
+                            // Damage percentage: 10% at top to 50% at bottom 30% threshold
+                            const baseDamagePercent = 0.1 + ((1 - distanceRatio) * 0.4);
+                            // Random factor: 0.8 to 1.2
+                            const randomFactor = 0.8 + Math.random() * 0.4;
+                            damagePercent = baseDamagePercent * randomFactor;
+                        }
+                        
+                        // Calculate damage based on total health (maxHealth for multi-unit enemies)
+                        const totalDamage = enemy.maxHealth * damagePercent;
+                        
+                        // Use takeDamage method (same as bullet damage logic)
+                        const result = enemy.takeDamage(totalDamage);
+                        const unitsKilled = result.unitsKilled || 0;
+                        
+                        // Handle score and experience (same as bullet logic)
+                        if (unitsKilled > 0) {
+                            const unitScore = enemy.healthPerUnit * CONFIG.SCORE_PER_ENEMY;
+                            this.game.score += unitScore * unitsKilled;
+                            
+                            const experienceChance = 0.5;
+                            const maxAccents = Math.min(unitsKilled, 3);
+                            for (let i = 0; i < maxAccents; i++) {
+                                this.game.audioManager.queueKillAccent(enemy.type, 0.5);
+                            }
+                            
+                            for (let i = 0; i < unitsKilled; i++) {
+                                if (Math.random() < experienceChance) {
+                                    this.game.gainExperienceFromEnemy(enemy, i);
+                                }
+                            }
+                        }
+                        
+                        if (result.destroyed) {
+                            // Play death sound
+                            this.game.playEnemyDeathSound(enemy.type);
+                        }
+                    }
+                } else {
+                    // Regular enemies
+                    if (this.hitEnemies.has(enemyIndex)) return; // Already hit
+                    
+                    const dx = enemy.x - this.startX;
+                    const dy = enemy.y - this.startY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Check if within current radius (all enemies are affected, not just semi-circle)
+                    if (distance <= currentRadius && distance >= currentRadius - this.speed) {
+                        this.hitEnemies.add(enemyIndex);
+                        
+                        // Calculate damage based on enemy's Y position
+                        let damagePercent;
+                        if (enemy.y >= bottom30PercentY) {
+                            // Bottom 30%: destroy completely
+                            damagePercent = 1.0;
+                        } else {
+                            // Above bottom 30%: damage based on distance from bottom
+                            // distanceRatio: 0 at bottom 30% threshold, 1 at top
+                            const distanceFromBottom = canvasHeight - enemy.y;
+                            const distanceRatio = Math.min(1, distanceFromBottom / (canvasHeight * 0.7));
+                            // Damage percentage: 10% at top to 50% at bottom 30% threshold
+                            const baseDamagePercent = 0.1 + ((1 - distanceRatio) * 0.4);
+                            // Random factor: 0.8 to 1.2
+                            const randomFactor = 0.8 + Math.random() * 0.4;
+                            damagePercent = baseDamagePercent * randomFactor;
+                        }
+                        
+                        // Calculate damage based on max health
+                        const damage = enemy.maxHealth * damagePercent;
+                        
+                        const result = enemy.takeDamage(damage);
+                        
+                        if (result.destroyed) {
+                            // Give score and experience (same as bullet logic)
+                            this.game.score += enemy.scoreValue;
+                            
+                            let dropRate = 0.2;
+                            if (enemy.type === 'basic') dropRate = 0.2;
+                            else if (enemy.type === 'fast') dropRate = 0.3;
+                            else if (enemy.type === 'tank') dropRate = 0.5;
+                            else if (enemy.type === 'splinter') dropRate = enemy.isChild ? 0.1 : 0.25;
+                            else if (enemy.type === 'carrier') dropRate = 1.0;
+                            
+                            if (Math.random() < dropRate) {
+                                this.game.gainExperienceFromEnemy(enemy, 0);
+                            }
+                            
+                            this.game.playEnemyDeathSound(enemy.type);
+                            
+                            const effect = EffectManager.createEffect(enemy.x, enemy.y, enemy.type);
+                            this.game.effects.push(effect);
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update bottom flash
+        this.bottomFlash.life++;
+        if (this.bottomFlash.life < this.bottomFlash.maxLife) {
+            this.bottomFlash.intensity = 1 - (this.bottomFlash.life / this.bottomFlash.maxLife);
+        } else {
+            this.bottomFlash.intensity = 0;
+        }
+        
+        // Update shockwave rings
+        this.shockwaveRings.forEach(ring => {
+            if (this.life > ring.delay) {
+                ring.radius += ring.speed;
+                ring.opacity = Math.max(0, ring.opacity - 0.015);
+                ring.y = this.currentY; // Move ring with shockwave
+            }
+        });
+        
+        // Update particles
+        this.particles.forEach(particle => {
+            particle.x += particle.vx;
+            particle.y += particle.vy;
+            particle.vy *= 0.98; // Slight gravity/friction
+            particle.vx *= 0.99;
+            particle.life--;
+            particle.size *= 0.98;
+        });
+        this.particles = this.particles.filter(p => p.life > 0);
+        
+        // Generate new particles occasionally
+        if (this.life % 3 === 0 && this.currentY > 0) {
+            const newParticle = {
+                x: this.startX + (Math.random() - 0.5) * 80,
+                y: this.currentY,
+                vx: (Math.random() - 0.5) * 1.5,
+                vy: -2 - Math.random() * 3,
+                size: 1.5 + Math.random() * 2.5,
+                color: `hsl(${Math.random() * 60 + 20}, 100%, ${50 + Math.random() * 40}%)`,
+                life: 15 + Math.random() * 20,
+                maxLife: 15 + Math.random() * 20
+            };
+            this.particles.push(newParticle);
+        }
+        
+        // End effect when shockwave reaches beyond screen and fades out
+        if (this.currentY <= -200) {
+            this.active = false;
+        }
+    }
+    
+    draw(ctx) {
+        if (!this.active) return;
+        
+        const distanceFromStart = this.startY - this.currentY;
+        const currentRadius = distanceFromStart;
+        
+        // Calculate fade out when beyond screen
+        const fadeStartY = 0;
+        const fadeDistance = 200;
+        let fadeAlpha = 1.0;
+        if (this.currentY < fadeStartY) {
+            fadeAlpha = Math.max(0, 1 - (fadeStartY - this.currentY) / fadeDistance);
+        }
+        
+        ctx.save();
+        ctx.globalAlpha = fadeAlpha;
+        
+        // Draw bottom flash
+        if (this.bottomFlash.intensity > 0) {
+            const flashSize = 80 * this.bottomFlash.intensity;
+            const flashGradient = ctx.createRadialGradient(
+                this.startX, this.startY, 0,
+                this.startX, this.startY, flashSize
+            );
+            flashGradient.addColorStop(0, `rgba(255, 255, 200, ${this.bottomFlash.intensity})`);
+            flashGradient.addColorStop(0.3, `rgba(255, 200, 0, ${this.bottomFlash.intensity * 0.8})`);
+            flashGradient.addColorStop(0.6, `rgba(255, 100, 0, ${this.bottomFlash.intensity * 0.5})`);
+            flashGradient.addColorStop(1, 'rgba(255, 100, 0, 0)');
+            
+            ctx.fillStyle = flashGradient;
+            ctx.shadowColor = '#ffaa00';
+            ctx.shadowBlur = 30;
+            ctx.beginPath();
+            ctx.arc(this.startX, this.startY, flashSize, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Draw shockwave rings
+        this.shockwaveRings.forEach(ring => {
+            if (this.life > ring.delay && ring.radius < ring.maxRadius && ring.opacity > 0) {
+                const ringAlpha = ring.opacity * (1 - ring.radius / ring.maxRadius) * fadeAlpha;
+                ctx.strokeStyle = `rgba(255, 200, 100, ${ringAlpha})`;
+                ctx.lineWidth = 3;
+                ctx.shadowColor = 'rgba(255, 200, 100, 0.5)';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(this.startX, ring.y, ring.radius, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Inner ring
+                ctx.strokeStyle = `rgba(255, 255, 255, ${ringAlpha * 0.5})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(this.startX, ring.y, ring.radius * 0.8, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        });
+        
+        // Draw semi-circle shockwave (semi-transparent with glow)
+        if (currentRadius > 0) {
+            const startAngle = -this.fanAngle / 2; // -90 degrees
+            const endAngle = this.fanAngle / 2; // 90 degrees
+            
+            // Create radial gradient for the semi-circle
+            const fanGradient = ctx.createRadialGradient(
+                this.startX, this.startY, 0,
+                this.startX, this.startY, currentRadius
+            );
+            fanGradient.addColorStop(0, `rgba(255, 255, 200, ${0.4 * fadeAlpha})`); // Center - gold/white, semi-transparent
+            fanGradient.addColorStop(0.3, `rgba(255, 200, 0, ${0.35 * fadeAlpha})`); // Orange
+            fanGradient.addColorStop(0.6, `rgba(255, 100, 0, ${0.3 * fadeAlpha})`); // Red-orange
+            fanGradient.addColorStop(0.9, `rgba(200, 0, 200, ${0.2 * fadeAlpha})`); // Purple
+            fanGradient.addColorStop(1, 'rgba(200, 0, 200, 0)'); // Edge - transparent
+            
+            ctx.fillStyle = fanGradient;
+            ctx.shadowColor = 'rgba(255, 200, 100, 0.6)';
+            ctx.shadowBlur = 30;
+            
+            // Draw semi-circle shape
+            ctx.beginPath();
+            ctx.moveTo(this.startX, this.startY);
+            // Draw arc from left (-90 degrees) to right (90 degrees)
+            ctx.arc(this.startX, this.startY, currentRadius, startAngle - Math.PI / 2, endAngle - Math.PI / 2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Draw outer glow edge
+            ctx.strokeStyle = `rgba(255, 255, 200, ${0.5 * fadeAlpha})`;
+            ctx.lineWidth = 4;
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.arc(this.startX, this.startY, currentRadius, startAngle - Math.PI / 2, endAngle - Math.PI / 2);
+            ctx.stroke();
+            
+            // Draw inner glow edge
+            ctx.strokeStyle = `rgba(255, 255, 255, ${0.6 * fadeAlpha})`;
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.arc(this.startX, this.startY, currentRadius * 0.95, startAngle - Math.PI / 2, endAngle - Math.PI / 2);
+            ctx.stroke();
+        }
+        
+        // Draw particles
+        this.particles.forEach(particle => {
+            const particleAlpha = (particle.life / particle.maxLife) * fadeAlpha;
+            ctx.fillStyle = particle.color;
+            ctx.globalAlpha = particleAlpha;
+            ctx.shadowColor = particle.color;
+            ctx.shadowBlur = 5;
+            ctx.beginPath();
+            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        
+        ctx.globalAlpha = 1.0;
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+}
+
+/**
  * Effect Manager - Creates and manages effects
  */
 class EffectManager {
@@ -866,6 +1275,10 @@ class EffectManager {
                 return new CarrierExplosionEffect(x, y);
             case 'spawn':
                 return new SpawnEffect(x, y);
+            case 'shockwave':
+                // Shockwave effect doesn't use x, y - it starts from bottom center
+                // Pass game instance if needed
+                return new ShockwaveEffect(size); // size parameter used as game instance
             default:
                 return new ExplosionEffect(x, y, 'small');
         }
