@@ -1985,9 +1985,10 @@ class EnemyFactory {
      * @param {number} y - Y position
      * @param {number} laneIndex - Lane index
      * @param {number} level - Current game level
+     * @param {boolean} excludeCarrier - If true, carrier won't be spawned (lane already has one)
      * @returns {Enemy}
      */
-    static createRandom(x, y, laneIndex, level = 1) {
+    static createRandom(x, y, laneIndex, level = 1, excludeCarrier = false) {
         const weights = {
             'basic': 50,
             'fast': 15 + (level - 1) * 4,
@@ -1995,7 +1996,7 @@ class EnemyFactory {
             'tank': 10 + (level - 1) * 3,
             'swarm': 12 + (level - 1) * 2,
             'formation': 13 + (level - 1) * 2,
-            'carrier': level >= 5 ? 5 + (level - 5) * 2 : 0 // Only appears at level 5+
+            'carrier': (!excludeCarrier && level >= 5) ? 5 + (level - 5) * 2 : 0
         };
 
         // Calculate total weight

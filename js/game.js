@@ -555,21 +555,24 @@ class Game {
         if (Math.random() < spawnRate) {
             const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
             const x = CONFIG.LANE_POSITIONS[laneIndex];
-            const enemy = EnemyFactory.createRandom(x, -40, laneIndex, this.level);
+            const laneHasCarrier = this.enemies.some(e => e.type === 'carrier' && e.active && e.laneIndex === laneIndex);
+            const enemy = EnemyFactory.createRandom(x, -40, laneIndex, this.level, laneHasCarrier);
             this.enemies.push(enemy);
         }
 
         // Spawn carrier enemy occasionally at level 5+ (if not at forced levels that are multiples of 5)
-        // Limit to max 2 active carriers to prevent entity explosion
+        // Each lane can have at most one active carrier
         if (this.level >= 5 && this.level % 5 !== 0) {
-            const activeCarriers = this.enemies.filter(e => e.type === 'carrier' && e.active).length;
-            if (activeCarriers < 2 && Math.random() < 0.001) {
+            if (Math.random() < 0.001) {
                 const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
-                const x = CONFIG.LANE_POSITIONS[laneIndex];
-                const carrier = EnemyFactory.create('carrier', x, 100, laneIndex, this.level);
-                this.enemies.push(carrier);
-                this.hasCarrier = true;
-                this.audioManager.startCarrierMusic();
+                const laneHasCarrier = this.enemies.some(e => e.type === 'carrier' && e.active && e.laneIndex === laneIndex);
+                if (!laneHasCarrier) {
+                    const x = CONFIG.LANE_POSITIONS[laneIndex];
+                    const carrier = EnemyFactory.create('carrier', x, 100, laneIndex, this.level);
+                    this.enemies.push(carrier);
+                    this.hasCarrier = true;
+                    this.audioManager.startCarrierMusic();
+                }
             }
         }
     }
@@ -1342,12 +1345,20 @@ class Game {
         this.audioManager.play('levelup');
 
         // Force spawn carrier at all levels that are multiples of 5 (5, 10, 15, 20, 25, ...)
-        // But limit to max 2 active carriers to prevent performance issues
+        // Each lane can have at most one active carrier
         if (this.level % 5 === 0) {
             if (!this.carrierSpawnedAtLevels.has(this.level)) {
-                const activeCarriers = this.enemies.filter(e => e.type === 'carrier' && e.active).length;
-                if (activeCarriers < 2) {
-                    const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
+                // Find a lane without an active carrier
+                const carrierLanes = new Set();
+                for (const e of this.enemies) {
+                    if (e.type === 'carrier' && e.active) carrierLanes.add(e.laneIndex);
+                }
+                const freeLanes = [];
+                for (let i = 0; i < CONFIG.LANE_COUNT; i++) {
+                    if (!carrierLanes.has(i)) freeLanes.push(i);
+                }
+                if (freeLanes.length > 0) {
+                    const laneIndex = freeLanes[randomInt(0, freeLanes.length - 1)];
                     const x = CONFIG.LANE_POSITIONS[laneIndex];
                     const carrier = EnemyFactory.create('carrier', x, 100, laneIndex, this.level);
                     this.enemies.push(carrier);
