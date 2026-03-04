@@ -944,6 +944,7 @@ class AudioManager {
      * @param {number} intensity - Intensity of accent (0-1)
      */
     queueKillAccent(enemyType, intensity = 0.5) {
+        if (this.killAccentQueue.length >= 20) return;
         this.killAccentQueue.push({enemyType, intensity});
     }
     

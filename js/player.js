@@ -76,9 +76,12 @@ class Player {
             this.x = this.targetX;
         }
 
-        // Update bullet groups
+        // Update bullet groups and cap to prevent accumulation
         this.bulletGroups.forEach(group => group.update());
         this.bulletGroups = this.bulletGroups.filter(group => group.active);
+        if (this.bulletGroups.length > 100) {
+            this.bulletGroups = this.bulletGroups.slice(-100);
+        }
         
         // Handle Alt Ship (unlocked at altlane level 2)
         if (this.upgrades.altlane >= 2) {

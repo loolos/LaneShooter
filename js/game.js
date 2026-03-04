@@ -543,6 +543,11 @@ class Game {
      * Spawn enemies
      */
     spawnEnemies() {
+        // Hard cap on total active enemies to prevent performance degradation at high levels
+        const activeEnemyCount = this.enemies.filter(e => e.active).length;
+        const maxEnemies = 50;
+        if (activeEnemyCount >= maxEnemies) return;
+
         // Increase spawn rate with level - slow gradual increase
         // Uses square root for smoother progression: level 1 = 1.0x, level 5 = 1.4x, level 10 = 1.73x
         const spawnRate = CONFIG.ENEMY_SPAWN_RATE * Math.min(1 + Math.sqrt(this.level - 1) * 0.1, 2);
@@ -555,15 +560,14 @@ class Game {
         }
 
         // Spawn carrier enemy occasionally at level 5+ (if not at forced levels that are multiples of 5)
+        // Limit to max 2 active carriers to prevent entity explosion
         if (this.level >= 5 && this.level % 5 !== 0) {
-            // Check if there's already a carrier
-            const hasCarrier = this.enemies.some(e => e.type === 'carrier' && e.active);
-            if (!hasCarrier && Math.random() < 0.001) { // Very low spawn rate for carrier
+            const activeCarriers = this.enemies.filter(e => e.type === 'carrier' && e.active).length;
+            if (activeCarriers < 2 && Math.random() < 0.001) {
                 const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
                 const x = CONFIG.LANE_POSITIONS[laneIndex];
-                const carrier = EnemyFactory.create('carrier', x, 100, laneIndex, this.level); // Spawn near top
+                const carrier = EnemyFactory.create('carrier', x, 100, laneIndex, this.level);
                 this.enemies.push(carrier);
-                // Switch to carrier music when carrier spawns
                 this.hasCarrier = true;
                 this.audioManager.startCarrierMusic();
             }
@@ -608,10 +612,9 @@ class Game {
             effectIndex++;
         }
         
-        // Limit effects more aggressively to prevent performance issues
-        if (this.effects.length > 50) {
-            // Remove oldest inactive effects first, then trim array
-            this.effects = this.effects.filter(e => e.active).slice(-50);
+        // Limit effects aggressively to prevent performance issues
+        if (this.effects.length > 30) {
+            this.effects = this.effects.filter(e => e.active).slice(-30);
         }
 
         // Update level up text
@@ -713,21 +716,21 @@ class Game {
             }
             enemy.update();
 
-            // Handle carrier enemy spawning (only if carrier is still active)
+            // Handle carrier enemy spawning (only if carrier is still active and enemy count is below cap)
             if (enemy.type === 'carrier' && enemy.active && enemy.shouldSpawnEnemy()) {
-                // Spawn a random enemy from the carrier (only formation or swarm enemies)
-                const spawnX = enemy.x;
-                const spawnY = enemy.y + enemy.height / 2 + 20; // Spawn below the carrier
+                const currentActiveCount = this.enemies.filter(e => e.active).length;
+                if (currentActiveCount < 50) {
+                    const spawnX = enemy.x;
+                    const spawnY = enemy.y + enemy.height / 2 + 20;
 
-                // Create spawn animation effect with portal
-                const spawnEffect = EffectManager.createEffect(spawnX, spawnY, 'spawn');
-                this.effects.push(spawnEffect);
+                    const spawnEffect = EffectManager.createEffect(spawnX, spawnY, 'spawn');
+                    this.effects.push(spawnEffect);
 
-                // Only spawn formation or swarm enemies
-                const enemyTypes = ['formation', 'swarm'];
-                const randomType = enemyTypes[randomInt(0, enemyTypes.length - 1)];
-                const spawnedEnemy = EnemyFactory.create(randomType, spawnX, spawnY, enemy.laneIndex, this.level);
-                this.enemies.push(spawnedEnemy);
+                    const enemyTypes = ['formation', 'swarm'];
+                    const randomType = enemyTypes[randomInt(0, enemyTypes.length - 1)];
+                    const spawnedEnemy = EnemyFactory.create(randomType, spawnX, spawnY, enemy.laneIndex, this.level);
+                    this.enemies.push(spawnedEnemy);
+                }
                 enemy.resetSpawnCooldown();
             }
             
@@ -779,13 +782,27 @@ class Game {
             xpTextIndex++;
         }
 
+        // Cap XP texts to prevent rendering overload at high levels
+        if (this.xpTexts.length > 20) {
+            this.xpTexts = this.xpTexts.slice(-20);
+        }
+
         // Optimized bullet group-enemy collision detection: lane-based y-axis only
         if (this.player) {
-            // Combine player and alt ship bullet groups
-            const playerBulletGroups = this.player.bulletGroups.filter(bg => bg.active && bg.remainingCount > 0);
-            const altShipBulletGroups = this.player.altShip ? this.player.altShip.bulletGroups.filter(bg => bg.active && bg.remainingCount > 0) : [];
-            const activeBulletGroups = [...playerBulletGroups, ...altShipBulletGroups];
-            const activeEnemies = this.enemies.filter(e => e.active);
+            // Combine player and alt ship bullet groups (avoid extra filter passes)
+            const activeBulletGroups = [];
+            for (const bg of this.player.bulletGroups) {
+                if (bg.active && bg.remainingCount > 0) activeBulletGroups.push(bg);
+            }
+            if (this.player.altShip) {
+                for (const bg of this.player.altShip.bulletGroups) {
+                    if (bg.active && bg.remainingCount > 0) activeBulletGroups.push(bg);
+                }
+            }
+            const activeEnemies = [];
+            for (const e of this.enemies) {
+                if (e.active) activeEnemies.push(e);
+            }
             
             // Safety check: prevent excessive entity counts
             if (activeBulletGroups.length > 200 || activeEnemies.length > 100) {
@@ -842,22 +859,23 @@ class Game {
                     let continueCollisionCheck = true;
                     while (continueCollisionCheck && bulletGroup.active && bulletGroup.remainingCount > 0) {
                         // Find the most forward active enemy in this lane (bottommost = closest to player)
-                        // This is the enemy with the largest bottom Y value that is still active
-                        const mostForwardEnemy = laneEnemies
-                            .filter(e => e.active)
-                            .reduce((forward, enemy) => {
-                                const enemyBottomY = enemy.getBottomY();
-                                const forwardBottomY = forward ? forward.getBottomY() : -Infinity;
-                                return enemyBottomY > forwardBottomY ? enemy : forward;
-                            }, null);
+                        let mostForwardEnemy = null;
+                        let mostForwardBottomY = -Infinity;
+                        for (const enemy of laneEnemies) {
+                            if (!enemy.active) continue;
+                            const bottomY = enemy.getBottomY();
+                            if (bottomY > mostForwardBottomY) {
+                                mostForwardBottomY = bottomY;
+                                mostForwardEnemy = enemy;
+                            }
+                        }
 
                         if (!mostForwardEnemy) {
-                            // No more active enemies in this lane, bullet group continues upward
                             continueCollisionCheck = false;
                             break;
                         }
 
-                        const mostForwardEnemyBottomY = mostForwardEnemy.getBottomY();
+                        const mostForwardEnemyBottomY = mostForwardBottomY;
                         
                         // Y-axis collision detection: bullet group top <= enemy bottom
                         if (bulletGroup.y <= mostForwardEnemyBottomY) {
@@ -1030,9 +1048,9 @@ class Game {
             }
         }
 
-        // Check player-enemy collisions (only check active enemies)
-        const activeEnemiesForPlayer = this.enemies.filter(e => e.active);
-        activeEnemiesForPlayer.forEach(enemy => {
+        // Check player-enemy collisions (reuse active list where possible)
+        for (const enemy of this.enemies) {
+            if (!enemy.active) continue;
             // For formation, swarm, and splinter child enemies, only check collision with actual units
             // (especially bottom row units that can actually hit the player)
             if (enemy.type === 'formation' || enemy.type === 'swarm' || (enemy.type === 'splinter' && enemy.isChild && enemy.units)) {
@@ -1090,7 +1108,7 @@ class Game {
                     this.gameOver();
                 }
             }
-        });
+        }
 
         // Check player-powerup collisions
         this.powerups.forEach(powerup => {
@@ -1324,19 +1342,19 @@ class Game {
         this.audioManager.play('levelup');
 
         // Force spawn carrier at all levels that are multiples of 5 (5, 10, 15, 20, 25, ...)
+        // But limit to max 2 active carriers to prevent performance issues
         if (this.level % 5 === 0) {
-            // Check if we've already spawned a carrier at this level
             if (!this.carrierSpawnedAtLevels.has(this.level)) {
-                // Force spawn carrier (even if there's already an active carrier)
-                const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
-                const x = CONFIG.LANE_POSITIONS[laneIndex];
-                const carrier = EnemyFactory.create('carrier', x, 100, laneIndex, this.level);
-                this.enemies.push(carrier);
-                // Mark this level as having spawned a carrier
-                this.carrierSpawnedAtLevels.add(this.level);
-                // Switch to carrier music when carrier spawns
-                this.hasCarrier = true;
-                this.audioManager.startCarrierMusic();
+                const activeCarriers = this.enemies.filter(e => e.type === 'carrier' && e.active).length;
+                if (activeCarriers < 2) {
+                    const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
+                    const x = CONFIG.LANE_POSITIONS[laneIndex];
+                    const carrier = EnemyFactory.create('carrier', x, 100, laneIndex, this.level);
+                    this.enemies.push(carrier);
+                    this.carrierSpawnedAtLevels.add(this.level);
+                    this.hasCarrier = true;
+                    this.audioManager.startCarrierMusic();
+                }
             }
         }
     }
@@ -1372,14 +1390,6 @@ class Game {
      * @returns {number} Tension value (0-1)
      */
     calculateTension() {
-        const activeEnemies = this.enemies.filter(e => e.active);
-        const enemyCount = activeEnemies.length;
-
-        // 1. Enemy count component (0-0.3)
-        const maxEnemies = 15; // Assume 15 enemies is "full screen"
-        const enemyCountComponent = Math.min(enemyCount / maxEnemies, 1.0) * 0.3;
-
-        // 2. Dangerous enemy weight component (0-0.35)
         const enemyWeights = {
             'carrier': 3.0,
             'tank': 2.0,
@@ -1390,31 +1400,26 @@ class Game {
             'basic': 1.0
         };
 
+        let enemyCount = 0;
         let totalWeight = 0;
-        activeEnemies.forEach(enemy => {
+        let bottomHalfCount = 0;
+        const bottomHalfY = this.canvas.height / 2;
+
+        for (const enemy of this.enemies) {
+            if (!enemy.active) continue;
+            enemyCount++;
             totalWeight += enemyWeights[enemy.type] || 1.0;
-        });
+            if (enemy.y > bottomHalfY) bottomHalfCount++;
+        }
 
-        const maxWeight = 10; // Normalize to max weight
-        const enemyWeightComponent = Math.min(totalWeight / maxWeight, 1.0) * 0.35;
-
-        // 3. Level component (0-0.25)
-        const maxLevel = 20;
-        const levelComponent = Math.min((this.level - 1) / (maxLevel - 1), 1.0) * 0.25;
-
-        // 4. Distance threat component (0-0.1)
-        // Enemies in bottom half of screen are more threatening
-        const canvasHeight = this.canvas.height;
-        const bottomHalfY = canvasHeight / 2;
-        const bottomHalfEnemies = activeEnemies.filter(e => e.y > bottomHalfY);
+        const enemyCountComponent = Math.min(enemyCount / 15, 1.0) * 0.3;
+        const enemyWeightComponent = Math.min(totalWeight / 10, 1.0) * 0.35;
+        const levelComponent = Math.min((this.level - 1) / 19, 1.0) * 0.25;
         const distanceThreatComponent = enemyCount > 0
-            ? (bottomHalfEnemies.length / enemyCount) * 0.1
+            ? (bottomHalfCount / enemyCount) * 0.1
             : 0;
 
-        // Total tension
-        const tension = enemyCountComponent + enemyWeightComponent + levelComponent + distanceThreatComponent;
-
-        return Math.max(0, Math.min(1, tension));
+        return Math.max(0, Math.min(1, enemyCountComponent + enemyWeightComponent + levelComponent + distanceThreatComponent));
     }
 
     /**
@@ -1569,9 +1574,16 @@ class Game {
     }
 
     /**
-     * Update UI elements
+     * Update UI elements (throttled to prevent excessive DOM rebuilds)
      */
     updateUI() {
+        const now = Date.now();
+        if (this._lastUIUpdate && now - this._lastUIUpdate < 100) {
+            this._uiUpdatePending = true;
+            return;
+        }
+        this._lastUIUpdate = now;
+        this._uiUpdatePending = false;
         this.scoreElement.textContent = Math.floor(this.score);
         this.levelElement.textContent = this.level;
 
@@ -1705,6 +1717,12 @@ class Game {
         }
 
         try {
+            // Flush pending UI updates that were throttled
+            if (this._uiUpdatePending) {
+                this._lastUIUpdate = 0;
+                this.updateUI();
+            }
+
             const perfStart = performance.now();
 
             this.handleInput();

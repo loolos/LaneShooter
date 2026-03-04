@@ -1142,25 +1142,44 @@ class FormationEnemy extends Enemy {
 
         ctx.save();
 
-        // Calculate total width and height
         const totalWidth = (this.cols * this.enemyWidth) + ((this.cols - 1) * this.spacing);
         const totalHeight = (this.rows * this.enemyHeight) + ((this.rows - 1) * this.rowSpacing);
         const startX = this.x - totalWidth / 2;
         const startY = this.y - totalHeight / 2;
 
-        // Draw each unit (optimized: reduced gradients and shadows)
+        const aliveCount = this.units.filter(u => u.health > 0).length;
+        const useSimpleDraw = aliveCount > 10;
+
         for (const unit of this.units) {
-            if (unit.health <= 0) continue; // Skip destroyed units
+            if (unit.health <= 0) continue;
 
             const unitX = startX + (unit.col * (this.enemyWidth + this.spacing)) + (this.enemyWidth / 2);
             const unitY = startY + (unit.row * (this.enemyHeight + this.rowSpacing)) + (this.enemyHeight / 2);
             const unitColor = this.getUnitColor(unit);
 
-            ctx.shadowColor = unitColor;
-            ctx.shadowBlur = 6; // Reduced from 10
+            if (useSimpleDraw) {
+                // Simplified drawing: no shadowBlur, just the ship shape and cockpit
+                ctx.fillStyle = unitColor;
+                ctx.beginPath();
+                ctx.moveTo(unitX, unitY + this.enemyHeight / 2);
+                ctx.lineTo(unitX - this.enemyWidth / 2, unitY - this.enemyHeight / 2);
+                ctx.lineTo(unitX, unitY - this.enemyHeight / 2 + 4);
+                ctx.lineTo(unitX + this.enemyWidth / 2, unitY - this.enemyHeight / 2);
+                ctx.closePath();
+                ctx.fill();
 
-            // Use solid color instead of gradient for better performance
-            // Pre-calculate darker color
+                // Cockpit dot
+                ctx.fillStyle = 'rgba(255, 240, 200, 0.8)';
+                ctx.beginPath();
+                ctx.arc(unitX, unitY - this.enemyHeight / 4, this.enemyWidth / 7, 0, Math.PI * 2);
+                ctx.fill();
+                continue;
+            }
+
+            // Full detail drawing for low unit counts
+            ctx.shadowColor = unitColor;
+            ctx.shadowBlur = 6;
+
             let darkerColor = unitColor;
             const colorMatch = unitColor.match(/\d+/g);
             if (colorMatch && colorMatch.length >= 3) {
@@ -1181,8 +1200,8 @@ class FormationEnemy extends Enemy {
             ctx.closePath();
             ctx.fill();
 
-            // Draw darker bottom for depth
             ctx.fillStyle = darkerColor;
+            ctx.shadowBlur = 0;
             ctx.beginPath();
             ctx.moveTo(unitX, unitY + this.enemyHeight / 2);
             ctx.lineTo(unitX - this.enemyWidth / 6, unitY);
@@ -1191,10 +1210,8 @@ class FormationEnemy extends Enemy {
             ctx.closePath();
             ctx.fill();
 
-            // Enhanced wing details (reduced shadow)
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.lineWidth = 1.5;
-            ctx.shadowBlur = 0; // Removed shadow for performance
             ctx.beginPath();
             ctx.moveTo(unitX - this.enemyWidth / 4, unitY);
             ctx.lineTo(unitX - this.enemyWidth / 2, unitY - this.enemyHeight / 3);
@@ -1202,17 +1219,12 @@ class FormationEnemy extends Enemy {
             ctx.lineTo(unitX + this.enemyWidth / 2, unitY - this.enemyHeight / 3);
             ctx.stroke();
 
-            // Simplified cockpit (solid color instead of gradient)
             ctx.fillStyle = 'rgba(255, 240, 200, 0.8)';
-            ctx.shadowBlur = 5; // Reduced from 10
             ctx.beginPath();
             ctx.arc(unitX, unitY - this.enemyHeight / 4, this.enemyWidth / 6, 0, Math.PI * 2);
             ctx.fill();
 
-            // Draw engine glow (simplified)
             ctx.fillStyle = `rgba(255, 100, 50, 0.4)`;
-            ctx.shadowColor = 'rgba(255, 100, 50, 0.6)';
-            ctx.shadowBlur = 5; // Reduced from 8
             ctx.beginPath();
             ctx.moveTo(unitX - this.enemyWidth / 10, unitY + this.enemyHeight / 2);
             ctx.lineTo(unitX, unitY + this.enemyHeight / 2 + 2);
@@ -1464,28 +1476,45 @@ class SwarmEnemy extends Enemy {
 
         ctx.save();
 
-        // Draw each unit as an insect (optimized: reduced gradients and shadows)
-        // Cache time calculation outside loop
+        const aliveCount = this.units.filter(u => u.health > 0).length;
+        const useSimpleDraw = aliveCount > 12;
+
         const time = Date.now() * 0.01;
         
         for (const unit of this.units) {
-            if (unit.health <= 0) continue; // Skip destroyed units
+            if (unit.health <= 0) continue;
 
             const unitX = this.x + unit.offsetX;
             const unitY = this.y + unit.offsetY;
             const unitColor = this.getUnitColor(unit);
 
-            // Animated wing flapping effect (subtle)
-            const wingOffset = Math.sin(time + unit.offsetX * 0.1) * 2; // Subtle wing animation
+            if (useSimpleDraw) {
+                // Simplified drawing for high unit counts — no shadowBlur, minimal operations
+                ctx.fillStyle = unitColor;
+                ctx.beginPath();
+                ctx.ellipse(unitX, unitY, this.unitSize * 0.35, this.unitSize * 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
 
-            ctx.shadowColor = unitColor;
-            ctx.shadowBlur = 4; // Reduced from 6
+                // Head
+                ctx.beginPath();
+                ctx.arc(unitX, unitY - this.unitSize * 0.25, this.unitSize * 0.2, 0, Math.PI * 2);
+                ctx.fill();
 
-            // Simplified wings (solid color instead of gradient)
+                // Eyes (combined into single path)
+                ctx.fillStyle = 'rgba(200, 240, 255, 0.9)';
+                ctx.beginPath();
+                ctx.arc(unitX - this.unitSize * 0.12, unitY - this.unitSize * 0.25, this.unitSize * 0.06, 0, Math.PI * 2);
+                ctx.arc(unitX + this.unitSize * 0.12, unitY - this.unitSize * 0.25, this.unitSize * 0.06, 0, Math.PI * 2);
+                ctx.fill();
+                continue;
+            }
+
+            // Full detail drawing for lower unit counts
+            const wingOffset = Math.sin(time + unit.offsetX * 0.1) * 2;
+
             ctx.strokeStyle = `rgba(255, 220, 120, 0.6)`;
-            ctx.fillStyle = `rgba(255, 220, 120, 0.4)`; // Solid color instead of gradient
+            ctx.fillStyle = `rgba(255, 220, 120, 0.4)`;
             ctx.lineWidth = 1.5;
-            ctx.shadowBlur = 0; // Removed shadow for performance
 
             // Left wing
             ctx.beginPath();
@@ -1499,8 +1528,15 @@ class SwarmEnemy extends Enemy {
             ctx.fill();
             ctx.stroke();
 
-            // Simplified insect body (solid color instead of gradient)
-            // Pre-calculate darker color
+            ctx.fillStyle = unitColor;
+            ctx.shadowColor = unitColor;
+            ctx.shadowBlur = 4;
+            ctx.beginPath();
+            ctx.ellipse(unitX, unitY, this.unitSize * 0.35, this.unitSize * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Darker center
             let darkerColor = unitColor;
             const colorMatch = unitColor.match(/\d+/g);
             if (colorMatch && colorMatch.length >= 3) {
@@ -1509,26 +1545,15 @@ class SwarmEnemy extends Enemy {
                     darkerColor = `rgb(${Math.max(0, r - 40)}, ${Math.max(0, g - 25)}, ${Math.max(0, b - 10)})`;
                 }
             }
-            
-            ctx.fillStyle = unitColor;
-            ctx.shadowBlur = 6; // Reduced from 12
-            ctx.shadowColor = unitColor;
-            ctx.beginPath();
-            ctx.ellipse(unitX, unitY, this.unitSize * 0.35, this.unitSize * 0.5, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Draw darker center for depth
             ctx.fillStyle = darkerColor;
-            ctx.shadowBlur = 0;
             ctx.beginPath();
             ctx.ellipse(unitX, unitY, this.unitSize * 0.25, this.unitSize * 0.35, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Draw body segments (insect-like)
+            // Body segments
             ctx.strokeStyle = `rgba(0, 0, 0, 0.3)`;
             ctx.lineWidth = 1;
             ctx.beginPath();
-            // Segment lines
             ctx.moveTo(unitX - this.unitSize * 0.2, unitY - this.unitSize * 0.2);
             ctx.lineTo(unitX + this.unitSize * 0.2, unitY - this.unitSize * 0.2);
             ctx.moveTo(unitX - this.unitSize * 0.2, unitY);
@@ -1537,46 +1562,37 @@ class SwarmEnemy extends Enemy {
             ctx.lineTo(unitX + this.unitSize * 0.2, unitY + this.unitSize * 0.2);
             ctx.stroke();
 
-            // Draw head (slightly larger circle at top)
+            // Head
             ctx.fillStyle = unitColor;
             ctx.beginPath();
             ctx.arc(unitX, unitY - this.unitSize * 0.25, this.unitSize * 0.25, 0, Math.PI * 2);
             ctx.fill();
 
-            // Simplified eyes (solid color instead of gradient)
+            // Eyes
             ctx.fillStyle = 'rgba(200, 240, 255, 0.9)';
-            ctx.shadowBlur = 4; // Reduced from 8
-            ctx.shadowColor = 'rgba(150, 200, 255, 0.6)';
-            // Left eye
             ctx.beginPath();
             ctx.arc(unitX - this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.08, 0, Math.PI * 2);
-            ctx.fill();
-            // Right eye
-            ctx.beginPath();
             ctx.arc(unitX + this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.08, 0, Math.PI * 2);
             ctx.fill();
             
             // Eye pupils
             ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-            ctx.shadowBlur = 0;
             ctx.beginPath();
             ctx.arc(unitX - this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.04, 0, Math.PI * 2);
             ctx.arc(unitX + this.unitSize * 0.15, unitY - this.unitSize * 0.25, this.unitSize * 0.04, 0, Math.PI * 2);
             ctx.fill();
 
-            // Draw antennae (small lines)
+            // Antennae
             ctx.strokeStyle = unitColor;
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-            // Left antenna
             ctx.moveTo(unitX - this.unitSize * 0.1, unitY - this.unitSize * 0.35);
             ctx.lineTo(unitX - this.unitSize * 0.2, unitY - this.unitSize * 0.45);
-            // Right antenna
             ctx.moveTo(unitX + this.unitSize * 0.1, unitY - this.unitSize * 0.35);
             ctx.lineTo(unitX + this.unitSize * 0.2, unitY - this.unitSize * 0.45);
             ctx.stroke();
 
-            // Draw small dots at antenna tips
+            // Antenna tips
             ctx.fillStyle = unitColor;
             ctx.beginPath();
             ctx.arc(unitX - this.unitSize * 0.2, unitY - this.unitSize * 0.45, 1.5, 0, Math.PI * 2);
