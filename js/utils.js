@@ -12,7 +12,7 @@ const CONFIG = {
     PLAYER_Y: 550,
     PLAYER_SIZE: 30,
     BULLET_SPEED: 8,
-    ENEMY_SPAWN_RATE: 0.02, // Probability per frame
+    ENEMY_SPAWN_RATE: 0.016, // Probability per frame (20% lower than 0.02)
     POWERUP_SPAWN_RATE: 0.003, // Probability per frame (slightly increased)
     ENEMY_BASE_SPEED: 2,
     ENEMY_SPEED_INCREMENT: 0.1,

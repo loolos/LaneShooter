@@ -119,8 +119,8 @@ class BasicEnemy extends Enemy {
         // Late game: additional health boost (after level 10, health increases faster)
         // Calculate health with late game boost integrated into formula
         this.maxHealth = level > 10
-            ? 1 + Math.floor((10 + (level - 10) * 1.2 - 1) / 2)
-            : 1 + Math.floor((level - 1) / 2);
+            ? 3 + Math.floor((10 + (level - 10) * 1.2 - 1) / 2)
+            : 3 + Math.floor((level - 1) / 2);
         this.health = this.maxHealth;
         this.initialHealth = 1; // Base health for color calculation
 
@@ -376,9 +376,9 @@ class SplinterEnemy extends Enemy {
             } else {
                 // Fallback: swarm-like unit health formula (total 1/3)
                 const A = 3;
-                const B = 4;
-                const C = 1 / 20;
-                const D = 1 / 50;
+                const B = 5;
+                const C = 1 / 10;
+                const D = 1 / 40;
                 const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
                 const childTotalHealth = Math.max(1, Math.floor(totalHealth / 2));
                 const maxRows = Math.min(3, Math.floor(level / 10) + 1);
@@ -779,7 +779,7 @@ class TankEnemy extends Enemy {
         // Health increases with level: A + B*LVL + C*LVL^2
         // Formula: 5 + 3*LVL + (1/4)*LVL^2
         const A = 10;    // Constant term
-        const B = 3;    // Linear coefficient
+        const B = 5;    // Linear coefficient
         const C = 1 / 10;  // Quadratic coefficient
         const D = 1 / 50; // Cubic coefficient
         const maxHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
@@ -1040,7 +1040,7 @@ class FormationEnemy extends Enemy {
         // Total health increases with level: A + B*LVL + C*LVL^2 + D*LVL^3
         // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
         const A = 6;    // Constant term
-        const B = 3;    // Linear coefficient
+        const B = 5;    // Linear coefficient
         const C = 1 / 30;  // Quadratic coefficient
         const D = 1 / 50; // Cubic coefficient
         const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
@@ -1350,7 +1350,7 @@ class SwarmEnemy extends Enemy {
         // New generation system: fixed total health, random rows/cols
         // Total health increases with level: A + B*LVL + C*LVL^2 + D*LVL^3
         // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
-        const A = 6;    // Constant term
+        const A = 10;    // Constant term
         const B = 3;    // Linear coefficient
         const C = 1 / 20;  // Quadratic coefficient
         const D = 1 / 50; // Cubic coefficient

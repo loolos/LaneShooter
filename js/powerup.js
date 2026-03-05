@@ -134,13 +134,13 @@ class Powerup {
  */
 class RapidFirePowerup extends Powerup {
     constructor(x, y) {
-        super(x, y, 5); // 5 XP
+        super(x, y, 10); // 10 XP
         this.type = 'rapidfire';
         this.color = '#ff6b6b';
     }
 
     apply(player) {
-        // Add experience instead of direct upgrade (5 XP per powerup)
+        // Add experience instead of direct upgrade (10 XP per powerup)
         player.addExperience('rapidfire', this.experienceAmount);
     }
 }
@@ -150,13 +150,13 @@ class RapidFirePowerup extends Powerup {
  */
 class MultiShotPowerup extends Powerup {
     constructor(x, y) {
-        super(x, y, 5); // 5 XP
+        super(x, y, 10); // 10 XP
         this.type = 'multishot';
         this.color = '#4ecdc4';
     }
 
     apply(player) {
-        // Add experience instead of direct upgrade (5 XP per powerup)
+        // Add experience instead of direct upgrade (10 XP per powerup)
         player.addExperience('multishot', this.experienceAmount);
     }
 }
@@ -166,13 +166,13 @@ class MultiShotPowerup extends Powerup {
  */
 class PowerBoostPowerup extends Powerup {
     constructor(x, y) {
-        super(x, y, 5); // 5 XP
+        super(x, y, 10); // 10 XP
         this.type = 'powerboost';
         this.color = '#ffe66d';
     }
 
     apply(player) {
-        // Add experience instead of direct upgrade (5 XP per powerup)
+        // Add experience instead of direct upgrade (10 XP per powerup)
         player.addExperience('powerboost', this.experienceAmount);
     }
 }
@@ -182,13 +182,13 @@ class PowerBoostPowerup extends Powerup {
  */
 class AltLanePowerup extends Powerup {
     constructor(x, y) {
-        super(x, y, 5); // 5 XP
+        super(x, y, 10); // 10 XP
         this.type = 'altlane';
         this.color = '#a29bfe';
     }
 
     apply(player) {
-        // Add experience instead of direct upgrade (5 XP per powerup)
+        // Add experience instead of direct upgrade (10 XP per powerup)
         player.addExperience('altlane', this.experienceAmount);
     }
 }
