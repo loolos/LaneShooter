@@ -196,11 +196,16 @@ class GateManager {
 
     reset(now = Date.now()) {
         this.gates = [];
-        this.scheduleNextSpawn(now);
+        this.scheduleNextSpawn(null, now);
     }
 
-    scheduleNextSpawn(now) {
-        this.nextSpawnTime = now + randomInt(this.minSpawnInterval, this.maxSpawnInterval);
+    scheduleNextSpawn(game, now) {
+        const level = game && game.level ? game.level : 1;
+        // Late game gets slightly more gates, but never faster than every 15s.
+        const levelOffset = Math.max(0, level - 1);
+        const minInterval = Math.max(15000, this.minSpawnInterval - levelOffset * 750);
+        const maxInterval = Math.max(18000, this.maxSpawnInterval - levelOffset * 850);
+        this.nextSpawnTime = now + randomInt(minInterval, Math.max(minInterval, maxInterval));
     }
 
     update(game, now = Date.now()) {
@@ -208,7 +213,7 @@ class GateManager {
 
         if (now >= this.nextSpawnTime) {
             this.trySpawnGate(game);
-            this.scheduleNextSpawn(now);
+            this.scheduleNextSpawn(game, now);
         }
 
         for (const gate of this.gates) {
@@ -240,9 +245,26 @@ class GateManager {
         const hasActiveGate = this.gates.some(gate => gate.active);
         if (hasActiveGate) return;
 
-        const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
-        const enemiesInLane = game.enemies.filter(enemy => enemy.active && enemy.laneIndex === laneIndex).length;
-        const gate = GateRegistry.createRandom(laneIndex, { game, laneIndex, enemiesInLane });
+        const activeEnemies = game.enemies.filter(enemy => enemy.active);
+        const laneEnemyCounts = CONFIG.LANE_POSITIONS.map((_, index) =>
+            activeEnemies.filter(enemy => enemy.laneIndex === index).length
+        );
+        const totalEnemies = activeEnemies.length;
+        const laneWeights = laneEnemyCounts.map(count => 1 + count * 1.8);
+        const totalLaneWeight = laneWeights.reduce((sum, weight) => sum + weight, 0);
+
+        let laneIndex = 0;
+        let laneRoll = random(0, totalLaneWeight);
+        for (let i = 0; i < laneWeights.length; i++) {
+            laneRoll -= laneWeights[i];
+            if (laneRoll <= 0) {
+                laneIndex = i;
+                break;
+            }
+        }
+
+        const enemiesInLane = laneEnemyCounts[laneIndex] || 0;
+        const gate = GateRegistry.createRandom(laneIndex, { game, laneIndex, enemiesInLane, totalEnemies });
         if (gate) {
             this.gates.push(gate);
         }
@@ -251,11 +273,15 @@ class GateManager {
 
 GateRegistry.register('laser', {
     create: (laneIndex) => new LaserGate(laneIndex),
-    getWeight: (context) => 1 + Math.min(context.enemiesInLane || 0, 8) * 0.8
+    getWeight: (context) => {
+        const inLane = Math.min(context.enemiesInLane || 0, 10);
+        const totalEnemies = Math.min(context.totalEnemies || 0, 20);
+        const levelBonus = Math.max(0, (context.game && context.game.level ? context.game.level : 1) - 1) * 0.08;
+        return 1 + inLane * 1.1 + totalEnemies * 0.28 + levelBonus;
+    }
 });
 
 GateRegistry.register('experience', {
     create: (laneIndex) => new ExperienceGate(laneIndex),
     getWeight: () => 1
 });
-
