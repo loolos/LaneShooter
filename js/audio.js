@@ -1487,6 +1487,106 @@ class AudioManager {
     }
 
     /**
+     * Start dedicated music for experience gate boost
+     */
+    startExperienceGateMusic() {
+        if (!this.musicEnabled || !this.musicContext) return;
+
+        this.stopMusic();
+
+        try {
+            if (this.musicContext.state === 'suspended') {
+                this.musicContext.resume();
+            }
+
+            // Bright temporary boost track for EXP x2 window.
+            const tempo = 126;
+            const beatDuration = 60 / tempo;
+
+            this.musicOscillators = [];
+
+            const bassOsc = this.musicContext.createOscillator();
+            bassOsc.type = 'triangle';
+            bassOsc.frequency.value = 196; // G3
+            const bassGain = this.musicContext.createGain();
+            bassGain.gain.value = 0.16;
+            bassOsc.connect(bassGain);
+            bassGain.connect(this.musicGainNode);
+            this.musicOscillators.push({osc: bassOsc, gain: bassGain});
+
+            const leadOsc = this.musicContext.createOscillator();
+            leadOsc.type = 'sine';
+            leadOsc.frequency.value = 392; // G4
+            const leadGain = this.musicContext.createGain();
+            leadGain.gain.value = 0.2;
+            leadOsc.connect(leadGain);
+            leadGain.connect(this.musicGainNode);
+            this.musicOscillators.push({osc: leadOsc, gain: leadGain});
+
+            const sparkleOsc = this.musicContext.createOscillator();
+            sparkleOsc.type = 'square';
+            sparkleOsc.frequency.value = 784; // G5
+            const sparkleGain = this.musicContext.createGain();
+            sparkleGain.gain.value = 0.08;
+            sparkleOsc.connect(sparkleGain);
+            sparkleGain.connect(this.musicGainNode);
+            this.musicOscillators.push({osc: sparkleOsc, gain: sparkleGain});
+
+            bassOsc.start();
+            leadOsc.start();
+            sparkleOsc.start();
+
+            const bassNotes = [196, 220, 247, 220, 196, 220, 247, 294];
+            const leadNotes = [392, 440, 494, 523, 494, 440, 523, 587];
+            const sparkleNotes = [784, 880, 988, 1047, 988, 880, 1047, 1175];
+            let noteIndex = 0;
+
+            if (this.patternIntervals.experienceGate) {
+                clearInterval(this.patternIntervals.experienceGate);
+                delete this.patternIntervals.experienceGate;
+            }
+
+            this.patternIntervals.experienceGate = setInterval(() => {
+                if (!this.musicOscillators.length || this.currentMusic !== 'experienceGate') {
+                    if (this.patternIntervals.experienceGate) {
+                        clearInterval(this.patternIntervals.experienceGate);
+                        delete this.patternIntervals.experienceGate;
+                    }
+                    return;
+                }
+
+                if (this.musicOscillators[0] && this.musicOscillators[0].osc) {
+                    this.musicOscillators[0].osc.frequency.setTargetAtTime(
+                        bassNotes[noteIndex],
+                        this.musicContext.currentTime,
+                        0.05
+                    );
+                }
+                if (this.musicOscillators[1] && this.musicOscillators[1].osc) {
+                    this.musicOscillators[1].osc.frequency.setTargetAtTime(
+                        leadNotes[noteIndex],
+                        this.musicContext.currentTime,
+                        0.05
+                    );
+                }
+                if (this.musicOscillators[2] && this.musicOscillators[2].osc) {
+                    this.musicOscillators[2].osc.frequency.setTargetAtTime(
+                        sparkleNotes[noteIndex],
+                        this.musicContext.currentTime,
+                        0.05
+                    );
+                }
+
+                noteIndex = (noteIndex + 1) % bassNotes.length;
+            }, beatDuration * 1000);
+
+            this.currentMusic = 'experienceGate';
+        } catch (err) {
+            console.debug('Experience gate music start failed:', err);
+        }
+    }
+
+    /**
      * Start intense music for carrier battles
      */
     startCarrierMusic() {

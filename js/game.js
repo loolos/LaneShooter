@@ -1764,6 +1764,23 @@ class Game {
             return;
         }
 
+        const experienceBoostActive = this.getCurrentExperienceMultiplier() > 1;
+        if (experienceBoostActive) {
+            if (this.audioManager.currentMusic !== 'experienceGate') {
+                this.audioManager.startExperienceGateMusic();
+            }
+            return;
+        }
+
+        if (this.audioManager.currentMusic === 'experienceGate') {
+            if (this.hasCarrier) {
+                this.audioManager.startCarrierMusic();
+            } else {
+                this.currentMusicLevel = this.level;
+                this.audioManager.startBackgroundMusic(this.level);
+            }
+        }
+
         // Carrier status is checked after enemy updates in update() method
         // This ensures accurate detection when carriers are destroyed
 
