@@ -8,7 +8,7 @@ class Game {
         this.setupCanvas();
 
         // Game state
-        this.state = 'menu'; // menu, playing, gameover, victory
+        this.state = 'menu'; // menu, playing, dying, gameover, victory
         this.score = 0;
         this.level = 1;
         this.frameCount = 0;
@@ -537,8 +537,9 @@ class Game {
     }
 
     gameOver() {
-        // Don't trigger multiple times
-        if (this.state === 'gameover') return;
+        // Only trigger from active gameplay, and avoid duplicate delayed transitions.
+        if (this.state !== 'playing' || this._gameOverTimeout) return;
+        this.state = 'dying';
 
         // Stop music when game over
         this.audioManager.stopMusic();
@@ -552,7 +553,7 @@ class Game {
         // Delay game over screen to show explosion
         this._gameOverTimeout = setTimeout(() => {
             this._gameOverTimeout = null;
-            if (this.state !== 'playing') {
+            if (this.state === 'dying') {
                 this.state = 'gameover';
                 this.audioManager.play('gameover');
                 this.finalScoreElement.textContent = Math.floor(this.score);
