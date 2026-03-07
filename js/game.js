@@ -594,7 +594,8 @@ class Game {
 
         // Increase spawn rate with level - slow gradual increase
         // Uses square root for smoother progression: level 1 = 1.0x, level 5 = 1.4x, level 10 = 1.73x
-        const spawnRate = CONFIG.ENEMY_SPAWN_RATE * Math.min(1 + Math.sqrt(this.level - 1) * 0.1, 2);
+        const earlyLevelSpawnNerf = this.level <= 3 ? (0.78 + (this.level - 1) * 0.08) : 1;
+        const spawnRate = CONFIG.ENEMY_SPAWN_RATE * Math.min(1 + Math.sqrt(this.level - 1) * 0.1, 2) * earlyLevelSpawnNerf;
 
         if (Math.random() < spawnRate) {
             const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
@@ -698,6 +699,7 @@ class Game {
             if (now >= fireStartTime && this.laserLaneEffect.phase !== 'firing') {
                 this.laserLaneEffect.phase = 'firing';
                 this.laserLaneEffect.nextTickTime = fireStartTime;
+                this.audioManager.play('laserFire', 0.46);
             }
 
             while (
@@ -730,6 +732,7 @@ class Game {
         if (!this.player) return;
 
         const now = Date.now();
+        this.audioManager.play('laserWarmup', 0.38);
         this.laserLaneEffect = {
             laneIndex,
             startTime: now,
@@ -1628,20 +1631,51 @@ class Game {
 
         if (this.getCurrentExperienceMultiplier() > 1) {
             const pulse = Math.sin(now * 0.02) * 0.5 + 0.5;
+            const shimmer = Math.sin(now * 0.009) * 0.5 + 0.5;
             const remainingMs = Math.max(0, this.experienceBoostUntil - now);
             const seconds = (remainingMs / 1000).toFixed(1);
 
             this.ctx.save();
-            this.ctx.fillStyle = `rgba(255, 255, 255, ${0.04 + pulse * 0.09})`;
+            const overlayGradient = this.ctx.createRadialGradient(
+                this.canvas.width / 2,
+                this.canvas.height / 2,
+                40,
+                this.canvas.width / 2,
+                this.canvas.height / 2,
+                this.canvas.width * 0.62
+            );
+            overlayGradient.addColorStop(0, `rgba(78, 205, 196, ${0.08 + pulse * 0.08})`);
+            overlayGradient.addColorStop(0.45, `rgba(135, 255, 244, ${0.05 + shimmer * 0.05})`);
+            overlayGradient.addColorStop(1, 'rgba(78, 205, 196, 0.01)');
+            this.ctx.fillStyle = overlayGradient;
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-            this.ctx.fillStyle = '#4ecdc4';
-            this.ctx.shadowColor = '#4ecdc4';
-            this.ctx.shadowBlur = 12;
-            this.ctx.font = 'bold 26px Arial';
+            const ringCount = 3;
+            const ringBaseRadius = 50;
+            for (let i = 0; i < ringCount; i++) {
+                const ringPulse = (pulse + i * 0.33) % 1;
+                this.ctx.strokeStyle = `rgba(126, 255, 236, ${0.28 - i * 0.06})`;
+                this.ctx.lineWidth = 2 + i * 0.8;
+                this.ctx.shadowColor = '#4ecdc4';
+                this.ctx.shadowBlur = 14;
+                this.ctx.beginPath();
+                this.ctx.arc(
+                    this.canvas.width / 2,
+                    52,
+                    ringBaseRadius + ringPulse * 28 + i * 14,
+                    0,
+                    Math.PI * 2
+                );
+                this.ctx.stroke();
+            }
+
+            this.ctx.fillStyle = '#b9fff8';
+            this.ctx.shadowColor = '#72fff1';
+            this.ctx.shadowBlur = 18;
+            this.ctx.font = 'bold 28px Arial';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
-            this.ctx.fillText(`EXP x${this.experienceMultiplier} ${seconds}s`, this.canvas.width / 2, 48);
+            this.ctx.fillText(`✦ EXP x${this.experienceMultiplier} ✦  ${seconds}s`, this.canvas.width / 2, 52);
             this.ctx.restore();
         }
 

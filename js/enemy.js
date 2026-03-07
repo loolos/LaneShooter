@@ -1995,13 +1995,14 @@ class EnemyFactory {
      * @returns {Enemy}
      */
     static createRandom(x, y, laneIndex, level = 1, excludeCarrier = false) {
+        const isEarlyGame = level <= 3;
         const weights = {
-            'basic': 50,
-            'fast': 15 + (level - 1) * 4,
-            'splinter': 10 + (level - 1) * 2,
-            'tank': 10 + (level - 1) * 3,
-            'swarm': 12 + (level - 1) * 2,
-            'formation': 13 + (level - 1) * 2,
+            'basic': isEarlyGame ? 74 - (level - 1) * 8 : 50,
+            'fast': isEarlyGame ? Math.max(5, 8 + (level - 1) * 3) : 15 + (level - 1) * 4,
+            'splinter': isEarlyGame ? Math.max(0, (level - 2) * 3) : 10 + (level - 1) * 2,
+            'tank': isEarlyGame ? Math.max(0, (level - 2) * 4) : 10 + (level - 1) * 3,
+            'swarm': isEarlyGame ? Math.max(0, (level - 3) * 5) : 12 + (level - 1) * 2,
+            'formation': isEarlyGame ? Math.max(0, (level - 3) * 6) : 13 + (level - 1) * 2,
             'carrier': (!excludeCarrier && level >= 5) ? 5 + (level - 5) * 2 : 0
         };
 

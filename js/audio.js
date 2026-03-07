@@ -137,9 +137,96 @@ class AudioManager {
         
         // Create dynamic shoot sound generator (not pre-generated)
         this.createDynamicShootSound();
+
+        // Gate SFX
+        this.createLaserWarmupSound();
+        this.createLaserFireSound();
         
         // Track last shoot time for dynamic pitch adjustment
         this.lastShootTime = 0;
+    }
+
+
+    /**
+     * Laser gate warmup SFX: rising charged hum
+     */
+    createLaserWarmupSound(duration = 1.0) {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const sampleRate = audioContext.sampleRate;
+        const frameCount = sampleRate * duration;
+        const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < frameCount; i++) {
+            const t = i / sampleRate;
+            const progress = t / duration;
+            const freq = 170 + progress * 430;
+            const tremolo = 0.75 + Math.sin(t * 32) * 0.25;
+            const envelope = Math.min(1, progress * 2.2) * (1 - Math.max(0, progress - 0.85) * 6.5);
+            let value = 0;
+            value += Math.sin(2 * Math.PI * freq * t) * 0.22;
+            value += Math.sin(2 * Math.PI * freq * 0.5 * t) * 0.14;
+            value += (Math.random() * 2 - 1) * 0.03;
+            data[i] = value * tremolo * envelope;
+        }
+
+        this.sounds['laserWarmup'] = {
+            buffer,
+            audioContext,
+            play() {
+                try {
+                    if (this.audioContext.state === 'suspended') {
+                        this.audioContext.resume();
+                    }
+                    const source = this.audioContext.createBufferSource();
+                    source.buffer = this.buffer;
+                    source.connect(this.audioContext.destination);
+                    source.start();
+                } catch (err) {
+                    console.debug('Audio play error:', err);
+                }
+            }
+        };
+    }
+
+    /**
+     * Laser gate fire SFX: bright impact burst with short tail
+     */
+    createLaserFireSound(duration = 0.45) {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const sampleRate = audioContext.sampleRate;
+        const frameCount = sampleRate * duration;
+        const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < frameCount; i++) {
+            const t = i / sampleRate;
+            const envelope = Math.exp(-t * 9);
+            const sweepFreq = 1100 - t * 820;
+            let value = 0;
+            value += Math.sin(2 * Math.PI * sweepFreq * t) * 0.28;
+            value += Math.sin(2 * Math.PI * (sweepFreq * 0.48) * t) * 0.21;
+            value += (Math.random() * 2 - 1) * 0.09;
+            data[i] = value * envelope;
+        }
+
+        this.sounds['laserFire'] = {
+            buffer,
+            audioContext,
+            play() {
+                try {
+                    if (this.audioContext.state === 'suspended') {
+                        this.audioContext.resume();
+                    }
+                    const source = this.audioContext.createBufferSource();
+                    source.buffer = this.buffer;
+                    source.connect(this.audioContext.destination);
+                    source.start();
+                } catch (err) {
+                    console.debug('Audio play error:', err);
+                }
+            }
+        };
     }
 
     /**
