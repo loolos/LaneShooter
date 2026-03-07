@@ -37,7 +37,7 @@ class Player {
         this.baseMoveSpeed = 25;
         this.baseBulletSpeed = CONFIG.BULLET_SPEED;
         
-        // Alt Ship (unlocked at altlane level 3)
+        // Alt Ship (unlocked at altlane level 2)
         this.altShip = null;
     }
 
@@ -566,7 +566,7 @@ class Player {
 
 /**
  * Alt Ship class - Secondary ship that fires from opposite lane
- * Unlocked when altlane upgrade reaches level 3
+ * Unlocked when altlane upgrade reaches level 2
  */
 class AltShip {
     constructor(x, y, player) {

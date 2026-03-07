@@ -43,6 +43,9 @@ class Game {
         this.victoryStars = []; // Victory screen stars
         this.victoryEnergyRings = []; // Victory screen energy rings
         this.victoryTime = 0; // Time since victory screen appeared
+        this._gameOverTimeout = null; // Track gameOver delayed callback
+        this._victoryLockTimeout = null; // Track victory lock timeout
+        this._continueHandler = null; // Track victory continue handler for cleanup
 
         // Debug logging system
         this.lastLogTime = 0;
@@ -184,6 +187,22 @@ class Game {
      * Start new game
      */
     start() {
+        // Cancel any pending delayed callbacks from previous game
+        if (this._gameOverTimeout) {
+            clearTimeout(this._gameOverTimeout);
+            this._gameOverTimeout = null;
+        }
+        if (this._victoryLockTimeout) {
+            clearTimeout(this._victoryLockTimeout);
+            this._victoryLockTimeout = null;
+        }
+        if (this._continueHandler) {
+            document.removeEventListener('keydown', this._continueHandler);
+            document.removeEventListener('click', this._continueHandler);
+            document.removeEventListener('touchstart', this._continueHandler);
+            this._continueHandler = null;
+        }
+
         // Ensure canvas is properly sized
         this.setupCanvas();
 
@@ -199,13 +218,13 @@ class Game {
         this.effects = [];
         this.currentMusicLevel = 1;
         this.hasCarrier = false;
-        this.victoryShown = false; // Reset victory flag on new game
-        this.victoryLocked = false; // Reset victory lock on new game
+        this.victoryShown = false;
+        this.victoryLocked = false;
         this.victoryParticles = [];
         this.victoryStars = [];
         this.victoryEnergyRings = [];
         this.victoryTime = 0;
-        this.carrierSpawnedAtLevels = new Set(); // Reset carrier spawn tracking
+        this.carrierSpawnedAtLevels = new Set();
 
         // Start background music
         this.audioManager.startBackgroundMusic(this.level);
@@ -240,24 +259,32 @@ class Game {
 
         // Lock screen for 3 seconds to prevent quick skipping
         this.victoryLocked = true;
-        setTimeout(() => {
+        this._victoryLockTimeout = setTimeout(() => {
+            this._victoryLockTimeout = null;
             this.victoryLocked = false;
-        }, 3000); // 3 seconds lock
+        }, 3000);
+
+        // Clean up previous continue handler if any
+        if (this._continueHandler) {
+            document.removeEventListener('keydown', this._continueHandler);
+            document.removeEventListener('click', this._continueHandler);
+            document.removeEventListener('touchstart', this._continueHandler);
+        }
 
         // Setup continue handler - any key press continues the game (only after lock)
-        const continueHandler = (e) => {
-            // Ignore input if still locked
+        this._continueHandler = (e) => {
             if (this.victoryLocked) return;
 
             this.continueAfterVictory();
-            document.removeEventListener('keydown', continueHandler);
-            document.removeEventListener('click', continueHandler);
-            document.removeEventListener('touchstart', continueHandler);
+            document.removeEventListener('keydown', this._continueHandler);
+            document.removeEventListener('click', this._continueHandler);
+            document.removeEventListener('touchstart', this._continueHandler);
+            this._continueHandler = null;
         };
 
-        document.addEventListener('keydown', continueHandler);
-        document.addEventListener('click', continueHandler);
-        document.addEventListener('touchstart', continueHandler);
+        document.addEventListener('keydown', this._continueHandler);
+        document.addEventListener('click', this._continueHandler);
+        document.addEventListener('touchstart', this._continueHandler);
     }
 
     /**
@@ -510,12 +537,15 @@ class Game {
         }
 
         // Delay game over screen to show explosion
-        setTimeout(() => {
-            this.state = 'gameover';
-            this.audioManager.play('gameover');
-            this.finalScoreElement.textContent = Math.floor(this.score);
-            this.gameOverScreen.style.display = 'flex';
-        }, 500); // 500ms delay for explosion animation
+        this._gameOverTimeout = setTimeout(() => {
+            this._gameOverTimeout = null;
+            if (this.state !== 'playing') {
+                this.state = 'gameover';
+                this.audioManager.play('gameover');
+                this.finalScoreElement.textContent = Math.floor(this.score);
+                this.gameOverScreen.style.display = 'flex';
+            }
+        }, 500);
     }
 
     /**
@@ -890,10 +920,21 @@ class Game {
                             // Damage is per bullet, so we calculate for 1 bullet consumed
                             const actualDamage = bulletGroup.getDamage(mostForwardEnemy, 1);
 
-                            // Store unit positions before damage for formation/swarm/splinter child enemies
+                            // Snapshot alive units before damage to find which ones actually die
+                            const isMultiUnit = (mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm' || (mostForwardEnemy.type === 'splinter' && mostForwardEnemy.isChild && mostForwardEnemy.units)) && mostForwardEnemy.units;
+                            let aliveBeforeDamage = null;
+                            if (isMultiUnit) {
+                                aliveBeforeDamage = new Set();
+                                for (let ui = 0; ui < mostForwardEnemy.units.length; ui++) {
+                                    if (mostForwardEnemy.units[ui].health > 0) aliveBeforeDamage.add(ui);
+                                }
+                            }
+
+                            const result = mostForwardEnemy.takeDamage(actualDamage);
+
+                            // Compute positions of actually destroyed units by comparing before/after
                             let destroyedUnitPositions = [];
-                            if ((mostForwardEnemy.type === 'formation' || mostForwardEnemy.type === 'swarm' || (mostForwardEnemy.type === 'splinter' && mostForwardEnemy.isChild && mostForwardEnemy.units)) && mostForwardEnemy.units) {
-                                // Pre-calculate formation dimensions if needed
+                            if (isMultiUnit && aliveBeforeDamage) {
                                 let startX, startY, colSpacing, rowSpacing;
                                 if (mostForwardEnemy.type === 'formation') {
                                     const totalWidth = (mostForwardEnemy.cols * mostForwardEnemy.enemyWidth) + ((mostForwardEnemy.cols - 1) * mostForwardEnemy.spacing);
@@ -903,26 +944,23 @@ class Game {
                                     colSpacing = mostForwardEnemy.enemyWidth + mostForwardEnemy.spacing;
                                     rowSpacing = mostForwardEnemy.enemyHeight + mostForwardEnemy.rowSpacing;
                                 }
-                                
-                                // Store positions of units that are about to be destroyed
-                                mostForwardEnemy.units.forEach(unit => {
-                                    if (unit.health > 0 && unit.health <= actualDamage) {
+                                for (const ui of aliveBeforeDamage) {
+                                    const unit = mostForwardEnemy.units[ui];
+                                    if (unit.health <= 0) {
                                         if (mostForwardEnemy.type === 'formation') {
                                             destroyedUnitPositions.push({
                                                 x: startX + (unit.col * colSpacing) + (mostForwardEnemy.enemyWidth / 2),
                                                 y: startY + (unit.row * rowSpacing) + (mostForwardEnemy.enemyHeight / 2)
                                             });
-                                        } else { // swarm or splinter child
+                                        } else {
                                             destroyedUnitPositions.push({
                                                 x: mostForwardEnemy.x + unit.offsetX,
                                                 y: mostForwardEnemy.y + unit.offsetY
                                             });
                                         }
                                     }
-                                });
+                                }
                             }
-
-                            const result = mostForwardEnemy.takeDamage(actualDamage);
                             const unitsKilled = result.unitsKilled || 0;
 
                             // Give score and experience for each unit killed (Formation/Swarm/Splinter Child)
@@ -1172,8 +1210,7 @@ class Game {
 
         // Calculate level based on score
         // Polynomial formula: A + B*n + C*n² + D*n³ + E*n⁴
-        // Where: A = 200, B = 100, C = 20, D = 1, E = 1
-        // requiredForLevel(n) = 200 + 100*n + 20*n² + 1*n³ + 1*n⁴
+        // requiredForLevel(n) = 200 + 120*n + 30*n² + 1*n³ + 0.1*n⁴
         while (true) {
             const A = 200;  // Constant term
             const B = 120;  // Linear coefficient

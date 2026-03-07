@@ -178,7 +178,7 @@ class PowerBoostPowerup extends Powerup {
 }
 
 /**
- * Alt Lane Powerup - Permanent upgrade: Increases lane switching speed, unlocks alt ship at level 3
+ * Alt Lane Powerup - Permanent upgrade: Increases lane switching speed, unlocks alt ship at level 2
  */
 class AltLanePowerup extends Powerup {
     constructor(x, y) {

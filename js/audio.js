@@ -1113,11 +1113,11 @@ class AudioManager {
         
         // Safely fade out with checks
         try {
-            if (battleLayer.bass && battleLayer.bass.gain && typeof battleLayer.bass.gain.linearRampToValueAtTime === 'function') {
-                battleLayer.bass.gain.linearRampToValueAtTime(0, now + fadeOutTime);
+            if (battleLayer.bass && battleLayer.bass.gain && battleLayer.bass.gain.gain) {
+                battleLayer.bass.gain.gain.linearRampToValueAtTime(0, now + fadeOutTime);
             }
-            if (battleLayer.rhythm && battleLayer.rhythm.gain && typeof battleLayer.rhythm.gain.linearRampToValueAtTime === 'function') {
-                battleLayer.rhythm.gain.linearRampToValueAtTime(0, now + fadeOutTime);
+            if (battleLayer.rhythm && battleLayer.rhythm.gain && battleLayer.rhythm.gain.gain) {
+                battleLayer.rhythm.gain.gain.linearRampToValueAtTime(0, now + fadeOutTime);
             }
         } catch (err) {
             console.debug('Error fading out battle layer:', err);
@@ -1217,8 +1217,8 @@ class AudioManager {
         
         // Safely fade out with checks
         try {
-            if (intenseLayer.high && intenseLayer.high.gain && typeof intenseLayer.high.gain.linearRampToValueAtTime === 'function') {
-                intenseLayer.high.gain.linearRampToValueAtTime(0, now + fadeOutTime);
+            if (intenseLayer.high && intenseLayer.high.gain && intenseLayer.high.gain.gain) {
+                intenseLayer.high.gain.gain.linearRampToValueAtTime(0, now + fadeOutTime);
             }
         } catch (err) {
             console.debug('Error fading out intense layer:', err);
@@ -1315,8 +1315,8 @@ class AudioManager {
         
         // Safely fade out with checks
         try {
-            if (extremeLayer.extreme && extremeLayer.extreme.gain && typeof extremeLayer.extreme.gain.linearRampToValueAtTime === 'function') {
-                extremeLayer.extreme.gain.linearRampToValueAtTime(0, now + fadeOutTime);
+            if (extremeLayer.extreme && extremeLayer.extreme.gain && extremeLayer.extreme.gain.gain) {
+                extremeLayer.extreme.gain.gain.linearRampToValueAtTime(0, now + fadeOutTime);
             }
         } catch (err) {
             console.debug('Error fading out extreme layer:', err);
@@ -1348,10 +1348,10 @@ class AudioManager {
         if (this.musicLayers.base) {
             try {
                 const baseVolume = 0.15 - (this.tension * 0.05);
-                if (this.musicLayers.base.melody && this.musicLayers.base.melody.gain && typeof this.musicLayers.base.melody.gain.setTargetAtTime === 'function') {
+                if (this.musicLayers.base.melody && this.musicLayers.base.melody.gain && this.musicLayers.base.melody.gain.gain) {
                     this.musicLayers.base.melody.gain.gain.setTargetAtTime(baseVolume, now, 0.1);
                 }
-                if (this.musicLayers.base.harmony && this.musicLayers.base.harmony.gain && typeof this.musicLayers.base.harmony.gain.setTargetAtTime === 'function') {
+                if (this.musicLayers.base.harmony && this.musicLayers.base.harmony.gain && this.musicLayers.base.harmony.gain.gain) {
                     this.musicLayers.base.harmony.gain.gain.setTargetAtTime(baseVolume * 0.67, now, 0.1);
                 }
             } catch (err) {
@@ -1363,10 +1363,10 @@ class AudioManager {
         if (this.musicLayers.battle) {
             try {
                 const battleVolume = (this.tension - 0.3) / 0.7 * 0.2; // Scale from 0.3 to 1.0
-                if (this.musicLayers.battle.bass && this.musicLayers.battle.bass.gain && typeof this.musicLayers.battle.bass.gain.setTargetAtTime === 'function') {
+                if (this.musicLayers.battle.bass && this.musicLayers.battle.bass.gain && this.musicLayers.battle.bass.gain.gain) {
                     this.musicLayers.battle.bass.gain.gain.setTargetAtTime(battleVolume, now, 0.1);
                 }
-                if (this.musicLayers.battle.rhythm && this.musicLayers.battle.rhythm.gain && typeof this.musicLayers.battle.rhythm.gain.setTargetAtTime === 'function') {
+                if (this.musicLayers.battle.rhythm && this.musicLayers.battle.rhythm.gain && this.musicLayers.battle.rhythm.gain.gain) {
                     this.musicLayers.battle.rhythm.gain.gain.setTargetAtTime(battleVolume * 0.67, now, 0.1);
                 }
             } catch (err) {
@@ -1378,7 +1378,7 @@ class AudioManager {
         if (this.musicLayers.intense) {
             try {
                 const intenseVolume = (this.tension - 0.6) / 0.4 * 0.15;
-                if (this.musicLayers.intense.high && this.musicLayers.intense.high.gain && typeof this.musicLayers.intense.high.gain.setTargetAtTime === 'function') {
+                if (this.musicLayers.intense.high && this.musicLayers.intense.high.gain && this.musicLayers.intense.high.gain.gain) {
                     this.musicLayers.intense.high.gain.gain.setTargetAtTime(intenseVolume, now, 0.1);
                 }
             } catch (err) {
@@ -1390,7 +1390,7 @@ class AudioManager {
         if (this.musicLayers.extreme) {
             try {
                 const extremeVolume = (this.tension - 0.8) / 0.2 * 0.12;
-                if (this.musicLayers.extreme.extreme && this.musicLayers.extreme.extreme.gain && typeof this.musicLayers.extreme.extreme.gain.setTargetAtTime === 'function') {
+                if (this.musicLayers.extreme.extreme && this.musicLayers.extreme.extreme.gain && this.musicLayers.extreme.extreme.gain.gain) {
                     this.musicLayers.extreme.extreme.gain.gain.setTargetAtTime(extremeVolume, now, 0.1);
                 }
             } catch (err) {

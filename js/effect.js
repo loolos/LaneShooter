@@ -433,7 +433,9 @@ class MultiExplosionEffect extends Effect {
         ctx.globalAlpha = alpha;
 
         this.explosions.forEach(explosion => {
-            const explosionProgress = Math.max(0, (this.life - explosion.delay) / (this.maxLife - explosion.delay));
+            const denom = this.maxLife - explosion.delay;
+            if (denom <= 0) return;
+            const explosionProgress = Math.max(0, (this.life - explosion.delay) / denom);
             if (explosionProgress <= 0 || explosionProgress >= 1) return;
 
             // Draw particles
