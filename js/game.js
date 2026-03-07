@@ -692,16 +692,25 @@ class Game {
         }
 
         if (this.laserLaneEffect) {
+            const fireStartTime = this.laserLaneEffect.startTime + this.laserLaneEffect.warmupDuration;
+            const fireEndTime = fireStartTime + this.laserLaneEffect.fireDuration;
+
+            if (now >= fireStartTime && this.laserLaneEffect.phase !== 'firing') {
+                this.laserLaneEffect.phase = 'firing';
+                this.laserLaneEffect.nextTickTime = fireStartTime;
+            }
+
             while (
                 this.laserLaneEffect.active &&
+                this.laserLaneEffect.phase === 'firing' &&
                 now >= this.laserLaneEffect.nextTickTime &&
-                now - this.laserLaneEffect.startTime < this.laserLaneEffect.duration
+                now < fireEndTime
             ) {
                 this.applyLaneLaserTick(this.laserLaneEffect);
                 this.laserLaneEffect.nextTickTime += this.laserLaneEffect.tickInterval;
             }
 
-            if (now - this.laserLaneEffect.startTime >= this.laserLaneEffect.duration) {
+            if (now >= fireEndTime) {
                 this.laserLaneEffect.active = false;
                 this.laserLaneEffect = null;
             }
@@ -724,10 +733,12 @@ class Game {
         this.laserLaneEffect = {
             laneIndex,
             startTime: now,
-            duration: randomInt(3000, 5000),
+            warmupDuration: 1000,
+            fireDuration: randomInt(3000, 5000),
             tickInterval: 500,
-            nextTickTime: now + 500,
+            nextTickTime: now + 1000,
             damagePercentPerTick: 0.05,
+            phase: 'warmup',
             active: true
         };
     }
@@ -1558,41 +1569,60 @@ class Game {
         const now = Date.now();
 
         if (this.laserLaneEffect) {
-            const elapsed = now - this.laserLaneEffect.startTime;
-            const progress = Math.max(0, Math.min(1, elapsed / this.laserLaneEffect.duration));
-            const pulse = Math.sin(now * 0.035) * 0.5 + 0.5;
-            const fadeOut = progress > 0.85 ? (1 - progress) / 0.15 : 1;
-            const alpha = (0.25 + pulse * 0.45) * fadeOut;
             const laneX = CONFIG.LANE_POSITIONS[this.laserLaneEffect.laneIndex];
             const beamWidth = CONFIG.LANE_WIDTH * 0.42;
+            const warmupDuration = this.laserLaneEffect.warmupDuration;
+            const fireDuration = this.laserLaneEffect.fireDuration;
+            const fireStartTime = this.laserLaneEffect.startTime + warmupDuration;
+            const isWarmup = now < fireStartTime;
+            const elapsed = now - this.laserLaneEffect.startTime;
 
             this.ctx.save();
-            this.ctx.globalAlpha = alpha;
-            const beamGradient = this.ctx.createLinearGradient(laneX - beamWidth / 2, 0, laneX + beamWidth / 2, 0);
-            beamGradient.addColorStop(0, 'rgba(255, 60, 80, 0.25)');
-            beamGradient.addColorStop(0.25, 'rgba(255, 120, 120, 0.85)');
-            beamGradient.addColorStop(0.5, 'rgba(255, 250, 220, 1)');
-            beamGradient.addColorStop(0.75, 'rgba(255, 120, 120, 0.85)');
-            beamGradient.addColorStop(1, 'rgba(255, 60, 80, 0.25)');
-            this.ctx.fillStyle = beamGradient;
-            this.ctx.shadowColor = '#ff4d4f';
-            this.ctx.shadowBlur = 36;
-            this.ctx.fillRect(
-                laneX - beamWidth / 2,
-                -10,
-                beamWidth,
-                this.player ? this.player.y + 20 : this.canvas.height
-            );
-
-            // Energy scanning lines to communicate periodic damage ticks.
-            this.ctx.globalAlpha = alpha * 0.65;
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-            const scanSpacing = 32;
-            const scroll = (now * 0.25) % scanSpacing;
             const beamHeight = this.player ? this.player.y + 20 : this.canvas.height;
-            for (let y = -10 + scroll; y < beamHeight; y += scanSpacing) {
-                this.ctx.fillRect(laneX - beamWidth / 2, y, beamWidth, 5);
+
+            if (isWarmup) {
+                const warmupProgress = Math.max(0, Math.min(1, elapsed / warmupDuration));
+                const chargePulse = Math.sin(now * 0.02) * 0.5 + 0.5;
+                const warmupAlpha = 0.1 + warmupProgress * 0.3;
+                const warmupWidth = beamWidth * (0.18 + warmupProgress * 0.24);
+
+                // Charging guide column that grows brighter during preheat.
+                this.ctx.globalAlpha = warmupAlpha;
+                const chargeGradient = this.ctx.createLinearGradient(laneX - warmupWidth / 2, 0, laneX + warmupWidth / 2, 0);
+                chargeGradient.addColorStop(0, 'rgba(255, 90, 110, 0.15)');
+                chargeGradient.addColorStop(0.5, 'rgba(255, 220, 190, 0.9)');
+                chargeGradient.addColorStop(1, 'rgba(255, 90, 110, 0.15)');
+                this.ctx.fillStyle = chargeGradient;
+                this.ctx.shadowColor = '#ff4d4f';
+                this.ctx.shadowBlur = 20;
+                this.ctx.fillRect(laneX - warmupWidth / 2, -10, warmupWidth, beamHeight);
+
+                // Charging ring indicates imminent firing without flashing the whole column.
+                this.ctx.globalAlpha = 0.35 + chargePulse * 0.25;
+                this.ctx.strokeStyle = '#ffd4c4';
+                this.ctx.lineWidth = 3;
+                this.ctx.beginPath();
+                this.ctx.arc(laneX, beamHeight - 40, 14 + warmupProgress * 24, 0, Math.PI * 2);
+                this.ctx.stroke();
+            } else {
+                const fireElapsed = now - fireStartTime;
+                const fireProgress = Math.max(0, Math.min(1, fireElapsed / fireDuration));
+                const beamAlpha = 0.95 * (1 - fireProgress);
+
+                // Stable light column that slowly dims out over time.
+                this.ctx.globalAlpha = beamAlpha;
+                const beamGradient = this.ctx.createLinearGradient(laneX - beamWidth / 2, 0, laneX + beamWidth / 2, 0);
+                beamGradient.addColorStop(0, 'rgba(255, 80, 100, 0.2)');
+                beamGradient.addColorStop(0.22, 'rgba(255, 160, 150, 0.8)');
+                beamGradient.addColorStop(0.5, 'rgba(255, 250, 220, 1)');
+                beamGradient.addColorStop(0.78, 'rgba(255, 160, 150, 0.8)');
+                beamGradient.addColorStop(1, 'rgba(255, 80, 100, 0.2)');
+                this.ctx.fillStyle = beamGradient;
+                this.ctx.shadowColor = '#ff6c6c';
+                this.ctx.shadowBlur = 30;
+                this.ctx.fillRect(laneX - beamWidth / 2, -10, beamWidth, beamHeight);
             }
+
             this.ctx.restore();
         }
 
