@@ -111,7 +111,7 @@ class Powerup {
      * Override in subclasses
      * @param {Player} player
      */
-    apply(player) {
+    apply(player, xpMultiplier = 1) {
         // Base implementation - override in subclasses
         console.log(`Powerup ${this.type} applied`);
     }
@@ -139,9 +139,10 @@ class RapidFirePowerup extends Powerup {
         this.color = '#ff6b6b';
     }
 
-    apply(player) {
-        // Add experience instead of direct upgrade (10 XP per powerup)
-        player.addExperience('rapidfire', this.experienceAmount);
+    apply(player, xpMultiplier = 1) {
+        const grantedAmount = Math.max(1, Math.floor(this.experienceAmount * xpMultiplier));
+        player.addExperience('rapidfire', grantedAmount);
+        return grantedAmount;
     }
 }
 
@@ -155,9 +156,10 @@ class MultiShotPowerup extends Powerup {
         this.color = '#4ecdc4';
     }
 
-    apply(player) {
-        // Add experience instead of direct upgrade (10 XP per powerup)
-        player.addExperience('multishot', this.experienceAmount);
+    apply(player, xpMultiplier = 1) {
+        const grantedAmount = Math.max(1, Math.floor(this.experienceAmount * xpMultiplier));
+        player.addExperience('multishot', grantedAmount);
+        return grantedAmount;
     }
 }
 
@@ -171,9 +173,10 @@ class PowerBoostPowerup extends Powerup {
         this.color = '#ffe66d';
     }
 
-    apply(player) {
-        // Add experience instead of direct upgrade (10 XP per powerup)
-        player.addExperience('powerboost', this.experienceAmount);
+    apply(player, xpMultiplier = 1) {
+        const grantedAmount = Math.max(1, Math.floor(this.experienceAmount * xpMultiplier));
+        player.addExperience('powerboost', grantedAmount);
+        return grantedAmount;
     }
 }
 
@@ -187,9 +190,10 @@ class AltLanePowerup extends Powerup {
         this.color = '#a29bfe';
     }
 
-    apply(player) {
-        // Add experience instead of direct upgrade (10 XP per powerup)
-        player.addExperience('altlane', this.experienceAmount);
+    apply(player, xpMultiplier = 1) {
+        const grantedAmount = Math.max(1, Math.floor(this.experienceAmount * xpMultiplier));
+        player.addExperience('altlane', grantedAmount);
+        return grantedAmount;
     }
 }
 
@@ -212,10 +216,11 @@ class ExperiencePowerup extends Powerup {
         this.color = upgradeColors[upgradeType] || '#ffd700';
     }
 
-    apply(player) {
+    apply(player, xpMultiplier = 1) {
+        const grantedAmount = Math.max(1, Math.floor(this.experienceAmount * xpMultiplier));
         // Add experience to the specified upgrade type
         const oldLevel = player.getUpgradeLevel(this.upgradeType);
-        player.addExperience(this.upgradeType, this.experienceAmount);
+        player.addExperience(this.upgradeType, grantedAmount);
         const newLevel = player.getUpgradeLevel(this.upgradeType);
         
         // Return whether level up occurred

@@ -23,6 +23,10 @@ class Game {
         this.effects = []; // Visual effects
         this.levelUpText = null; // Level up text display
         this.upgradeFlash = null; // Upgrade flash effect { type: string, startTime: number, duration: number }
+        this.gateSubtitle = null; // Gate subtitle display
+        this.experienceBoostUntil = 0; // Experience boost expiry timestamp
+        this.experienceMultiplier = 1; // Current experience multiplier
+        this.laserLaneEffect = null; // Laser visual effect { laneIndex, startTime, duration }
 
         // Systems
         this.audioManager = new AudioManager();
@@ -30,6 +34,7 @@ class Game {
         this.audioManager.initializeMusic();
         this.currentMusicLevel = 1;
         this.hasCarrier = false;
+        this.gateManager = typeof GateManager !== 'undefined' ? new GateManager() : null;
         
         // Performance testing system (only initialized if TestManager exists)
         this.testManager = null;
@@ -216,6 +221,10 @@ class Game {
         this.powerups = [];
         this.xpTexts = [];
         this.effects = [];
+        this.gateSubtitle = null;
+        this.experienceBoostUntil = 0;
+        this.experienceMultiplier = 1;
+        this.laserLaneEffect = null;
         this.currentMusicLevel = 1;
         this.hasCarrier = false;
         this.victoryShown = false;
@@ -232,6 +241,10 @@ class Game {
         // Create player in center of first lane
         const startX = CONFIG.LANE_POSITIONS[0];
         this.player = new Player(startX, CONFIG.PLAYER_Y);
+
+        if (this.gateManager) {
+            this.gateManager.reset(Date.now());
+        }
 
         // Hide menus
         this.menuScreen.style.display = 'none';
@@ -626,9 +639,152 @@ class Game {
     }
 
     /**
+     * Activate temporary experience boost from gate
+     * @param {number} durationMs - Boost duration in milliseconds
+     * @param {number} multiplier - XP multiplier
+     */
+    activateExperienceGateBoost(durationMs = 10000, multiplier = 2) {
+        const now = Date.now();
+        this.experienceBoostUntil = Math.max(this.experienceBoostUntil, now + durationMs);
+        this.experienceMultiplier = Math.max(1, multiplier);
+    }
+
+    /**
+     * Get current experience multiplier (returns 1 if inactive)
+     * @returns {number}
+     */
+    getCurrentExperienceMultiplier() {
+        return Date.now() < this.experienceBoostUntil ? this.experienceMultiplier : 1;
+    }
+
+    /**
+     * Apply current experience multiplier
+     * @param {number} baseAmount
+     * @returns {number}
+     */
+    applyExperienceMultiplier(baseAmount) {
+        return Math.max(1, Math.floor(baseAmount * this.getCurrentExperienceMultiplier()));
+    }
+
+    /**
+     * Trigger center subtitle for gate events
+     * @param {string} text
+     * @param {string} color
+     * @param {number} duration
+     */
+    triggerGateSubtitle(text, color = '#ffffff', duration = 1200) {
+        this.gateSubtitle = {
+            text,
+            color,
+            startTime: Date.now(),
+            duration
+        };
+    }
+
+    /**
+     * Keep gate-related temporary states up to date
+     * @param {number} now
+     */
+    updateGateEffectStates(now) {
+        if (this.gateSubtitle && now - this.gateSubtitle.startTime >= this.gateSubtitle.duration) {
+            this.gateSubtitle = null;
+        }
+
+        if (this.laserLaneEffect && now - this.laserLaneEffect.startTime >= this.laserLaneEffect.duration) {
+            this.laserLaneEffect = null;
+        }
+
+        if (this.experienceBoostUntil > 0 && now >= this.experienceBoostUntil) {
+            this.experienceBoostUntil = 0;
+            this.experienceMultiplier = 1;
+        }
+    }
+
+    /**
+     * Fire lane laser and damage all enemies ahead in lane
+     * @param {number} laneIndex
+     */
+    fireLaneLaser(laneIndex) {
+        if (!this.player) return;
+
+        const now = Date.now();
+        this.laserLaneEffect = {
+            laneIndex,
+            startTime: now,
+            duration: 450
+        };
+
+        let scoreGained = 0;
+        let destroyedEnemies = 0;
+
+        for (const enemy of this.enemies) {
+            if (!enemy.active || enemy.laneIndex !== laneIndex) continue;
+
+            const enemyBottomY = enemy.getBottomY ? enemy.getBottomY() : enemy.y + enemy.height / 2;
+            // Only hit enemies in front of player.
+            if (enemyBottomY > this.player.y + this.player.height / 2) continue;
+
+            const damagePercent = random(0.3, 0.6);
+            const laserDamage = Math.max(1, Math.floor(enemy.maxHealth * damagePercent));
+            const result = enemy.takeDamage(laserDamage);
+            const unitsKilled = result.unitsKilled || 0;
+            const isMultiUnitEnemy = enemy.type === 'formation' || enemy.type === 'swarm' || (enemy.type === 'splinter' && enemy.isChild && enemy.units);
+
+            if (unitsKilled > 0 && isMultiUnitEnemy) {
+                const unitScore = (enemy.healthPerUnit || 1) * CONFIG.SCORE_PER_ENEMY;
+                scoreGained += unitScore * unitsKilled;
+            }
+
+            if (result.destroyed) {
+                destroyedEnemies++;
+
+                if (!isMultiUnitEnemy) {
+                    scoreGained += enemy.scoreValue;
+                }
+
+                // Laser-killed enemies always drop experience.
+                this.gainExperienceFromEnemy(enemy, 0);
+
+                this.playEnemyDeathSound(enemy.type);
+                this.audioManager.queueKillAccent(enemy.type, 0.75);
+                this.effects.push(EffectManager.createEffect(enemy.x, enemy.y, enemy.type));
+
+                if (enemy.type === 'carrier') {
+                    this.audioManager.play('carrierVictory');
+                }
+
+                if (enemy.type === 'splinter' && result.spawnChildren) {
+                    const childConfig = result.childConfig || null;
+                    const child = EnemyFactory.createSplinterChild(
+                        enemy.x,
+                        enemy.y - 6,
+                        enemy.laneIndex,
+                        this.level,
+                        childConfig
+                    );
+                    this.enemies.push(child);
+                }
+            } else if (unitsKilled > 0) {
+                this.audioManager.play('hit');
+            }
+        }
+
+        if (destroyedEnemies === 0) {
+            this.audioManager.play('hit');
+        }
+
+        if (scoreGained > 0) {
+            this.score += scoreGained;
+            this.updateUI();
+        }
+    }
+
+    /**
      * Update game entities
      */
     update() {
+        const now = Date.now();
+
         // Always update effects even after game over to show death animation (optimized cleanup)
         let effectIndex = 0;
         while (effectIndex < this.effects.length) {
@@ -691,6 +847,8 @@ class Game {
             }
         }
 
+        this.updateGateEffectStates(now);
+
         // If victory state, pause all game logic but update victory animation
         if (this.state === 'victory') {
             this.updateVictoryAnimation();
@@ -701,7 +859,7 @@ class Game {
 
         // Update elapsed time
         if (this.gameStartTime > 0) {
-            this.elapsedTime = Math.floor((Date.now() - this.gameStartTime) / 1000); // Convert to seconds
+            this.elapsedTime = Math.floor((now - this.gameStartTime) / 1000); // Convert to seconds
         }
 
         // Update music based on game state
@@ -722,6 +880,10 @@ class Game {
         // Spawn enemies and powerups
         this.spawnEnemies();
         this.spawnPowerups();
+
+        if (this.gateManager) {
+            this.gateManager.update(this, now);
+        }
 
         // Update enemies (optimized: remove inactive ones during iteration)
         let enemyIndex = 0;
@@ -1159,11 +1321,13 @@ class Game {
                 if (powerup.type === 'experience') {
                     // Handle experience powerup
                     const oldLevel = this.player.getUpgradeLevel(powerup.upgradeType);
-                    const leveledUp = powerup.apply(this.player);
+                    const xpMultiplier = this.getCurrentExperienceMultiplier();
+                    const gainedExperience = Math.max(1, Math.floor(powerup.experienceAmount * xpMultiplier));
+                    const leveledUp = powerup.apply(this.player, xpMultiplier);
                     const newLevel = this.player.getUpgradeLevel(powerup.upgradeType);
 
                     // Show XP text for experience powerup
-                    this.xpTexts.push(new XPText(powerup.x, powerup.y, powerup.experienceAmount, powerup.upgradeType));
+                    this.xpTexts.push(new XPText(powerup.x, powerup.y, gainedExperience, powerup.upgradeType));
 
                     // If leveled up, play upgrade sound and trigger flash
                     if (leveledUp) {
@@ -1179,11 +1343,14 @@ class Game {
                 } else {
                     // Handle regular powerups
                     const oldLevel = this.player.getUpgradeLevel(powerup.type);
-                    powerup.apply(this.player);
+                    const xpMultiplier = this.getCurrentExperienceMultiplier();
+                    const baseExperience = powerup.experienceAmount || 5;
+                    const gainedExperience = Math.max(1, Math.floor(baseExperience * xpMultiplier));
+                    powerup.apply(this.player, xpMultiplier);
                     const newLevel = this.player.getUpgradeLevel(powerup.type);
 
                     // Show XP text for powerup
-                    this.xpTexts.push(new XPText(powerup.x, powerup.y, powerup.experienceAmount || 5, powerup.type));
+                    this.xpTexts.push(new XPText(powerup.x, powerup.y, gainedExperience, powerup.type));
 
                     // If leveled up, play upgrade sound and trigger flash
                     if (newLevel > oldLevel) {
@@ -1276,6 +1443,11 @@ class Game {
         // Draw lane dividers
         this.drawLaneDividers();
 
+        // Draw gates before entities for readability
+        if (this.gateManager) {
+            this.gateManager.draw(this.ctx);
+        }
+
         // Draw player
         if (this.player) {
             this.player.draw(this.ctx, this.upgradeFlash);
@@ -1322,6 +1494,8 @@ class Game {
             }
         });
 
+        this.drawGateOverlays();
+
         // Draw level up text
         if (this.levelUpText && this.levelUpText.active) {
             this.ctx.save();
@@ -1351,6 +1525,73 @@ class Game {
      */
     drawLaneDividers() {
         // Already drawn by player.drawLaneIndicators, but can add more visual elements here
+    }
+
+    /**
+     * Draw gate-related overlays: lane laser, experience flash, and subtitles
+     */
+    drawGateOverlays() {
+        const now = Date.now();
+
+        if (this.laserLaneEffect) {
+            const elapsed = now - this.laserLaneEffect.startTime;
+            const progress = Math.max(0, Math.min(1, elapsed / this.laserLaneEffect.duration));
+            const alpha = 0.7 * (1 - progress);
+            const laneX = CONFIG.LANE_POSITIONS[this.laserLaneEffect.laneIndex];
+            const beamWidth = CONFIG.LANE_WIDTH * 0.42;
+
+            this.ctx.save();
+            this.ctx.globalAlpha = alpha;
+            this.ctx.fillStyle = '#ff4d4f';
+            this.ctx.shadowColor = '#ff4d4f';
+            this.ctx.shadowBlur = 28;
+            this.ctx.fillRect(
+                laneX - beamWidth / 2,
+                -10,
+                beamWidth,
+                this.player ? this.player.y + 20 : this.canvas.height
+            );
+            this.ctx.restore();
+        }
+
+        if (this.getCurrentExperienceMultiplier() > 1) {
+            const pulse = Math.sin(now * 0.02) * 0.5 + 0.5;
+            const remainingMs = Math.max(0, this.experienceBoostUntil - now);
+            const seconds = (remainingMs / 1000).toFixed(1);
+
+            this.ctx.save();
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${0.04 + pulse * 0.09})`;
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+            this.ctx.fillStyle = '#4ecdc4';
+            this.ctx.shadowColor = '#4ecdc4';
+            this.ctx.shadowBlur = 12;
+            this.ctx.font = 'bold 26px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(`EXP x${this.experienceMultiplier} ${seconds}s`, this.canvas.width / 2, 48);
+            this.ctx.restore();
+        }
+
+        if (this.gateSubtitle) {
+            const elapsed = now - this.gateSubtitle.startTime;
+            const progress = Math.max(0, Math.min(1, elapsed / this.gateSubtitle.duration));
+            const alpha = 1 - progress;
+
+            this.ctx.save();
+            this.ctx.globalAlpha = alpha;
+            this.ctx.fillStyle = this.gateSubtitle.color;
+            this.ctx.strokeStyle = '#000000';
+            this.ctx.lineWidth = 4;
+            this.ctx.shadowColor = this.gateSubtitle.color;
+            this.ctx.shadowBlur = 20;
+            this.ctx.font = 'bold 52px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.strokeText(this.gateSubtitle.text, this.canvas.width / 2, this.canvas.height * 0.4);
+            this.ctx.fillText(this.gateSubtitle.text, this.canvas.width / 2, this.canvas.height * 0.4);
+            this.ctx.restore();
+        }
     }
 
     /**
@@ -1551,12 +1792,13 @@ class Game {
             this.powerups.push(experiencePowerup);
         } else {
             // Directly add experience for small XP amounts (like before)
+            const adjustedXpAmount = this.applyExperienceMultiplier(xpAmount);
             const oldLevel = this.player.getUpgradeLevel(randomType);
-            this.player.addExperience(randomType, xpAmount);
+            this.player.addExperience(randomType, adjustedXpAmount);
             const newLevel = this.player.getUpgradeLevel(randomType);
 
             // Show XP text at enemy position with offset
-            this.xpTexts.push(new XPText(enemy.x + offsetX, enemy.y - offsetY, xpAmount, randomType));
+            this.xpTexts.push(new XPText(enemy.x + offsetX, enemy.y - offsetY, adjustedXpAmount, randomType));
 
             // If leveled up, play upgrade sound and trigger flash
             if (newLevel > oldLevel) {
