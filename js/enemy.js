@@ -115,12 +115,13 @@ class BasicEnemy extends Enemy {
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.6; // Reduced to 60% of original
         this.speed = this.baseSpeed;
 
-        // Health increases with level: base 1, +1 every 2 levels
-        // Late game: additional health boost (after level 10, health increases faster)
-        // Calculate health with late game boost integrated into formula
-        this.maxHealth = level > 10
-            ? 3 + Math.floor((10 + (level - 10) * 1.2 - 1) / 2)
-            : 3 + Math.floor((level - 1) / 2);
+        // Polynomial health scaling to keep late-game pressure high.
+        // Formula: A + B*LVL + C*LVL^2 + D*LVL^3
+        const A = 3;
+        const B = 0.55;
+        const C = 1 / 85;
+        const D = 1 / 2800;
+        this.maxHealth = Math.max(3, Math.floor(A + B * level + C * level * level + D * level * level * level));
         this.health = this.maxHealth;
         this.initialHealth = 1; // Base health for color calculation
 
@@ -238,7 +239,7 @@ class BasicEnemy extends Enemy {
  * Fast Enemy - Moves faster but worth more points
  */
 class FastEnemy extends Enemy {
-    constructor(x, y, laneIndex) {
+    constructor(x, y, laneIndex, level = 1) {
         super(x, y, laneIndex);
         this.type = 'fast';
         this.color = '#ff6348';
@@ -247,6 +248,14 @@ class FastEnemy extends Enemy {
         this.scoreValue = CONFIG.SCORE_PER_ENEMY * 2;
         this.width = 35; // Slightly smaller, more agile
         this.height = 35;
+
+        // Fast enemies are no longer 1-hit forever; they scale into mid/late game.
+        const A = 2;
+        const B = 0.4;
+        const C = 1 / 180;
+        const D = 1 / 4200;
+        this.maxHealth = Math.max(2, Math.floor(A + B * level + C * level * level + D * level * level * level));
+        this.health = this.maxHealth;
     }
 
     /**
@@ -375,10 +384,10 @@ class SplinterEnemy extends Enemy {
                 unitsPerRowValue = Math.ceil(totalUnits / rowsValue);
             } else {
                 // Fallback: swarm-like unit health formula (total 1/3)
-                const A = 3;
-                const B = 5;
-                const C = 1 / 10;
-                const D = 1 / 40;
+                const A = 5;
+                const B = 6;
+                const C = 1 / 8;
+                const D = 1 / 32;
                 const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
                 const childTotalHealth = Math.max(1, Math.floor(totalHealth / 2));
                 const maxRows = Math.min(3, Math.floor(level / 10) + 1);
@@ -442,10 +451,10 @@ class SplinterEnemy extends Enemy {
             this._needsCacheUpdate = false;
         } else {
             // Tank-like health scaling
-            const A = 10;
-            const B = 4;
-            const C = 1 / 10;
-            const D = 1 / 50;
+            const A = 14;
+            const B = 5;
+            const C = 1 / 8;
+            const D = 1 / 35;
             const tankHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
             this.maxHealth = Math.max(1, Math.floor(tankHealth / 3));
             this.width = 44;
@@ -454,10 +463,10 @@ class SplinterEnemy extends Enemy {
             this.scoreValue = (CONFIG.SCORE_PER_ENEMY * (5 + (level - 1) * 1)) / 3;
 
             // Precompute split configuration using swarm-like algorithm (total 1/3)
-            const swarmA = 6;
-            const swarmB = 2;
-            const swarmC = 1 / 20;
-            const swarmD = 1 / 50;
+            const swarmA = 10;
+            const swarmB = 3;
+            const swarmC = 1 / 14;
+            const swarmD = 1 / 35;
             const swarmTotalHealth = Math.floor(swarmA + swarmB * level + swarmC * level * level + swarmD * level * level * level);
             const childTotalHealth = Math.max(1, Math.floor(swarmTotalHealth / 3));
             const maxRows = Math.min(3, Math.floor(level / 10) + 1);
@@ -776,12 +785,11 @@ class TankEnemy extends Enemy {
         this.baseSpeed = CONFIG.ENEMY_BASE_SPEED * 0.5 * 0.6; // Slower movement, reduced to 60% (0.3x total)
         this.speed = this.baseSpeed;
 
-        // Health increases with level: A + B*LVL + C*LVL^2
-        // Formula: 5 + 3*LVL + (1/4)*LVL^2
-        const A = 10;    // Constant term
-        const B = 5;    // Linear coefficient
-        const C = 1 / 10;  // Quadratic coefficient
-        const D = 1 / 50; // Cubic coefficient
+        // Health increases with level using stronger late-game polynomial scaling.
+        const A = 14;    // Constant term
+        const B = 6;    // Linear coefficient
+        const C = 1 / 7;  // Quadratic coefficient
+        const D = 1 / 35; // Cubic coefficient
         const maxHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
         this.maxHealth = Math.floor(maxHealth);
         this.health = this.maxHealth;
@@ -1039,10 +1047,10 @@ class FormationEnemy extends Enemy {
         // New generation system: fixed total health, random rows/cols
         // Total health increases with level: A + B*LVL + C*LVL^2 + D*LVL^3
         // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
-        const A = 6;    // Constant term
-        const B = 5;    // Linear coefficient
-        const C = 1 / 30;  // Quadratic coefficient
-        const D = 1 / 50; // Cubic coefficient
+        const A = 10;    // Constant term
+        const B = 6;    // Linear coefficient
+        const C = 1 / 20;  // Quadratic coefficient
+        const D = 1 / 35; // Cubic coefficient
         const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
 
         // Randomly determine rows and columns within reasonable ranges
@@ -1362,10 +1370,10 @@ class SwarmEnemy extends Enemy {
         // New generation system: fixed total health, random rows/cols
         // Total health increases with level: A + B*LVL + C*LVL^2 + D*LVL^3
         // Formula: 5 + 1*LVL + (1/4)*LVL^2 + (1/25)*LVL^3
-        const A = 10;    // Constant term
-        const B = 3;    // Linear coefficient
-        const C = 1 / 20;  // Quadratic coefficient
-        const D = 1 / 50; // Cubic coefficient
+        const A = 14;    // Constant term
+        const B = 4;    // Linear coefficient
+        const C = 1 / 14;  // Quadratic coefficient
+        const D = 1 / 35; // Cubic coefficient
         const totalHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
 
         // Randomly determine rows and columns within reasonable ranges
@@ -1732,13 +1740,11 @@ class CarrierEnemy extends Enemy {
         this.baseSpeed = 0; // Stationary - doesn't move
         this.speed = 0;
 
-        // Very high health that increases with level (4x original)
-        // Health formula: A + B*LVL (only appears at level 5+)
-        // Formula: -200 + 80*LVL (equivalent to 200 + (LVL - 5) * 80)
-        const A = 120;    // Constant term
-        const B = 40;    // Linear coefficient
-        const C = 1 / 3;  // Quadratic coefficient
-        const D = 1 / 10; // Cubic coefficient
+        // Very high health that increases aggressively in late game.
+        const A = 160;    // Constant term
+        const B = 48;    // Linear coefficient
+        const C = 2 / 5;  // Quadratic coefficient
+        const D = 1 / 8; // Cubic coefficient
         this.maxHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
 
         this.health = this.maxHealth;
@@ -1751,7 +1757,7 @@ class CarrierEnemy extends Enemy {
 
         // Spawning system
         this.spawnCooldown = 0;
-        this.spawnInterval = 270; // Spawn every 270 frames (4.5 seconds at 60fps, 1.5x the original interval)
+        this.spawnInterval = Math.max(150, 280 - level * 4); // Late game carriers spawn escorts faster
         this.spawnedEnemies = []; // Track spawned enemies for reference
 
         // Color - dark gray/blue for carrier
@@ -1972,7 +1978,7 @@ class EnemyFactory {
         }
 
         // Pass level to enemies that need it (all enemies now use level for health scaling)
-        if (type === 'tank' || type === 'swarm' || type === 'formation' || type === 'basic' || type === 'carrier' || type === 'splinter') {
+        if (type === 'tank' || type === 'swarm' || type === 'formation' || type === 'basic' || type === 'carrier' || type === 'splinter' || type === 'fast') {
             return new EnemyClass(x, y, laneIndex, level);
         }
 

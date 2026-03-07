@@ -690,8 +690,20 @@ class Game {
             this.gateSubtitle = null;
         }
 
-        if (this.laserLaneEffect && now - this.laserLaneEffect.startTime >= this.laserLaneEffect.duration) {
-            this.laserLaneEffect = null;
+        if (this.laserLaneEffect) {
+            while (
+                this.laserLaneEffect.active &&
+                now >= this.laserLaneEffect.nextTickTime &&
+                now - this.laserLaneEffect.startTime < this.laserLaneEffect.duration
+            ) {
+                this.applyLaneLaserTick(this.laserLaneEffect);
+                this.laserLaneEffect.nextTickTime += this.laserLaneEffect.tickInterval;
+            }
+
+            if (now - this.laserLaneEffect.startTime >= this.laserLaneEffect.duration) {
+                this.laserLaneEffect.active = false;
+                this.laserLaneEffect = null;
+            }
         }
 
         if (this.experienceBoostUntil > 0 && now >= this.experienceBoostUntil) {
@@ -711,21 +723,34 @@ class Game {
         this.laserLaneEffect = {
             laneIndex,
             startTime: now,
-            duration: 450
+            duration: randomInt(3000, 5000),
+            tickInterval: 500,
+            nextTickTime: now + 500,
+            damagePercentPerTick: 0.05,
+            active: true
         };
+    }
+
+    /**
+     * Apply one periodic laser damage tick
+     * @param {object} laserEffect
+     */
+    applyLaneLaserTick(laserEffect) {
+        if (!this.player || !laserEffect) return;
 
         let scoreGained = 0;
-        let destroyedEnemies = 0;
+        let hitSomething = false;
 
-        for (const enemy of this.enemies) {
-            if (!enemy.active || enemy.laneIndex !== laneIndex) continue;
+        const enemiesSnapshot = [...this.enemies];
+        for (const enemy of enemiesSnapshot) {
+            if (!enemy.active || enemy.laneIndex !== laserEffect.laneIndex) continue;
 
             const enemyBottomY = enemy.getBottomY ? enemy.getBottomY() : enemy.y + enemy.height / 2;
             // Only hit enemies in front of player.
             if (enemyBottomY > this.player.y + this.player.height / 2) continue;
 
-            const damagePercent = random(0.3, 0.6);
-            const laserDamage = Math.max(1, Math.floor(enemy.maxHealth * damagePercent));
+            hitSomething = true;
+            const laserDamage = Math.max(1, Math.floor(enemy.maxHealth * laserEffect.damagePercentPerTick));
             const result = enemy.takeDamage(laserDamage);
             const unitsKilled = result.unitsKilled || 0;
             const isMultiUnitEnemy = enemy.type === 'formation' || enemy.type === 'swarm' || (enemy.type === 'splinter' && enemy.isChild && enemy.units);
@@ -735,41 +760,39 @@ class Game {
                 scoreGained += unitScore * unitsKilled;
             }
 
-            if (result.destroyed) {
-                destroyedEnemies++;
+            if (!result.destroyed) {
+                continue;
+            }
 
-                if (!isMultiUnitEnemy) {
-                    scoreGained += enemy.scoreValue;
-                }
+            if (!isMultiUnitEnemy) {
+                scoreGained += enemy.scoreValue;
+            }
 
-                // Laser-killed enemies always drop experience.
-                this.gainExperienceFromEnemy(enemy, 0);
+            // Laser-killed enemies always drop experience.
+            this.gainExperienceFromEnemy(enemy, 0);
 
-                this.playEnemyDeathSound(enemy.type);
-                this.audioManager.queueKillAccent(enemy.type, 0.75);
-                this.effects.push(EffectManager.createEffect(enemy.x, enemy.y, enemy.type));
+            this.playEnemyDeathSound(enemy.type);
+            this.audioManager.queueKillAccent(enemy.type, 0.75);
+            this.effects.push(EffectManager.createEffect(enemy.x, enemy.y, enemy.type));
 
-                if (enemy.type === 'carrier') {
-                    this.audioManager.play('carrierVictory');
-                }
+            if (enemy.type === 'carrier') {
+                this.audioManager.play('carrierVictory');
+            }
 
-                if (enemy.type === 'splinter' && result.spawnChildren) {
-                    const childConfig = result.childConfig || null;
-                    const child = EnemyFactory.createSplinterChild(
-                        enemy.x,
-                        enemy.y - 6,
-                        enemy.laneIndex,
-                        this.level,
-                        childConfig
-                    );
-                    this.enemies.push(child);
-                }
-            } else if (unitsKilled > 0) {
-                this.audioManager.play('hit');
+            if (enemy.type === 'splinter' && result.spawnChildren) {
+                const childConfig = result.childConfig || null;
+                const child = EnemyFactory.createSplinterChild(
+                    enemy.x,
+                    enemy.y - 6,
+                    enemy.laneIndex,
+                    this.level,
+                    childConfig
+                );
+                this.enemies.push(child);
             }
         }
 
-        if (destroyedEnemies === 0) {
+        if (hitSomething) {
             this.audioManager.play('hit');
         }
 
@@ -1536,21 +1559,39 @@ class Game {
         if (this.laserLaneEffect) {
             const elapsed = now - this.laserLaneEffect.startTime;
             const progress = Math.max(0, Math.min(1, elapsed / this.laserLaneEffect.duration));
-            const alpha = 0.7 * (1 - progress);
+            const pulse = Math.sin(now * 0.035) * 0.5 + 0.5;
+            const fadeOut = progress > 0.85 ? (1 - progress) / 0.15 : 1;
+            const alpha = (0.25 + pulse * 0.45) * fadeOut;
             const laneX = CONFIG.LANE_POSITIONS[this.laserLaneEffect.laneIndex];
             const beamWidth = CONFIG.LANE_WIDTH * 0.42;
 
             this.ctx.save();
             this.ctx.globalAlpha = alpha;
-            this.ctx.fillStyle = '#ff4d4f';
+            const beamGradient = this.ctx.createLinearGradient(laneX - beamWidth / 2, 0, laneX + beamWidth / 2, 0);
+            beamGradient.addColorStop(0, 'rgba(255, 60, 80, 0.25)');
+            beamGradient.addColorStop(0.25, 'rgba(255, 120, 120, 0.85)');
+            beamGradient.addColorStop(0.5, 'rgba(255, 250, 220, 1)');
+            beamGradient.addColorStop(0.75, 'rgba(255, 120, 120, 0.85)');
+            beamGradient.addColorStop(1, 'rgba(255, 60, 80, 0.25)');
+            this.ctx.fillStyle = beamGradient;
             this.ctx.shadowColor = '#ff4d4f';
-            this.ctx.shadowBlur = 28;
+            this.ctx.shadowBlur = 36;
             this.ctx.fillRect(
                 laneX - beamWidth / 2,
                 -10,
                 beamWidth,
                 this.player ? this.player.y + 20 : this.canvas.height
             );
+
+            // Energy scanning lines to communicate periodic damage ticks.
+            this.ctx.globalAlpha = alpha * 0.65;
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            const scanSpacing = 32;
+            const scroll = (now * 0.25) % scanSpacing;
+            const beamHeight = this.player ? this.player.y + 20 : this.canvas.height;
+            for (let y = -10 + scroll; y < beamHeight; y += scanSpacing) {
+                this.ctx.fillRect(laneX - beamWidth / 2, y, beamWidth, 5);
+            }
             this.ctx.restore();
         }
 

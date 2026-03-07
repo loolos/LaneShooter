@@ -8,8 +8,8 @@ class BaseGate {
         this.laneIndex = laneIndex;
         this.x = CONFIG.LANE_POSITIONS[laneIndex];
         this.y = options.startY ?? -70;
-        this.width = options.width ?? Math.max(120, CONFIG.LANE_WIDTH * 0.55);
-        this.height = options.height ?? 46;
+        this.width = options.width ?? Math.max(140, CONFIG.LANE_WIDTH * 0.6);
+        this.height = options.height ?? 64;
         this.speed = options.speed ?? 2.6;
         this.color = options.color || '#ffffff';
         this.label = options.label || 'GATE';
@@ -26,30 +26,67 @@ class BaseGate {
     draw(ctx) {
         if (!this.active) return;
 
-        const left = this.x - this.width / 2;
-        const top = this.y - this.height / 2;
+        const halfW = this.width / 2;
+        const halfH = this.height / 2;
+        const coreRadius = Math.max(16, this.height * 0.28);
+        const pulse = Math.sin(Date.now() * 0.012) * 0.5 + 0.5;
 
         ctx.save();
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = 18;
+        ctx.shadowBlur = 20;
 
-        // Outer frame
+        // Side emitters (enhancement device body)
+        const emitterWidth = 22;
+        const emitterHeight = this.height * 0.88;
+        ctx.fillStyle = this.hexToRgba(this.color, 0.35 + pulse * 0.2);
         ctx.strokeStyle = this.color;
-        ctx.lineWidth = 4;
-        ctx.strokeRect(left, top, this.width, this.height);
+        ctx.lineWidth = 3;
+        if (typeof ctx.roundRect === 'function') {
+            ctx.beginPath();
+            ctx.roundRect(this.x - halfW, this.y - emitterHeight / 2, emitterWidth, emitterHeight, 6);
+            ctx.roundRect(this.x + halfW - emitterWidth, this.y - emitterHeight / 2, emitterWidth, emitterHeight, 6);
+            ctx.fill();
+            ctx.stroke();
+        } else {
+            ctx.fillRect(this.x - halfW, this.y - emitterHeight / 2, emitterWidth, emitterHeight);
+            ctx.fillRect(this.x + halfW - emitterWidth, this.y - emitterHeight / 2, emitterWidth, emitterHeight);
+            ctx.strokeRect(this.x - halfW, this.y - emitterHeight / 2, emitterWidth, emitterHeight);
+            ctx.strokeRect(this.x + halfW - emitterWidth, this.y - emitterHeight / 2, emitterWidth, emitterHeight);
+        }
 
-        // Inner glowing strip
-        const stripAlpha = 0.2 + (Math.sin(Date.now() * 0.01) * 0.5 + 0.5) * 0.35;
-        ctx.fillStyle = this.hexToRgba(this.color, stripAlpha);
-        ctx.fillRect(left + 6, top + 6, this.width - 12, this.height - 12);
+        // Energy bridge between emitters.
+        const bridgeHeight = Math.max(16, this.height * 0.3);
+        const bridgeGradient = ctx.createLinearGradient(this.x - halfW + emitterWidth, this.y, this.x + halfW - emitterWidth, this.y);
+        bridgeGradient.addColorStop(0, this.hexToRgba(this.color, 0.15));
+        bridgeGradient.addColorStop(0.5, this.hexToRgba(this.color, 0.7 + pulse * 0.2));
+        bridgeGradient.addColorStop(1, this.hexToRgba(this.color, 0.15));
+        ctx.fillStyle = bridgeGradient;
+        ctx.fillRect(this.x - halfW + emitterWidth, this.y - bridgeHeight / 2, this.width - emitterWidth * 2, bridgeHeight);
+
+        // Core energy ring.
+        ctx.strokeStyle = this.hexToRgba(this.color, 0.9);
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, coreRadius + pulse * 4, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Inner core.
+        const coreGradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, coreRadius);
+        coreGradient.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+        coreGradient.addColorStop(0.35, this.hexToRgba(this.color, 0.85));
+        coreGradient.addColorStop(1, this.hexToRgba(this.color, 0.1));
+        ctx.fillStyle = coreGradient;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, coreRadius, 0, Math.PI * 2);
+        ctx.fill();
 
         // Label
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 10;
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 18px Arial';
+        ctx.font = 'bold 16px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(this.label, this.x, this.y);
+        ctx.fillText(this.label, this.x, this.y + halfH * 0.95);
 
         ctx.restore();
     }
