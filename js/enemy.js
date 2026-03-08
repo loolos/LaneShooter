@@ -1998,13 +1998,13 @@ class EnemyFactory {
         const isEarlyGame = level <= 3;
         const weights = {
             // Early game rebalanced for visible variety while keeping basic dominant.
-            'basic': isEarlyGame ? Math.max(38, 50 - (level - 1) * 6) : 50,
-            'fast': isEarlyGame ? 24 + (level - 1) * 4 : 15 + (level - 1) * 4,
-            'splinter': isEarlyGame ? (level >= 2 ? 8 + (level - 2) * 3 : 0) : 10 + (level - 1) * 2,
-            'tank': isEarlyGame ? (level >= 2 ? 6 + (level - 2) * 3 : 0) : 10 + (level - 1) * 3,
-            'swarm': isEarlyGame ? (level >= 3 ? 5 : 0) : 12 + (level - 1) * 2,
-            'formation': isEarlyGame ? (level >= 3 ? 5 : 0) : 13 + (level - 1) * 2,
-            'carrier': (!excludeCarrier && level >= 5) ? 5 + (level - 5) * 2 : 0
+            'basic': isEarlyGame ? 15: 8,
+            'fast': isEarlyGame ?  15: 8,
+            'splinter': isEarlyGame ?  2: 5,
+            'tank': isEarlyGame ? 2: 5,
+            'swarm': isEarlyGame ?  2: 5,
+            'formation': isEarlyGame ? 2: 5,
+            'carrier': (!excludeCarrier && level >= 5) ? 1 : 0
         };
 
         // Calculate total weight
