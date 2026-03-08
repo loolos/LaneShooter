@@ -30,6 +30,51 @@ A professional web-based lane shooter game where enemies descend from above and 
 - Collect power-ups for **permanent upgrades** that stack and level up
 - Game difficulty increases with each level
 - **Swarm Enemies**: Visual units decrease as you shoot them
+- **Anti-empty-screen safeguard**: while the game is in `playing` state, if no active enemies remain for 500ms, the game force-spawns one random enemy to keep combat continuous
+
+## Enemy Spawn Workflow (Developer Notes)
+
+This section documents the runtime spawn flow in `js/game.js` and `js/enemy.js`.
+
+### Per-frame flow (`Game.update`)
+
+1. `spawnEnemies()` runs first (random spawn logic + carrier checks)
+2. Existing enemies are updated/cleaned up
+3. `ensureEnemyPresence(now)` runs to prevent prolonged empty screens
+
+Code paths:
+- `js/game.js` → `spawnEnemies()`
+- `js/game.js` → `ensureEnemyPresence(now)`
+- `js/enemy.js` → `EnemyFactory.createRandom(...)`
+
+### Spawn constraints and formulas
+
+- **Active enemy cap**: `spawnEnemies()` stops random spawning when active enemies reach **50**
+- **Base spawn rate**: starts from `CONFIG.ENEMY_SPAWN_RATE` and is scaled by:
+  - level growth factor: `min(1 + sqrt(level - 1) * 0.1, 2)`
+  - early-level nerf (levels 1-3): `0.78`, `0.86`, `0.94`
+- **Carrier lane rule**: random lane spawns pass an `excludeCarrier` flag when that lane already has an active carrier
+- **Forced spawn fallback**: when no active enemies exist for `>= 500ms`, one enemy is spawned at `y = -40` in a random lane
+
+### Why this fallback exists
+
+At low probability rolls or after fast cleanups, players could briefly see no enemies on screen.  
+`ensureEnemyPresence(now)` guarantees combat resumes quickly without waiting indefinitely for probability-based spawning.
+
+## Troubleshooting Spawn Behavior
+
+### "I still see short moments with no enemies"
+
+Expected: the safeguard triggers after a **500ms** empty window, not instantly.
+
+### "No enemies spawn at all"
+
+Check in order:
+
+1. Game state is actually `playing` (spawn/update logic is skipped outside `playing`)
+2. `Game.update()` is running each frame from the main loop
+3. You did not accidentally remove `this.ensureEnemyPresence(now)` from `update()`
+4. `CONFIG.LANE_COUNT` and `CONFIG.LANE_POSITIONS` are valid (spawn needs a valid lane index and X position)
 
 ## Architecture
 
