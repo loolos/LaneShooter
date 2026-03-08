@@ -30,6 +30,19 @@ A professional web-based lane shooter game where enemies descend from above and 
 - Collect power-ups for **permanent upgrades** that stack and level up
 - Game difficulty increases with each level
 - **Swarm Enemies**: Visual units decrease as you shoot them
+- Enemies that have passed the player are skipped by bullet/player collision checks, but stay visible until they move off-screen
+
+### Enemy Combat Lifecycle (Game.update)
+
+This flow keeps collision behavior fair while reducing unnecessary checks:
+
+1. Enemy movement updates first (`enemy.update()`), including off-screen deactivation.
+2. `updateEnemyCombatState()` marks enemies that passed the player:
+   - `ignoreBulletCollision = true` once enemy top is below player bottom.
+   - `ignorePlayerCollision = true` after an additional 18px grace distance.
+3. Bullet-group collision only targets enemies not marked `ignoreBulletCollision`.
+4. Player collision only checks enemies not marked `ignorePlayerCollision`.
+5. Marked enemies can still be rendered and damaged by level-up shockwave effects until they leave the screen.
 
 ## Architecture
 

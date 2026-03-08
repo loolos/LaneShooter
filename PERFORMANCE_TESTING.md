@@ -82,6 +82,9 @@ testManager.stopTest();
 - **Powerups**: 活跃道具数量
 - **XP Texts**: 活跃经验文本数量
 
+说明：
+- **Enemies** 计数包含“已越过玩家但仍在屏幕内”的敌人。这类敌人会被跳过子弹/玩家碰撞检测，但会继续渲染，并在离屏后自动清理。
+
 ### 性能警告
 当帧时间超过阈值时记录警告：
 - **警告阈值**: 33ms (30 FPS)
@@ -218,4 +221,22 @@ testManyCarriers(count = 5) {
 - 关闭其他标签页和应用以释放资源
 - 等待几秒钟让数据稳定
 - 检查是否有后台任务影响性能
+
+### 子弹穿过已越过玩家的敌人（预期行为）
+- **现象**: 敌人已经出现在玩家下方，仍可见，但子弹不再命中。
+- **原因**: `Game.updateEnemyCombatState()` 会将越过玩家的敌人标记为 `ignoreBulletCollision`（更远后还会标记 `ignorePlayerCollision`），以避免不必要的碰撞计算和不公平碰撞。
+- **后续行为**:
+  - 该敌人仍会继续渲染并向下移动；
+  - 仍可能被升级冲击波（shockwave）命中；
+  - 离开屏幕后会由 `enemy.update()` 设为不活跃并移除。
+- **控制台验证**:
+  ```javascript
+  testManager.game.enemies
+    .filter(e => e.active)
+    .map(e => ({
+      y: Math.round(e.y),
+      ignoreBulletCollision: !!e.ignoreBulletCollision,
+      ignorePlayerCollision: !!e.ignorePlayerCollision
+    }));
+  ```
 
