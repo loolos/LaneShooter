@@ -27,6 +27,7 @@ class Game {
         this.experienceBoostUntil = 0; // Experience boost expiry timestamp
         this.experienceMultiplier = 1; // Current experience multiplier
         this.laserLaneEffect = null; // Laser visual effect { laneIndex, startTime, duration }
+        this.emptyScreenSince = null; // Timestamp when all lanes became empty
 
         // Systems
         this.audioManager = new AudioManager();
@@ -225,6 +226,7 @@ class Game {
         this.experienceBoostUntil = 0;
         this.experienceMultiplier = 1;
         this.laserLaneEffect = null;
+        this.emptyScreenSince = null;
         this.currentMusicLevel = 1;
         this.hasCarrier = false;
         this.victoryShown = false;
@@ -623,6 +625,35 @@ class Game {
     }
 
     /**
+     * Ensure gameplay never stays empty for too long.
+     * If all lanes are empty for 0.5s, force-spawn one random enemy.
+     * @param {number} now
+     */
+    ensureEnemyPresence(now) {
+        const hasActiveEnemy = this.enemies.some(enemy => enemy.active);
+
+        if (hasActiveEnemy) {
+            this.emptyScreenSince = null;
+            return;
+        }
+
+        if (this.emptyScreenSince === null) {
+            this.emptyScreenSince = now;
+            return;
+        }
+
+        if (now - this.emptyScreenSince < 500) {
+            return;
+        }
+
+        const laneIndex = randomInt(0, CONFIG.LANE_COUNT - 1);
+        const x = CONFIG.LANE_POSITIONS[laneIndex];
+        const forcedEnemy = EnemyFactory.createRandom(x, -40, laneIndex, this.level, false);
+        this.enemies.push(forcedEnemy);
+        this.emptyScreenSince = null;
+    }
+
+    /**
      * Spawn powerups
      * Random powerups (not from enemy drops) stop spawning after level 5
      */
@@ -983,6 +1014,9 @@ class Game {
                 this.audioManager.startBackgroundMusic(this.level);
             }
         }
+
+        // Prevent full empty-screen downtime during gameplay.
+        this.ensureEnemyPresence(now);
 
         // Update powerups (optimized: remove inactive ones during iteration)
         let powerupIndex = 0;
@@ -2258,4 +2292,3 @@ class Game {
         return { available: false };
     }
 }
-
