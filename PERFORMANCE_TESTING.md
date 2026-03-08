@@ -52,6 +52,18 @@ testManager.runTest('manyEffects', 100);
 testManager.runTest('combined');
 ```
 
+#### 测试场景 6: 音频可靠性测试
+```javascript
+// 运行完整音频可靠性测试套件（6项）
+testManager.runTest('audio');
+
+// 等价调用（直接调用音频测试器）
+audioTests.runAll();
+
+// 只跑单项测试
+audioTests.run('game_start_unlocks_before_music');
+```
+
 ### 3. 停止测试
 
 ```javascript
@@ -138,6 +150,22 @@ testManager.stopTest();
   4. 生成50个特效
 - **影响**: 模拟游戏中最严重的性能压力情况
 
+### 6. audio (音频可靠性测试)
+- **目的**: 验证短音效在浏览器自动播放限制下的稳定性，重点覆盖 SFX 排队、解锁、刷新和调用顺序。
+- **入口**:
+  - `testManager.runTest('audio')`
+  - `audioTests.runAll()`
+- **单项测试**:
+  1. `queue_when_playback_blocked`: 播放被阻塞时是否进入待播放队列。
+  2. `flush_drops_expired_entries`: 刷新队列时是否丢弃过期音效（>1.5s）。
+  3. `unlock_resumes_contexts_and_flushes`: `unlockAudio()` 是否恢复 SFX/Music context 并触发队列刷新。
+  4. `play_routes_buffer_sound`: `AudioManager.play()` 对 buffer-backed 音效是否正确走 `playBufferedSound()`。
+  5. `set_volume_updates_html_audio_only`: 主音量更新是否只影响 `HTMLAudio`，不覆盖 buffer-backed 对象字段。
+  6. `game_start_unlocks_before_music`: `Game.start()` 是否先解锁音频再启动背景音乐。
+- **约束**:
+  - 音频测试会临时替换 `audioManager` 的部分方法进行断言，结束后自动恢复。
+  - 建议在浏览器前台标签页执行，避免后台节流影响时间相关断言。
+
 ## 性能优化建议
 
 基于测试结果，可以采取以下优化措施：
@@ -184,6 +212,19 @@ if (testManager.tests.active) {
 testManager.tests.update();
 ```
 
+### 音频测试工具
+```javascript
+// 跑完整音频套件并拿到汇总
+const summary = await audioTests.runAll();
+console.log(summary); // { total, passed, failed, results }
+
+// 查看最近一次汇总
+console.log(audioTests.getSummary());
+
+// 只跑某一项
+await audioTests.run('queue_when_playback_blocked');
+```
+
 ### 自定义测试场景
 可以扩展 `PerformanceTest` 类添加自定义测试场景：
 
@@ -210,7 +251,8 @@ testManyCarriers(count = 5) {
 - 确认 `js/test.js` 已正确加载
 
 ### 测试无法运行
-- 确保游戏处于 'playing' 状态
+- 对性能场景（manyEnemies/manyUnits/manyBullets/manyEffects/combined），确保游戏处于 `playing` 状态
+- `audio` 测试不要求预先进入 `playing`，但需要 `game.audioManager` 可用
 - 检查控制台是否有错误信息
 - 确认测试参数正确
 
@@ -218,4 +260,11 @@ testManyCarriers(count = 5) {
 - 关闭其他标签页和应用以释放资源
 - 等待几秒钟让数据稳定
 - 检查是否有后台任务影响性能
+
+### 音频测试失败或无声
+- 先点击页面任意位置或按任意键，触发浏览器音频解锁，再重跑 `audioTests.runAll()`
+- 确认控制台中 `Audio Reliability Tests` 分组日志是否完整输出
+- 若仅 `game_start_unlocks_before_music` 失败，检查 `Game.start()` 中调用顺序是否仍为：
+  1. `audioManager.unlockAudio()`
+  2. `audioManager.startBackgroundMusic(...)`
 

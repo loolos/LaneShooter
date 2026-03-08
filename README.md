@@ -106,6 +106,27 @@ audioManager.registerSound('soundname', 'path/to/sound.mp3');
 audioManager.play('soundname');
 ```
 
+### Audio Reliability Notes
+
+The audio stack now includes explicit browser autoplay mitigation for short SFX
+(`levelup`, `laserWarmup`, `laserFire`, etc.):
+
+- A shared SFX `AudioContext` is created via `getSfxContext()`.
+- `unlockAudio()` resumes both SFX and music contexts, then flushes queued SFX.
+- Short buffer-backed SFX use `playBufferedSound(buffer, volume)`:
+  - If playback is currently blocked, the sound is queued.
+  - Queue is capped at 24 entries (oldest entries are dropped first).
+  - Queued entries older than 1.5 seconds are discarded during flush.
+- At game start, `Game.start()` calls `audioManager.unlockAudio()` before
+  `startBackgroundMusic(...)` so first-use SFX are less likely to be missed.
+
+For gate laser flow in `Game`:
+- `fireLaneLaser(...)` triggers `laserWarmup` immediately.
+- After warmup ends, lane laser enters firing phase and plays `laserFire`.
+
+In-browser regression coverage for this behavior is implemented in
+`js/test.js` (`AudioTestSuite`), runnable via browser console.
+
 ## File Structure
 
 ```
