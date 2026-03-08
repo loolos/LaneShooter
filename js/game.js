@@ -238,6 +238,7 @@ class Game {
         this.carrierSpawnedAtLevels = new Set();
 
         // Start background music
+        this.audioManager.unlockAudio();
         this.audioManager.startBackgroundMusic(this.level);
 
         // Create player in center of first lane
