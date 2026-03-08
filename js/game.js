@@ -89,6 +89,36 @@ class Game {
     }
 
     /**
+     * Mark enemies that have already passed the player so we can skip unnecessary combat checks.
+     * These enemies still move/render, can still be hit by level-up shockwaves, and are only
+     * fully removed once they leave the screen (enemy.update sets active=false).
+     */
+    updateEnemyCombatState() {
+        if (!this.player) return;
+
+        const playerBounds = this.player.getBounds();
+        const playerBottomY = playerBounds.y + playerBounds.height;
+        const playerCollisionGraceDistance = 18;
+
+        for (const enemy of this.enemies) {
+            if (!enemy || !enemy.active) continue;
+
+            const enemyBounds = enemy.getBounds();
+            const enemyTopY = enemyBounds.y;
+
+            // Once enemy body is fully below player's bottom, bullets should no longer target it.
+            if (enemyTopY > playerBottomY) {
+                enemy.ignoreBulletCollision = true;
+            }
+
+            // If enemy has moved a bit farther past the player, stop player collision checks too.
+            if (enemyTopY > playerBottomY + playerCollisionGraceDistance) {
+                enemy.ignorePlayerCollision = true;
+            }
+        }
+    }
+
+    /**
      * Setup canvas size (responsive for mobile)
      */
     setupCanvas() {
@@ -1002,6 +1032,10 @@ class Game {
             enemyIndex++;
         }
 
+        // Enemies that have already gone past the player should no longer participate in
+        // bullet/player collision calculations, but still remain active for rendering/shockwave.
+        this.updateEnemyCombatState();
+
         // Check carrier status again after removing inactive enemies
         // This ensures music stops immediately when carrier is destroyed
         const hasCarrierAfterUpdate = this.enemies.some(e => e.type === 'carrier' && e.active);
@@ -1069,7 +1103,7 @@ class Game {
             }
             const activeEnemies = [];
             for (const e of this.enemies) {
-                if (e.active) activeEnemies.push(e);
+                if (e.active && !e.ignoreBulletCollision) activeEnemies.push(e);
             }
             
             // Safety check: prevent excessive entity counts
@@ -1326,7 +1360,7 @@ class Game {
 
         // Check player-enemy collisions (reuse active list where possible)
         for (const enemy of this.enemies) {
-            if (!enemy.active) continue;
+            if (!enemy.active || enemy.ignorePlayerCollision) continue;
             // For formation, swarm, and splinter child enemies, only check collision with actual units
             // (especially bottom row units that can actually hit the player)
             if (enemy.type === 'formation' || enemy.type === 'swarm' || (enemy.type === 'splinter' && enemy.isChild && enemy.units)) {
