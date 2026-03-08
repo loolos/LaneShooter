@@ -2,6 +2,7 @@
  * Audio Manager - Handles all game sounds
  * Designed for easy extension with new sound effects
  */
+
 class AudioManager {
     constructor() {
         this.sounds = {};
@@ -26,6 +27,94 @@ class AudioManager {
         this.beatSyncInterval = null; // Interval ID for beat sync
         this.patternIntervals = {}; // Store all pattern intervals for cleanup
         this.lastLayerUpdate = 0; // Timestamp of last layer update (for debouncing)
+        this.sfxContext = null; // Shared context for all SFX buffers
+        this.pendingSfxPlays = []; // Queue short SFX while context is locked
+        this.maxPendingSfxPlays = 24;
+        this.unlockListenersInstalled = false;
+        this.installUnlockListeners();
+    }
+
+    getSfxContext() {
+        if (this.sfxContext) {
+            return this.sfxContext;
+        }
+        try {
+            this.sfxContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (err) {
+            console.debug('SFX context initialization failed:', err);
+            this.sfxContext = null;
+        }
+        return this.sfxContext;
+    }
+
+    installUnlockListeners() {
+        if (this.unlockListenersInstalled || typeof window === 'undefined') return;
+        const unlockHandler = () => {
+            this.unlockAudio();
+        };
+        ['pointerdown', 'touchstart', 'mousedown', 'keydown'].forEach(eventName => {
+            window.addEventListener(eventName, unlockHandler, { passive: true });
+        });
+        this.unlockListenersInstalled = true;
+    }
+
+    unlockAudio() {
+        const jobs = [];
+        const sfxContext = this.getSfxContext();
+        if (sfxContext && sfxContext.state !== 'running') {
+            jobs.push(sfxContext.resume().catch(() => null));
+        }
+        if (this.musicContext && this.musicContext.state !== 'running') {
+            jobs.push(this.musicContext.resume().catch(() => null));
+        }
+        if (!jobs.length) {
+            this.flushPendingSfxPlays();
+            return;
+        }
+        Promise.all(jobs).then(() => this.flushPendingSfxPlays());
+    }
+
+    startBufferedPlayback(buffer, volume = null) {
+        const ctx = this.getSfxContext();
+        if (!ctx || ctx.state !== 'running') return false;
+        try {
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            const gainNode = ctx.createGain();
+            gainNode.gain.value = clamp(volume !== null ? volume : this.volume, 0, 1);
+            source.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            source.start(ctx.currentTime + 0.001);
+            return true;
+        } catch (err) {
+            console.debug('Buffered playback failed:', err);
+            return false;
+        }
+    }
+
+    flushPendingSfxPlays() {
+        const ctx = this.getSfxContext();
+        if (!ctx || ctx.state !== 'running' || !this.pendingSfxPlays.length) return;
+        const cutoffTime = Date.now() - 1500;
+        const pending = this.pendingSfxPlays.splice(0, this.pendingSfxPlays.length);
+        pending.forEach(item => {
+            if (item.queuedAt >= cutoffTime) {
+                this.startBufferedPlayback(item.buffer, item.volume);
+            }
+        });
+    }
+
+    playBufferedSound(buffer, volume = null) {
+        if (this.startBufferedPlayback(buffer, volume)) return;
+        if (this.pendingSfxPlays.length >= this.maxPendingSfxPlays) {
+            this.pendingSfxPlays.shift();
+        }
+        this.pendingSfxPlays.push({
+            buffer,
+            volume,
+            queuedAt: Date.now()
+        });
+        this.unlockAudio();
     }
 
     /**
@@ -60,7 +149,7 @@ class AudioManager {
 
         // Handle Web Audio API generated sounds
         if (sound.play && typeof sound.play === 'function' && sound.buffer) {
-            sound.play();
+            this.playBufferedSound(sound.buffer, volume);
             return;
         }
 
@@ -71,6 +160,7 @@ class AudioManager {
         }
         audioClone.play().catch(err => {
             // Silently handle autoplay restrictions
+            this.unlockAudio();
             console.debug('Audio play failed:', err);
         });
     }
@@ -94,7 +184,9 @@ class AudioManager {
     setVolume(volume) {
         this.volume = clamp(volume, 0, 1);
         Object.values(this.sounds).forEach(sound => {
-            sound.volume = this.volume;
+            if (sound instanceof Audio) {
+                sound.volume = this.volume;
+            }
         });
     }
 
@@ -151,7 +243,7 @@ class AudioManager {
      * Laser gate warmup SFX: rising charged hum
      */
     createLaserWarmupSound(duration = 1.0) {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = this.getSfxContext();
         const sampleRate = audioContext.sampleRate;
         const frameCount = sampleRate * duration;
         const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
@@ -193,7 +285,7 @@ class AudioManager {
      * Laser gate fire SFX: bright impact burst with short tail
      */
     createLaserFireSound(duration = 0.45) {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = this.getSfxContext();
         const sampleRate = audioContext.sampleRate;
         const frameCount = sampleRate * duration;
         const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
@@ -237,7 +329,7 @@ class AudioManager {
      */
     createToneSound(name, frequency, duration) {
         // Create audio context
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = this.getSfxContext();
         
         // Create a simple audio buffer
         const sampleRate = audioContext.sampleRate;
@@ -315,7 +407,7 @@ class AudioManager {
      * @param {number} duration - Duration in seconds (7 notes * 0.2s = 1.4s)
      */
     createLevelUpSound(duration = 1.2) {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = this.getSfxContext();
         const sampleRate = audioContext.sampleRate;
         const frameCount = sampleRate * duration;
         const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
@@ -412,7 +504,7 @@ class AudioManager {
      * @param {number} duration - Duration in seconds (not used directly, but kept for compatibility)
      */
     createUpgradeSound(name, baseFrequency, duration) {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = this.getSfxContext();
         const sampleRate = audioContext.sampleRate;
         
         // Two notes, each 0.08 seconds, total 0.16 seconds
@@ -516,7 +608,7 @@ class AudioManager {
      * @param {number} duration - Duration in seconds
      */
     createEnemyDeathSound(name, frequency, duration) {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = this.getSfxContext();
         const sampleRate = audioContext.sampleRate;
         const frameCount = sampleRate * duration;
         const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
@@ -622,7 +714,7 @@ class AudioManager {
      * A longer, more epic sound with multiple phases
      */
     createCarrierVictorySound() {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = this.getSfxContext();
         const sampleRate = audioContext.sampleRate;
         const duration = 2.0; // 2 seconds for epic victory sound
         const frameCount = sampleRate * duration;
@@ -717,7 +809,7 @@ class AudioManager {
      * Create dynamic shoot sound that adjusts pitch based on fire rate
      */
     createDynamicShootSound() {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = this.getSfxContext();
         
         const soundObj = {
             audioContext: audioContext,

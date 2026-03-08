@@ -490,6 +490,337 @@ class PerformanceTest {
 }
 
 /**
+ * Audio reliability test suite
+ * Focuses on queue/flush/unlock logic for intermittent SFX issues
+ */
+class AudioTestSuite {
+    constructor(game) {
+        this.game = game;
+        this.running = false;
+        this.results = [];
+    }
+
+    async runAll() {
+        if (this.running) {
+            console.warn('Audio tests are already running');
+            return this.getSummary();
+        }
+        if (!this.game || !this.game.audioManager) {
+            console.warn('Game audio manager is not available');
+            return this.getSummary();
+        }
+
+        this.running = true;
+        this.results = [];
+
+        console.group('Audio Reliability Tests');
+
+        const tests = [
+            ['queue_when_playback_blocked', () => this.testQueueWhenPlaybackBlocked()],
+            ['flush_drops_expired_entries', () => this.testFlushDropsExpiredEntries()],
+            ['unlock_resumes_contexts_and_flushes', () => this.testUnlockResumesAndFlushes()],
+            ['play_routes_buffer_sound', () => this.testPlayRoutesBufferSound()],
+            ['set_volume_updates_html_audio_only', () => this.testSetVolumeUpdatesHtmlAudioOnly()],
+            ['game_start_unlocks_before_music', () => this.testGameStartUnlocksBeforeMusic()]
+        ];
+
+        for (const [name, fn] of tests) {
+            await this.runSingle(name, fn);
+        }
+
+        console.groupEnd();
+        this.running = false;
+        this.printSummary();
+        return this.getSummary();
+    }
+
+    async run(testName) {
+        const testMap = {
+            'queue_when_playback_blocked': () => this.testQueueWhenPlaybackBlocked(),
+            'flush_drops_expired_entries': () => this.testFlushDropsExpiredEntries(),
+            'unlock_resumes_contexts_and_flushes': () => this.testUnlockResumesAndFlushes(),
+            'play_routes_buffer_sound': () => this.testPlayRoutesBufferSound(),
+            'set_volume_updates_html_audio_only': () => this.testSetVolumeUpdatesHtmlAudioOnly(),
+            'game_start_unlocks_before_music': () => this.testGameStartUnlocksBeforeMusic()
+        };
+
+        if (!testMap[testName]) {
+            console.warn(`Unknown audio test: ${testName}`);
+            console.log('Available audio tests:', Object.keys(testMap).join(', '));
+            return null;
+        }
+
+        this.running = true;
+        this.results = [];
+        await this.runSingle(testName, testMap[testName]);
+        this.running = false;
+        this.printSummary();
+        return this.getSummary();
+    }
+
+    async runSingle(name, fn) {
+        const startedAt = performance.now();
+        try {
+            await fn();
+            const durationMs = performance.now() - startedAt;
+            this.results.push({ name, status: 'PASS', durationMs });
+            console.log(`✅ ${name} (${durationMs.toFixed(2)}ms)`);
+        } catch (error) {
+            const durationMs = performance.now() - startedAt;
+            this.results.push({
+                name,
+                status: 'FAIL',
+                durationMs,
+                error: error && error.message ? error.message : String(error)
+            });
+            console.error(`❌ ${name} (${durationMs.toFixed(2)}ms):`, error);
+        }
+    }
+
+    assert(condition, message) {
+        if (!condition) {
+            throw new Error(message);
+        }
+    }
+
+    createTestBuffer(audioManager) {
+        const context = audioManager.getSfxContext();
+        if (!context) {
+            throw new Error('SFX context is unavailable');
+        }
+        const frameCount = Math.max(1, Math.floor(context.sampleRate * 0.01));
+        return context.createBuffer(1, frameCount, context.sampleRate);
+    }
+
+    async testQueueWhenPlaybackBlocked() {
+        const audioManager = this.game.audioManager;
+        const testBuffer = this.createTestBuffer(audioManager);
+
+        const originalStartBufferedPlayback = audioManager.startBufferedPlayback;
+        const originalUnlockAudio = audioManager.unlockAudio;
+        const originalPending = audioManager.pendingSfxPlays;
+
+        try {
+            let unlockCalls = 0;
+            audioManager.pendingSfxPlays = [];
+            audioManager.startBufferedPlayback = () => false;
+            audioManager.unlockAudio = () => {
+                unlockCalls++;
+            };
+
+            audioManager.playBufferedSound(testBuffer, 0.25);
+
+            this.assert(audioManager.pendingSfxPlays.length === 1, 'Expected one pending SFX item');
+            this.assert(audioManager.pendingSfxPlays[0].buffer === testBuffer, 'Queued buffer mismatch');
+            this.assert(audioManager.pendingSfxPlays[0].volume === 0.25, 'Queued volume mismatch');
+            this.assert(unlockCalls === 1, 'unlockAudio should be called once when queuing');
+        } finally {
+            audioManager.startBufferedPlayback = originalStartBufferedPlayback;
+            audioManager.unlockAudio = originalUnlockAudio;
+            audioManager.pendingSfxPlays = originalPending;
+        }
+    }
+
+    async testFlushDropsExpiredEntries() {
+        const audioManager = this.game.audioManager;
+        const originalGetSfxContext = audioManager.getSfxContext;
+        const originalStartBufferedPlayback = audioManager.startBufferedPlayback;
+        const originalPending = audioManager.pendingSfxPlays;
+
+        try {
+            let playbackCalls = 0;
+            const now = Date.now();
+            audioManager.pendingSfxPlays = [
+                { buffer: { id: 'expired' }, volume: 0.1, queuedAt: now - 2000 },
+                { buffer: { id: 'fresh' }, volume: 0.2, queuedAt: now - 10 }
+            ];
+            audioManager.getSfxContext = () => ({ state: 'running' });
+            audioManager.startBufferedPlayback = () => {
+                playbackCalls++;
+                return true;
+            };
+
+            audioManager.flushPendingSfxPlays();
+
+            this.assert(playbackCalls === 1, 'Expected only fresh queued item to be played');
+            this.assert(audioManager.pendingSfxPlays.length === 0, 'Pending queue should be cleared after flush');
+        } finally {
+            audioManager.getSfxContext = originalGetSfxContext;
+            audioManager.startBufferedPlayback = originalStartBufferedPlayback;
+            audioManager.pendingSfxPlays = originalPending;
+        }
+    }
+
+    async testUnlockResumesAndFlushes() {
+        const audioManager = this.game.audioManager;
+        const originalGetSfxContext = audioManager.getSfxContext;
+        const originalMusicContext = audioManager.musicContext;
+        const originalFlushPendingSfxPlays = audioManager.flushPendingSfxPlays;
+
+        try {
+            let sfxResumeCalls = 0;
+            let musicResumeCalls = 0;
+            let flushCalls = 0;
+
+            const fakeSfxContext = {
+                state: 'suspended',
+                resume() {
+                    sfxResumeCalls++;
+                    this.state = 'running';
+                    return Promise.resolve();
+                }
+            };
+            const fakeMusicContext = {
+                state: 'suspended',
+                resume() {
+                    musicResumeCalls++;
+                    this.state = 'running';
+                    return Promise.resolve();
+                }
+            };
+
+            audioManager.getSfxContext = () => fakeSfxContext;
+            audioManager.musicContext = fakeMusicContext;
+            audioManager.flushPendingSfxPlays = () => {
+                flushCalls++;
+            };
+
+            audioManager.unlockAudio();
+            await Promise.resolve();
+            await Promise.resolve();
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            // Keyboard/pointer unlock listeners may run concurrently in real browser sessions,
+            // so this test only requires at least one successful resume/flush path.
+            this.assert(sfxResumeCalls >= 1, 'SFX context should resume at least once');
+            this.assert(musicResumeCalls >= 1, 'Music context should resume at least once');
+            this.assert(flushCalls >= 1, 'Pending queue flush should run after resume');
+        } finally {
+            audioManager.getSfxContext = originalGetSfxContext;
+            audioManager.musicContext = originalMusicContext;
+            audioManager.flushPendingSfxPlays = originalFlushPendingSfxPlays;
+        }
+    }
+
+    async testPlayRoutesBufferSound() {
+        const audioManager = this.game.audioManager;
+        const originalPlayBufferedSound = audioManager.playBufferedSound;
+        const originalSound = audioManager.sounds.__audioTestBuffer;
+        const soundStub = {
+            buffer: { id: 'bufferSound' },
+            play() {}
+        };
+
+        try {
+            let calls = 0;
+            let capturedBuffer = null;
+            let capturedVolume = null;
+
+            audioManager.sounds.__audioTestBuffer = soundStub;
+            audioManager.playBufferedSound = (buffer, volume) => {
+                calls++;
+                capturedBuffer = buffer;
+                capturedVolume = volume;
+            };
+
+            audioManager.play('__audioTestBuffer', 0.33);
+
+            this.assert(calls === 1, 'playBufferedSound should be called once for buffer-backed sound');
+            this.assert(capturedBuffer === soundStub.buffer, 'Buffered sound object should pass through unchanged');
+            this.assert(capturedVolume === 0.33, 'Volume override should pass through');
+        } finally {
+            audioManager.playBufferedSound = originalPlayBufferedSound;
+            if (originalSound) {
+                audioManager.sounds.__audioTestBuffer = originalSound;
+            } else {
+                delete audioManager.sounds.__audioTestBuffer;
+            }
+        }
+    }
+
+    async testSetVolumeUpdatesHtmlAudioOnly() {
+        const audioManager = this.game.audioManager;
+        const originalVolume = audioManager.volume;
+        const originalHtmlSound = audioManager.sounds.__audioHtml;
+        const originalBufferSound = audioManager.sounds.__audioBuffer;
+        const htmlAudio = new Audio();
+        htmlAudio.volume = 0.5;
+        const bufferBackedSound = {
+            volume: 0.8,
+            buffer: { id: 'buf' },
+            play() {}
+        };
+
+        try {
+            audioManager.sounds.__audioHtml = htmlAudio;
+            audioManager.sounds.__audioBuffer = bufferBackedSound;
+
+            audioManager.setVolume(0.12);
+
+            this.assert(Math.abs(htmlAudio.volume - 0.12) < 0.0001, 'HTMLAudio volume should follow master volume');
+            this.assert(bufferBackedSound.volume === 0.8, 'Buffer-backed sound volume should not be overwritten');
+        } finally {
+            audioManager.volume = originalVolume;
+            if (originalHtmlSound) {
+                audioManager.sounds.__audioHtml = originalHtmlSound;
+            } else {
+                delete audioManager.sounds.__audioHtml;
+            }
+            if (originalBufferSound) {
+                audioManager.sounds.__audioBuffer = originalBufferSound;
+            } else {
+                delete audioManager.sounds.__audioBuffer;
+            }
+        }
+    }
+
+    async testGameStartUnlocksBeforeMusic() {
+        const audioManager = this.game.audioManager;
+        const originalUnlockAudio = audioManager.unlockAudio;
+        const originalStartBackgroundMusic = audioManager.startBackgroundMusic;
+        const callOrder = [];
+
+        try {
+            audioManager.unlockAudio = () => {
+                callOrder.push('unlock');
+            };
+            audioManager.startBackgroundMusic = () => {
+                callOrder.push('music');
+            };
+
+            this.game.start();
+
+            this.assert(callOrder.length >= 2, 'Expected unlock and music calls during game.start()');
+            this.assert(callOrder[0] === 'unlock', 'unlockAudio should run before startBackgroundMusic');
+            this.assert(callOrder[1] === 'music', 'startBackgroundMusic should run after unlockAudio');
+        } finally {
+            audioManager.unlockAudio = originalUnlockAudio;
+            audioManager.startBackgroundMusic = originalStartBackgroundMusic;
+        }
+    }
+
+    getSummary() {
+        const passed = this.results.filter(item => item.status === 'PASS').length;
+        const failed = this.results.filter(item => item.status === 'FAIL').length;
+        return {
+            total: this.results.length,
+            passed,
+            failed,
+            results: this.results
+        };
+    }
+
+    printSummary() {
+        const summary = this.getSummary();
+        if (!summary.total) return;
+        const statusIcon = summary.failed ? '❌' : '✅';
+        console.log(
+            `${statusIcon} Audio tests finished: ${summary.passed}/${summary.total} passed, ${summary.failed} failed`
+        );
+    }
+}
+
+/**
  * Global test manager
  */
 class TestManager {
@@ -497,11 +828,14 @@ class TestManager {
         this.game = game;
         this.monitor = new PerformanceMonitor(game);
         this.tests = new PerformanceTest(game);
+        this.audioTests = new AudioTestSuite(game);
         
         // Expose to window for console access
         window.testManager = this;
         window.perfMonitor = this.monitor;
         window.perfTest = this.tests;
+        window.audioTests = this.audioTests;
+        window.audioTest = this.audioTests;
         
         // Add keyboard shortcut to toggle monitor (Press 'P')
         document.addEventListener('keydown', (e) => {
@@ -523,6 +857,8 @@ class TestManager {
 ║  • testManager.runTest('manyBullets', 200)                   ║
 ║  • testManager.runTest('manyEffects', 100)                   ║
 ║  • testManager.runTest('combined')                           ║
+║  • testManager.runTest('audio')                              ║
+║  • audioTests.runAll()                                       ║
 ║  • testManager.stopTest()                                    ║
 ║  • testManager.monitor.toggle()                              ║
 ╚══════════════════════════════════════════════════════════════╝
@@ -533,6 +869,10 @@ class TestManager {
      * Run a test scenario
      */
     runTest(testType, ...args) {
+        if (testType === 'audio') {
+            return this.audioTests.runAll();
+        }
+
         if (this.tests.active) {
             console.warn('A test is already running. Stop it first with testManager.stopTest()');
             return;
@@ -564,7 +904,7 @@ class TestManager {
                 break;
             default:
                 console.warn(`Unknown test type: ${testType}`);
-                console.log('Available tests: manyEnemies, manyUnits, manyBullets, manyEffects, combined');
+                console.log('Available tests: manyEnemies, manyUnits, manyBullets, manyEffects, combined, audio');
         }
         
         if (this.tests.scenario) {
@@ -599,5 +939,5 @@ class TestManager {
 
 // Export for use in main.js
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { PerformanceMonitor, PerformanceTest, TestManager };
+    module.exports = { PerformanceMonitor, PerformanceTest, AudioTestSuite, TestManager };
 }
