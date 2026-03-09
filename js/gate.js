@@ -148,6 +148,21 @@ class ExperienceGate extends BaseGate {
     }
 }
 
+class SlowGate extends BaseGate {
+    constructor(laneIndex) {
+        super(laneIndex, {
+            type: 'slow',
+            color: '#ffd93d',
+            label: 'SLOW x0.5'
+        });
+    }
+
+    onPass(game) {
+        game.activateEnemySlowGate(10000, 0.5);
+        game.triggerGateSubtitle('SlowGate', this.color, 1000);
+    }
+}
+
 class GateRegistry {
     static register(type, definition) {
         if (!this.registry) this.registry = new Map();
@@ -283,5 +298,10 @@ GateRegistry.register('laser', {
 
 GateRegistry.register('experience', {
     create: (laneIndex) => new ExperienceGate(laneIndex),
+    getWeight: () => 1
+});
+
+GateRegistry.register('slow', {
+    create: (laneIndex) => new SlowGate(laneIndex),
     getWeight: () => 1
 });
