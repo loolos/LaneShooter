@@ -577,10 +577,13 @@ class Game {
         // Stop music when game over
         this.audioManager.stopMusic();
 
-        // Create player death explosion effect
+        // Create player death explosion effect and play explosion sound
         if (this.player) {
             const explosion = new ExplosionEffect(this.player.x, this.player.y, 'large');
             this.effects.push(explosion);
+            if (this.audioManager.sounds['playerDeathExplosion']) {
+                this.audioManager.sounds['playerDeathExplosion'].play();
+            }
         }
 
         // Delay game over screen to show explosion
@@ -589,6 +592,9 @@ class Game {
             if (this.state === 'dying') {
                 this.state = 'gameover';
                 this.audioManager.play('gameover');
+                if (this.audioManager.sounds['gameOverMusic']) {
+                    this.audioManager.sounds['gameOverMusic'].play();
+                }
                 this.finalScoreElement.textContent = Math.floor(this.score);
                 this.gameOverScreen.style.display = 'flex';
             }
@@ -1359,6 +1365,16 @@ class Game {
         }
 
         // Check player-enemy collisions (reuse active list where possible)
+        // Use inset player bounds so death only triggers when enemy actually overlaps visible ship (player is drawn as triangle, not full rect)
+        const playerBounds = this.player.getBounds();
+        const inset = CONFIG.PLAYER_COLLISION_INSET != null ? CONFIG.PLAYER_COLLISION_INSET : 0;
+        const playerCollisionBounds = inset > 0 ? {
+            x: playerBounds.x + inset,
+            y: playerBounds.y + inset,
+            width: playerBounds.width - inset * 2,
+            height: playerBounds.height - inset * 2
+        } : playerBounds;
+
         for (const enemy of this.enemies) {
             if (!enemy.active || enemy.ignorePlayerCollision) continue;
             // For formation, swarm, and splinter child enemies, only check collision with actual units
@@ -1404,7 +1420,7 @@ class Game {
                         height: unitHeight
                     };
 
-                    if (checkCollision(this.player.getBounds(), unitBounds)) {
+                    if (checkCollision(playerCollisionBounds, unitBounds)) {
                         collisionDetected = true;
                         break;
                     }
@@ -1413,8 +1429,8 @@ class Game {
                     this.gameOver();
                 }
             } else {
-                // For other enemy types, use standard bounds check
-                if (checkCollision(this.player.getBounds(), enemy.getBounds())) {
+                // For other enemy types, use standard bounds check with inset player bounds
+                if (checkCollision(playerCollisionBounds, enemy.getBounds())) {
                     this.gameOver();
                 }
             }

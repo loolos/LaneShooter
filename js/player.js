@@ -128,10 +128,10 @@ class Player {
         const bulletGroup = new BulletGroup(this.x, startY, bulletCount, bulletSpeed, powerboostLevel, this.x);
         this.bulletGroups.push(bulletGroup);
 
-        // Use dynamic shoot sound that adjusts pitch based on fire rate
+        // Use dynamic shoot sound (pitch by fire rate, timbre by powerboost every 2 levels)
         if (audioManager.playShoot) {
-            const fireRate = 300 / cooldown; // Calculate fire rate (shots per second normalized)
-            audioManager.playShoot(fireRate);
+            const fireRate = 300 / cooldown;
+            audioManager.playShoot(fireRate, this.upgrades.powerboost);
         } else {
             audioManager.play('shoot'); // Fallback to regular play
         }
@@ -637,10 +637,10 @@ class AltShip {
         const bulletGroup = new BulletGroup(this.x, startY, bulletCount, bulletSpeed, powerboostLevel, this.x);
         this.bulletGroups.push(bulletGroup);
         
-        // Use dynamic shoot sound that adjusts pitch based on fire rate
+        // Use dynamic shoot sound (same powerboost tier as player)
         if (audioManager && audioManager.playShoot) {
-            const fireRate = 300 / cooldown; // Calculate fire rate (shots per second normalized)
-            audioManager.playShoot(fireRate);
+            const fireRate = 300 / cooldown;
+            audioManager.playShoot(fireRate, this.player.upgrades.powerboost);
         } else if (audioManager) {
             audioManager.play('shoot'); // Fallback to regular play
         }

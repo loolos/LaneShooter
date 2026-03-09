@@ -1497,18 +1497,30 @@ class SwarmEnemy extends Enemy {
             const unitColor = this.getUnitColor(unit);
 
             if (useSimpleDraw) {
-                // Simplified drawing for high unit counts — no shadowBlur, minimal operations
+                // Simplified drawing for high unit counts — wings (static), body, head, eyes; no shadowBlur or animation
+                const wingY = unitY; // Static wings, no wingOffset
+                ctx.strokeStyle = `rgba(255, 220, 120, 0.5)`;
+                ctx.fillStyle = `rgba(255, 220, 120, 0.35)`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.ellipse(unitX - this.unitSize * 0.3, wingY, this.unitSize * 0.45, this.unitSize * 0.3, -0.3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.ellipse(unitX + this.unitSize * 0.3, wingY, this.unitSize * 0.45, this.unitSize * 0.3, 0.3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
                 ctx.fillStyle = unitColor;
                 ctx.beginPath();
                 ctx.ellipse(unitX, unitY, this.unitSize * 0.35, this.unitSize * 0.5, 0, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Head
+                ctx.fillStyle = unitColor;
                 ctx.beginPath();
                 ctx.arc(unitX, unitY - this.unitSize * 0.25, this.unitSize * 0.2, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Eyes (combined into single path)
                 ctx.fillStyle = 'rgba(200, 240, 255, 0.9)';
                 ctx.beginPath();
                 ctx.arc(unitX - this.unitSize * 0.12, unitY - this.unitSize * 0.25, this.unitSize * 0.06, 0, Math.PI * 2);

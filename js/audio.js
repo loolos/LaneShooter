@@ -208,7 +208,9 @@ class AudioManager {
         this.createToneSound('hit', 150, 0.15);
         this.createToneSound('powerup', 400, 0.2);
         this.createToneSound('gameover', 100, 0.5);
-        
+        this.createPlayerDeathExplosionSound();
+        this.createGameOverMusic();
+
         // Level up sound - fun ascending melody
         this.createLevelUpSound();
         
@@ -494,6 +496,124 @@ class AudioManager {
             }
         };
         this.sounds['levelup'] = soundObj;
+    }
+
+    /**
+     * Player death explosion sound - dramatic, heavy impact + deep rumble when player is destroyed
+     */
+    createPlayerDeathExplosionSound() {
+        const audioContext = this.getSfxContext();
+        const sampleRate = audioContext.sampleRate;
+        const duration = 0.85;
+        const frameCount = Math.floor(sampleRate * duration);
+        const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < frameCount; i++) {
+            const t = i / sampleRate;
+            // Phase 1 (0~0.12s): sharp impact - high energy, fast pitch drop
+            const impactFreq = 180 * (1 - t * 3.5);
+            const impactEnv = t < 0.12 ? Math.exp(-t * 25) * (1 - t / 0.12) : 0;
+            // Phase 2: deep rumble - very low, slow pitch drop
+            const rumblePitch = Math.max(0.4, 1 - t * 0.7);
+            const rumbleFreq = 55 * rumblePitch;
+            const rumbleEnv = Math.exp(-t * 4) * (1 - Math.exp(-t * 8));
+            const mainEnv = Math.exp(-t * 3.5);
+
+            let value = 0;
+            // Impact: bright burst + noise
+            value += Math.sin(2 * Math.PI * impactFreq * t) * impactEnv * 0.35;
+            value += (Math.random() * 2 - 1) * impactEnv * 0.2;
+            // Deep rumble: sub + fundamental
+            value += Math.sin(2 * Math.PI * rumbleFreq * t) * mainEnv * 0.45;
+            value += Math.sin(2 * Math.PI * rumbleFreq * 0.5 * t) * mainEnv * 0.3;
+            value += Math.sin(2 * Math.PI * rumbleFreq * 1.5 * t) * mainEnv * 0.15;
+            // Sustained rumble noise (debris)
+            const noiseEnv = Math.exp(-t * 2.5);
+            value += (Math.random() * 2 - 1) * noiseEnv * 0.12;
+            data[i] = value;
+        }
+
+        const soundObj = {
+            buffer: buffer,
+            audioContext: audioContext,
+            play: function() {
+                try {
+                    const ctx = this.audioContext;
+                    const buf = this.buffer;
+                    if (ctx.state === 'suspended') ctx.resume();
+                    const source = ctx.createBufferSource();
+                    source.buffer = buf;
+                    source.connect(ctx.destination);
+                    source.start();
+                } catch (err) {
+                    console.debug('Player death explosion sound error:', err);
+                }
+            }
+        };
+        this.sounds['playerDeathExplosion'] = soundObj;
+    }
+
+    /**
+     * Game over music - short somber descending melody when player dies
+     */
+    createGameOverMusic() {
+        const audioContext = this.getSfxContext();
+        const sampleRate = audioContext.sampleRate;
+        const duration = 2.2;
+        const frameCount = Math.floor(sampleRate * duration);
+        const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
+        const data = buffer.getChannelData(0);
+
+        // Descending minor melody (A3, G3, E3, D3, C3 - somber)
+        const A3 = 220; const G3 = 196; const E3 = 164.81; const D3 = 146.83; const C3 = 130.81;
+        const noteDuration = 0.4;
+        const notes = [
+            { freq: A3, start: 0.0 },
+            { freq: G3, start: 0.4 },
+            { freq: E3, start: 0.8 },
+            { freq: D3, start: 1.2 },
+            { freq: C3, start: 1.6 },
+            { freq: C3, start: 2.0 }
+        ];
+
+        for (let i = 0; i < frameCount; i++) {
+            const t = i / sampleRate;
+            let value = 0;
+            for (const note of notes) {
+                const noteEnd = note.start + noteDuration;
+                if (t >= note.start && t < noteEnd) {
+                    const noteTime = t - note.start;
+                    const noteProgress = noteTime / noteDuration;
+                    let envelope = noteProgress < 0.15 ? noteProgress / 0.15 : 1 - (noteProgress - 0.15) * 0.7;
+                    envelope = Math.max(0, envelope);
+                    const phase = 2 * Math.PI * note.freq * noteTime;
+                    value += Math.sin(phase) * envelope * 0.35;
+                    value += Math.sin(phase * 2) * envelope * 0.12;
+                    break;
+                }
+            }
+            data[i] = value;
+        }
+
+        const soundObj = {
+            buffer: buffer,
+            audioContext: audioContext,
+            play: function() {
+                try {
+                    const ctx = this.audioContext;
+                    const buf = this.buffer;
+                    if (ctx.state === 'suspended') ctx.resume();
+                    const source = ctx.createBufferSource();
+                    source.buffer = buf;
+                    source.connect(ctx.destination);
+                    source.start();
+                } catch (err) {
+                    console.debug('Game over music error:', err);
+                }
+            }
+        };
+        this.sounds['gameOverMusic'] = soundObj;
     }
 
     /**
@@ -806,28 +926,32 @@ class AudioManager {
     }
 
     /**
-     * Create dynamic shoot sound that adjusts pitch based on fire rate
+     * Create dynamic shoot sound that adjusts pitch based on fire rate and powerboost tier (every 2 levels)
      */
     createDynamicShootSound() {
         const audioContext = this.getSfxContext();
         
         const soundObj = {
             audioContext: audioContext,
-            play: function(fireRate = 1) {
+            play: function(fireRate = 1, powerboostLevel = 0) {
                 try {
                     if (this.audioContext.state === 'suspended') {
                         this.audioContext.resume();
                     }
                     
-                    // Adjust base frequency based on fire rate (faster shooting = higher pitch)
-                    const baseFreq = 200;
+                    // Powerboost tier: change sound every 2 levels (0-1, 2-3, 4-5, ...)
+                    const tier = Math.floor((powerboostLevel || 0) / 2);
+                    // Heavier sound per tier: lower base freq, more bass, slightly longer
+                    const tierBaseFreq = 200 - tier * 18; // 200, 182, 164, 146...
+                    const baseFreq = Math.max(120, tierBaseFreq);
+                    const duration = 0.08 + tier * 0.01; // 0.08, 0.09, 0.10...
+                    
                     const freqMultiplier = 1 + (fireRate - 1) * 0.2; // Scale pitch with fire rate
                     const frequency = baseFreq * freqMultiplier;
-                    const duration = 0.08; // Short, punchy sound
                     
                     // Generate sound on the fly
                     const sampleRate = this.audioContext.sampleRate;
-                    const frameCount = sampleRate * duration;
+                    const frameCount = Math.floor(sampleRate * duration);
                     const buffer = this.audioContext.createBuffer(1, frameCount, sampleRate);
                     const data = buffer.getChannelData(0);
                     
@@ -841,13 +965,10 @@ class AudioManager {
                         // ADSR envelope: fast attack, quick decay
                         let envelope = 0;
                         if (t < 0.005) {
-                            // Attack: very fast rise
                             envelope = t / 0.005;
                         } else if (t < 0.03) {
-                            // Decay: quick fall
                             envelope = 1 - ((t - 0.005) / 0.025) * 0.5;
                         } else {
-                            // Sustain and release: exponential decay
                             envelope = 0.5 * Math.exp(-(t - 0.03) * 40);
                         }
                         
@@ -856,6 +977,9 @@ class AudioManager {
                         value += Math.sin(2 * Math.PI * currentFreq * t) * envelope * 0.45; // Main tone
                         value += Math.sin(2 * Math.PI * currentFreq * 2 * t) * envelope * 0.25; // Octave
                         value += Math.sin(2 * Math.PI * currentFreq * 1.5 * t) * envelope * 0.18; // Fifth
+                        // Sub-bass increases with powerboost tier for heavier punch
+                        const subGain = 0.08 + tier * 0.04;
+                        value += Math.sin(2 * Math.PI * (currentFreq * 0.5) * t) * envelope * subGain;
                         // Add slight noise for punch
                         value += (Math.random() * 2 - 1) * envelope * 0.06;
                         
@@ -875,23 +999,22 @@ class AudioManager {
     }
 
     /**
-     * Play shoot sound with dynamic pitch based on fire rate
+     * Play shoot sound with dynamic pitch based on fire rate and powerboost tier (every 2 levels)
      * @param {number} fireRate - Fire rate multiplier (1 = normal, higher = faster)
+     * @param {number} powerboostLevel - Power boost upgrade level (sound changes every 2 levels)
      */
-    playShoot(fireRate = 1) {
+    playShoot(fireRate = 1, powerboostLevel = 0) {
         if (!this.enabled) return;
         
         const now = Date.now();
         const timeSinceLastShoot = now - (this.lastShootTime || 0);
         this.lastShootTime = now;
         
-        // Calculate fire rate (shots per second, normalized)
-        // If shooting very fast, increase pitch
         const shotsPerSecond = timeSinceLastShoot > 0 ? 1000 / timeSinceLastShoot : 10;
-        const normalizedFireRate = Math.min(shotsPerSecond / 3, 3); // Cap at 3x normal rate
+        const normalizedFireRate = Math.min(shotsPerSecond / 3, 3);
         
         if (this.sounds['shoot'] && this.sounds['shoot'].play) {
-            this.sounds['shoot'].play(normalizedFireRate);
+            this.sounds['shoot'].play(normalizedFireRate, powerboostLevel);
         }
     }
 

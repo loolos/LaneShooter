@@ -934,7 +934,7 @@ class ShockwaveEffect extends Effect {
         // Check for enemy collisions in the current shockwave area
         if (this.game && this.game.enemies) {
             const canvasHeight = CONFIG.CANVAS_HEIGHT;
-            const bottom30PercentY = canvasHeight * 0.7;
+            const bottom40PercentY = canvasHeight * 0.6;
             
             this.game.enemies.forEach((enemy, enemyIndex) => {
                 if (!enemy.active) return;
@@ -983,15 +983,15 @@ class ShockwaveEffect extends Effect {
                         const enemyY = minUnitY < Infinity ? minUnitY : enemy.y;
                         let damagePercent;
                         
-                        if (enemyY >= bottom30PercentY) {
-                            // Bottom 30%: destroy completely (100% damage)
+                        if (enemyY >= bottom40PercentY) {
+                            // Bottom 40%: destroy completely (100% damage)
                             damagePercent = 1.0;
                         } else {
-                            // Above bottom 30%: damage based on distance from bottom
-                            // distanceRatio: 0 at bottom 30% threshold, 1 at top
+                            // Above bottom 40%: damage based on distance from bottom
+                            // distanceRatio: 0 at bottom 40% threshold, 1 at top
                             const distanceFromBottom = canvasHeight - enemyY;
-                            const distanceRatio = Math.min(1, distanceFromBottom / (canvasHeight * 0.7));
-                            // Damage percentage: 5% at top to 45% at bottom 30% threshold
+                            const distanceRatio = Math.min(1, distanceFromBottom / (canvasHeight * 0.6));
+                            // Damage percentage: 5% at top to 45% at bottom 40% threshold
                             const baseDamagePercent = 0.05 + ((1 - distanceRatio) * 0.4);
                             // Random factor: 0.8 to 1.2
                             const randomFactor = 0.8 + Math.random() * 0.4;
@@ -1042,15 +1042,15 @@ class ShockwaveEffect extends Effect {
                         
                         // Calculate damage based on enemy's Y position
                         let damagePercent;
-                        if (enemy.y >= bottom30PercentY) {
-                            // Bottom 30%: destroy completely
+                        if (enemy.y >= bottom40PercentY) {
+                            // Bottom 40%: destroy completely
                             damagePercent = 1.0;
                         } else {
-                            // Above bottom 30%: damage based on distance from bottom
-                            // distanceRatio: 0 at bottom 30% threshold, 1 at top
+                            // Above bottom 40%: damage based on distance from bottom
+                            // distanceRatio: 0 at bottom 40% threshold, 1 at top
                             const distanceFromBottom = canvasHeight - enemy.y;
-                            const distanceRatio = Math.min(1, distanceFromBottom / (canvasHeight * 0.7));
-                            // Damage percentage: 5% at top to 45% at bottom 30% threshold
+                            const distanceRatio = Math.min(1, distanceFromBottom / (canvasHeight * 0.6));
+                            // Damage percentage: 5% at top to 45% at bottom 40% threshold
                             const baseDamagePercent = 0.05 + ((1 - distanceRatio) * 0.4);
                             // Random factor: 0.8 to 1.2
                             const randomFactor = 0.8 + Math.random() * 0.4;

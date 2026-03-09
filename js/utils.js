@@ -11,6 +11,8 @@ const CONFIG = {
     LANE_POSITIONS: [200, 600], // X positions for each lane
     PLAYER_Y: 550,
     PLAYER_SIZE: 30,
+    /** Inset from player getBounds() for enemy collision so death triggers only when visually overlapping (ship is triangle, not full rect) */
+    PLAYER_COLLISION_INSET: 5,
     BULLET_SPEED: 8,
     ENEMY_SPAWN_RATE: 0.016, // Probability per frame (20% lower than 0.02)
     POWERUP_SPAWN_RATE: 0.003, // Probability per frame (slightly increased)
