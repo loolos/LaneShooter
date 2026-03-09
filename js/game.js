@@ -26,6 +26,8 @@ class Game {
         this.gateSubtitle = null; // Gate subtitle display
         this.experienceBoostUntil = 0; // Experience boost expiry timestamp
         this.experienceMultiplier = 1; // Current experience multiplier
+        this.enemySlowUntil = 0; // Enemy slow expiry timestamp
+        this.enemySlowMultiplier = 1; // Current enemy speed multiplier
         this.laserLaneEffect = null; // Laser visual effect { laneIndex, startTime, duration }
         this.emptyScreenSince = null; // Timestamp when all lanes became empty
 
@@ -255,6 +257,8 @@ class Game {
         this.gateSubtitle = null;
         this.experienceBoostUntil = 0;
         this.experienceMultiplier = 1;
+        this.enemySlowUntil = 0;
+        this.enemySlowMultiplier = 1;
         this.laserLaneEffect = null;
         this.emptyScreenSince = null;
         this.currentMusicLevel = 1;
@@ -737,6 +741,25 @@ class Game {
     }
 
     /**
+     * Activate temporary enemy slow from gate
+     * @param {number} durationMs - Slow duration in milliseconds
+     * @param {number} multiplier - Enemy speed multiplier
+     */
+    activateEnemySlowGate(durationMs = 10000, multiplier = 0.5) {
+        const now = Date.now();
+        this.enemySlowUntil = Math.max(this.enemySlowUntil, now + durationMs);
+        this.enemySlowMultiplier = Math.max(0.1, Math.min(1, multiplier));
+    }
+
+    /**
+     * Get current enemy speed multiplier (returns 1 if inactive)
+     * @returns {number}
+     */
+    getCurrentEnemySpeedMultiplier() {
+        return Date.now() < this.enemySlowUntil ? this.enemySlowMultiplier : 1;
+    }
+
+    /**
      * Trigger center subtitle for gate events
      * @param {string} text
      * @param {string} color
@@ -789,6 +812,11 @@ class Game {
         if (this.experienceBoostUntil > 0 && now >= this.experienceBoostUntil) {
             this.experienceBoostUntil = 0;
             this.experienceMultiplier = 1;
+        }
+
+        if (this.enemySlowUntil > 0 && now >= this.enemySlowUntil) {
+            this.enemySlowUntil = 0;
+            this.enemySlowMultiplier = 1;
         }
     }
 
@@ -1002,6 +1030,8 @@ class Game {
                 continue;
             }
             
+            const enemySpeedMultiplier = this.getCurrentEnemySpeedMultiplier();
+
             // Only fast enemies' speed increases with level, all others stay at base speed
             if (enemy.type === 'fast') {
                 // Fast enemies speed increases with level
@@ -1010,10 +1040,10 @@ class Game {
                     // Additional speed boost for late game (20% more per level after level 10)
                     speedIncrement = CONFIG.ENEMY_SPEED_INCREMENT * (1 + (this.level - 10) * 0.02);
                 }
-                enemy.speed = enemy.baseSpeed + (this.level - 1) * speedIncrement;
+                enemy.speed = (enemy.baseSpeed + (this.level - 1) * speedIncrement) * enemySpeedMultiplier;
             } else if (enemy.type !== 'carrier') {
                 // All other enemies (except carrier) stay at base speed, no level scaling
-                enemy.speed = enemy.baseSpeed;
+                enemy.speed = enemy.baseSpeed * enemySpeedMultiplier;
             }
             enemy.update();
 
@@ -1651,7 +1681,7 @@ class Game {
     }
 
     /**
-     * Draw gate-related overlays: lane laser, experience flash, and subtitles
+     * Draw gate-related overlays: lane laser, boost flashes, and subtitles
      */
     drawGateOverlays() {
         const now = Date.now();
@@ -1761,6 +1791,57 @@ class Game {
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText(`✦ EXP x${this.experienceMultiplier} ✦  ${seconds}s`, this.canvas.width / 2, 52);
+            this.ctx.restore();
+        }
+
+        if (this.getCurrentEnemySpeedMultiplier() < 1) {
+            const pulse = Math.sin(now * 0.018) * 0.5 + 0.5;
+            const shimmer = Math.sin(now * 0.011) * 0.5 + 0.5;
+            const remainingMs = Math.max(0, this.enemySlowUntil - now);
+            const seconds = (remainingMs / 1000).toFixed(1);
+            const slowPercent = Math.round((1 - this.getCurrentEnemySpeedMultiplier()) * 100);
+
+            this.ctx.save();
+            const overlayGradient = this.ctx.createRadialGradient(
+                this.canvas.width / 2,
+                this.canvas.height / 2,
+                40,
+                this.canvas.width / 2,
+                this.canvas.height / 2,
+                this.canvas.width * 0.62
+            );
+            overlayGradient.addColorStop(0, `rgba(255, 217, 61, ${0.08 + pulse * 0.08})`);
+            overlayGradient.addColorStop(0.45, `rgba(255, 242, 170, ${0.05 + shimmer * 0.05})`);
+            overlayGradient.addColorStop(1, 'rgba(255, 217, 61, 0.01)');
+            this.ctx.fillStyle = overlayGradient;
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+            const ringCount = 3;
+            const ringBaseRadius = 50;
+            for (let i = 0; i < ringCount; i++) {
+                const ringPulse = (pulse + i * 0.33) % 1;
+                this.ctx.strokeStyle = `rgba(255, 236, 140, ${0.28 - i * 0.06})`;
+                this.ctx.lineWidth = 2 + i * 0.8;
+                this.ctx.shadowColor = '#ffd93d';
+                this.ctx.shadowBlur = 14;
+                this.ctx.beginPath();
+                this.ctx.arc(
+                    this.canvas.width / 2,
+                    90,
+                    ringBaseRadius + ringPulse * 28 + i * 14,
+                    0,
+                    Math.PI * 2
+                );
+                this.ctx.stroke();
+            }
+
+            this.ctx.fillStyle = '#fff6b8';
+            this.ctx.shadowColor = '#ffe66d';
+            this.ctx.shadowBlur = 18;
+            this.ctx.font = 'bold 28px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(`✦ SLOW -${slowPercent}% ✦  ${seconds}s`, this.canvas.width / 2, 90);
             this.ctx.restore();
         }
 
