@@ -1,160 +1,115 @@
 # Lane Shooter
 
-A professional web-based lane shooter game where enemies descend from above and players must shoot them while avoiding collisions. Features a dual-lane system, power-ups, and an extensible architecture for easy expansion.
+Lane Shooter is a zero-dependency HTML5 Canvas game with a two-lane combat system, scaling enemy waves, permanent upgrade progression, gate events, and built-in in-browser test tools.
 
-## 🎮 Play Online
+## Play Online
 
-**[Play the game here](https://loolos.github.io/LaneShooter/)**
+**[Play Lane Shooter](https://loolos.github.io/LaneShooter/)**
 
-## Features
+## Run Locally
 
-- **Dual Lane System**: Two lanes for strategic gameplay
-- **Enemy Types**: Multiple enemy types with different behaviors (Basic, Fast, Tank, Swarm)
-- **Permanent Upgrade System**: Collect power-ups for permanent upgrades that stack and level up (Rapid Fire, Multi Shot, Speed Boost, Lane Speed)
-- **Mobile Support**: Touch controls and responsive design for mobile devices
-- **Extensible Architecture**: Easy to add new enemies, power-ups, and sound effects
-- **Level Progression**: Difficulty increases with score
-- **Modern UI**: Clean, responsive interface with smooth animations
+No build step is required.
+
+1. From the repository root, start a static server:
+   - `python3 -m http.server 8080`
+2. Open:
+   - `http://localhost:8080/`
 
 ## Controls
 
-- **A / Left Arrow / Tap Left Side**: Move to left lane
-- **D / Right Arrow / Tap Right Side**: Move to right lane
-- **Shooting**: Automatic (no need to press any key)
+- `A` / `Left Arrow` / left side tap: move to the left lane
+- `D` / `Right Arrow` / right side tap: move to the right lane
+- Shooting is automatic
 
-## Game Mechanics
+## Gameplay Overview
 
-- Enemies spawn from the top and move downward
-- Player must avoid enemy collisions (game over on contact)
-- Shooting enemies awards points
-- Collect power-ups for **permanent upgrades** that stack and level up
-- Game difficulty increases with each level
-- **Swarm Enemies**: Visual units decrease as you shoot them
+- Enemies descend from the top; collision with the player ends the run.
+- Level and difficulty scale over time.
+- Reaching level 20 triggers a victory screen once; after that, the run can continue infinitely.
+- Upgrade progress is permanent within a run and shown in the side upgrade panel.
 
-## Architecture
+### Enemy roster
 
-The game is built with a modular, extensible architecture:
+Current enemy families include:
 
-### Core Classes
+- `basic`
+- `fast`
+- `splinter` (can split into child units)
+- `tank`
+- `swarm` (multi-unit enemy)
+- `formation` (grid-based multi-unit enemy)
+- `carrier` (stationary heavy enemy that spawns escorts)
 
-- **Game**: Main game loop and state management
-- **Player**: Player movement, shooting, and power-up handling
-- **Enemy**: Base enemy class with multiple types
-- **Bullet**: Projectile system
-- **Powerup**: Base power-up class with multiple types
-- **AudioManager**: Sound effect management
+### Gate system
 
-### Extensibility
+The lane gate system can spawn temporary gameplay modifiers:
 
-#### Adding New Enemy Types
+- `LaserGate`: fires a lane laser
+- `ExperienceGate`: temporary XP multiplier
+- `SlowGate`: temporary enemy slow effect
 
-1. Create a new class extending `Enemy`:
-```javascript
-class NewEnemy extends Enemy {
-    constructor(x, y, laneIndex) {
-        super(x, y, laneIndex);
-        this.type = 'newenemy';
-        this.color = '#colorcode';
-        // Customize properties
-    }
-}
-```
+## Upgrade system
 
-2. Register in `EnemyFactory`:
-```javascript
-const enemyClasses = {
-    'basic': BasicEnemy,
-    'newenemy': NewEnemy  // Add here
-};
-```
+The player progression system includes:
 
-#### Adding New Power-up Types
+- `rapidfire`
+- `multishot`
+- `powerboost`
+- `altlane` (also unlocks the alt ship at higher level)
 
-1. Create a new class extending `Powerup`:
-```javascript
-class NewPowerup extends Powerup {
-    constructor(x, y) {
-        super(x, y);
-        this.type = 'newpowerup';
-        this.color = '#colorcode';
-        this.duration = 10000;
-    }
-    
-    apply(player) {
-        // Implement power-up effect
-    }
-}
-```
+## Project Structure
 
-2. Register in `PowerupFactory`:
-```javascript
-const powerupClasses = {
-    'rapidfire': RapidFirePowerup,
-    'newpowerup': NewPowerup  // Add here
-};
-```
-
-#### Adding Sound Effects
-
-Use the `AudioManager` to register and play sounds:
-
-```javascript
-// Register a sound
-audioManager.registerSound('soundname', 'path/to/sound.mp3');
-
-// Play a sound
-audioManager.play('soundname');
-```
-
-## File Structure
-
-```
+```text
 LaneShooter/
-├── index.html          # Main HTML file
-├── css/
-│   └── style.css       # Game styles
-├── js/
-│   ├── main.js         # Entry point
-│   ├── game.js         # Main game class
-│   ├── player.js       # Player class
-│   ├── enemy.js        # Enemy system
-│   ├── bullet.js       # Bullet class
-│   ├── powerup.js      # Power-up system
-│   ├── audio.js        # Audio manager
-│   └── utils.js        # Utility functions
-└── README.md           # This file
+|- index.html
+|- css/
+|  `- style.css
+|- js/
+|  |- main.js       # bootstrap
+|  |- game.js       # main loop, state, UI updates
+|  |- player.js     # player + alt ship behavior
+|  |- enemy.js      # enemy classes + factory
+|  |- bullet.js     # bullet group logic
+|  |- powerup.js    # powerup classes + factory
+|  |- effect.js     # visual effects
+|  |- xpText.js     # floating XP text
+|  |- gate.js       # gate framework + registry
+|  |- audio.js      # audio manager
+|  |- test.js       # performance/audio test harness
+|  `- utils.js      # shared config + helpers
+|- PERFORMANCE_TESTING.md
+`- README.md
 ```
 
 ## Configuration
 
-Game parameters can be adjusted in `js/utils.js`:
+Core game constants live in `js/utils.js` under `CONFIG`, including canvas size, lane positions, spawn rates, enemy speed scaling, and level score thresholds.
 
-- `CANVAS_WIDTH`, `CANVAS_HEIGHT`: Game canvas dimensions
-- `LANE_COUNT`: Number of lanes
-- `BULLET_SPEED`: Bullet movement speed
-- `ENEMY_SPAWN_RATE`: Enemy spawn probability
-- `POWERUP_SPAWN_RATE`: Power-up spawn probability
-- `ENEMY_BASE_SPEED`: Base enemy speed
-- `SCORE_PER_ENEMY`: Points per enemy
-- `LEVEL_UP_SCORE`: Score needed per level
+## Testing
 
-## Browser Compatibility
+There is no automated test framework in this repository. Use:
 
-- Modern browsers with HTML5 Canvas support
-- Web Audio API support for sound effects
-- ES6+ JavaScript support
+1. Manual gameplay smoke test:
+   - Start game
+   - Move between lanes
+   - Verify enemy spawning, shooting, powerups, level progression, and game-over flow
+2. In-browser performance and audio test harness in `js/test.js`:
+   - Press `Ctrl+P` to toggle monitor
+   - Run console commands such as:
+     - `testManager.runTest('manyEnemies', 100)`
+     - `testManager.runTest('manyUnits', 20, 20)`
+     - `testManager.runTest('manyBullets', 200)`
+     - `testManager.runTest('manyEffects', 100)`
+     - `testManager.runTest('combined')`
+     - `testManager.runTest('audio')`
 
-## Future Enhancements
+For full details, see `PERFORMANCE_TESTING.md`.
 
-The architecture supports easy addition of:
-- More enemy types with unique behaviors
-- Additional power-up types
-- Boss enemies
-- Particle effects
-- Background music
-- High score system
-- Multiple difficulty modes
-- Mobile touch controls
+## Extending the game
+
+- Add new enemies by extending `Enemy` and registering in `EnemyFactory`.
+- Add new powerups by extending `Powerup` and registering in `PowerupFactory`.
+- Add new gates by extending `BaseGate` and registering in `GateRegistry`.
 
 ## License
 
