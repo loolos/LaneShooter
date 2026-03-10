@@ -666,6 +666,34 @@ class Game {
     }
 
     /**
+     * Synchronize carrier presence with music state.
+     * Ensures carrier track stops immediately once all carriers are gone.
+     */
+    syncCarrierStateAndMusic() {
+        const hasActiveCarrier = this.enemies.some(e => e.type === 'carrier' && e.active);
+        const carrierStateChanged = hasActiveCarrier !== this.hasCarrier;
+        this.hasCarrier = hasActiveCarrier;
+
+        if (this.state !== 'playing') return;
+
+        if (!hasActiveCarrier) {
+            if (this.audioManager.currentMusic === 'carrier') {
+                this.currentMusicLevel = this.level;
+                this.audioManager.startBackgroundMusic(this.level);
+            }
+            return;
+        }
+
+        if (
+            carrierStateChanged &&
+            this.audioManager.currentMusic !== 'carrier' &&
+            this.audioManager.currentMusic !== 'experienceGate'
+        ) {
+            this.audioManager.startCarrierMusic();
+        }
+    }
+
+    /**
      * Ensure gameplay never stays empty for too long.
      * If all lanes are empty for 0.5s, force-spawn one random enemy.
      * @param {number} now
@@ -884,7 +912,10 @@ class Game {
 
             this.playEnemyDeathSound(enemy.type);
             this.audioManager.queueKillAccent(enemy.type, 0.75);
-            this.effects.push(EffectManager.createEffect(enemy.x, enemy.y, enemy.type));
+            const effectScale = enemy.type === 'tank'
+                ? Math.max(1, Math.max(enemy.width || 0, enemy.height || 0) / 50)
+                : 1;
+            this.effects.push(EffectManager.createEffect(enemy.x, enemy.y, enemy.type, 'normal', effectScale));
 
             if (enemy.type === 'carrier') {
                 this.audioManager.play('carrierVictory');
@@ -911,6 +942,10 @@ class Game {
             this.score += scoreGained;
             this.updateUI();
         }
+
+        // Laser can destroy the final carrier before updateMusic() runs.
+        // Sync here so carrier BGM can stop immediately.
+        this.syncCarrierStateAndMusic();
     }
 
     /**
@@ -1072,19 +1107,8 @@ class Game {
         // bullet/player collision calculations, but still remain active for rendering/shockwave.
         this.updateEnemyCombatState();
 
-        // Check carrier status again after removing inactive enemies
-        // This ensures music stops immediately when carrier is destroyed
-        const hasCarrierAfterUpdate = this.enemies.some(e => e.type === 'carrier' && e.active);
-        if (hasCarrierAfterUpdate !== this.hasCarrier) {
-            this.hasCarrier = hasCarrierAfterUpdate;
-            if (hasCarrierAfterUpdate) {
-                // Carrier appeared, switch to intense music
-                this.audioManager.startCarrierMusic();
-            } else {
-                // Carrier destroyed, switch back to background music
-                this.audioManager.startBackgroundMusic(this.level);
-            }
-        }
+        // Keep carrier presence/music aligned after enemy lifecycle updates.
+        this.syncCarrierStateAndMusic();
 
         // Prevent full empty-screen downtime during gameplay.
         this.ensureEnemyPresence(now);
@@ -1342,7 +1366,16 @@ class Game {
                                 this.audioManager.queueKillAccent(mostForwardEnemy.type, accentIntensity);
 
                                 // Create destruction effect
-                                const effect = EffectManager.createEffect(mostForwardEnemy.x, mostForwardEnemy.y, mostForwardEnemy.type);
+                                const effectScale = mostForwardEnemy.type === 'tank'
+                                    ? Math.max(1, Math.max(mostForwardEnemy.width || 0, mostForwardEnemy.height || 0) / 50)
+                                    : 1;
+                                const effect = EffectManager.createEffect(
+                                    mostForwardEnemy.x,
+                                    mostForwardEnemy.y,
+                                    mostForwardEnemy.type,
+                                    'normal',
+                                    effectScale
+                                );
                                 this.effects.push(effect);
 
                                 // Splinter enemies break into smaller shards on destruction
@@ -1393,6 +1426,10 @@ class Game {
                 }
             }
         }
+
+        // Bullets can destroy carriers after the early update-phase sync.
+        // Run another sync so music reflects the final state in this frame.
+        this.syncCarrierStateAndMusic();
 
         // Check player-enemy collisions (reuse active list where possible)
         // Use inset player bounds so death only triggers when enemy actually overlaps visible ship (player is drawn as triangle, not full rect)

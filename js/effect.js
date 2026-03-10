@@ -31,19 +31,23 @@ class Effect {
  * Explosion Effect - For basic and tank enemies
  */
 class ExplosionEffect extends Effect {
-    constructor(x, y, size = 'normal') {
+    constructor(x, y, size = 'normal', scale = 1) {
         super(x, y, 'explosion');
         this.size = size; // 'small', 'normal', 'large'
-        this.maxLife = size === 'large' ? 40 : size === 'small' ? 20 : 30;
+        this.scale = Math.max(0.8, scale || 1);
+        const baseLife = size === 'large' ? 40 : size === 'small' ? 20 : 30;
+        const lifeScale = Math.min(1.6, 0.9 + this.scale * 0.22);
+        this.maxLife = Math.round(baseLife * lifeScale);
         this.particles = [];
         
         // Create particles
-        const particleCount = size === 'large' ? 12 : size === 'small' ? 6 : 8;
+        const baseParticleCount = size === 'large' ? 12 : size === 'small' ? 6 : 8;
+        const particleCount = Math.max(4, Math.round(baseParticleCount * Math.min(this.scale, 2.6)));
         for (let i = 0; i < particleCount; i++) {
             this.particles.push({
                 angle: (Math.PI * 2 * i) / particleCount + Math.random() * 0.5,
-                speed: 2 + Math.random() * 3,
-                size: 3 + Math.random() * 4,
+                speed: (2 + Math.random() * 3) * Math.min(this.scale, 2.8),
+                size: (3 + Math.random() * 4) * (0.75 + this.scale * 0.35),
                 color: `hsl(${Math.random() * 60 + 10}, 100%, ${50 + Math.random() * 30}%)` // Orange to red
             });
         }
@@ -81,10 +85,11 @@ class ExplosionEffect extends Effect {
         });
 
         // Draw central flash
-        const flashSize = (1 - progress) * (this.size === 'large' ? 40 : this.size === 'small' ? 15 : 25);
+        const baseFlashSize = this.size === 'large' ? 40 : this.size === 'small' ? 15 : 25;
+        const flashSize = (1 - progress) * baseFlashSize * Math.min(this.scale, 2.8);
         ctx.fillStyle = `rgba(255, 200, 0, ${alpha * 0.8})`;
         ctx.shadowColor = '#ffaa00';
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = Math.min(30, 15 * this.scale);
         ctx.beginPath();
         ctx.arc(this.x, this.y, flashSize, 0, Math.PI * 2);
         ctx.fill();
@@ -1079,7 +1084,10 @@ class ShockwaveEffect extends Effect {
                             
                             this.game.playEnemyDeathSound(enemy.type);
                             
-                            const effect = EffectManager.createEffect(enemy.x, enemy.y, enemy.type);
+                            const effectScale = enemy.type === 'tank'
+                                ? Math.max(1, Math.max(enemy.width || 0, enemy.height || 0) / 50)
+                                : 1;
+                            const effect = EffectManager.createEffect(enemy.x, enemy.y, enemy.type, 'normal', effectScale);
                             this.game.effects.push(effect);
                         }
                     }
@@ -1261,14 +1269,14 @@ class ShockwaveEffect extends Effect {
  * Effect Manager - Creates and manages effects
  */
 class EffectManager {
-    static createEffect(x, y, enemyType, size = 'normal') {
+    static createEffect(x, y, enemyType, size = 'normal', effectScale = 1) {
         switch (enemyType) {
             case 'basic':
                 return new ExplosionEffect(x, y, 'normal');
             case 'fast':
                 return new FlashEffect(x, y);
             case 'tank':
-                return new ExplosionEffect(x, y, 'large');
+                return new ExplosionEffect(x, y, 'large', effectScale);
             case 'formation':
                 return new MultiExplosionEffect(x, y, 3);
             case 'swarm':
