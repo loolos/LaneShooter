@@ -2,9 +2,7 @@
 
 Lane Shooter is a zero-dependency HTML5 Canvas game with a two-lane combat system, scaling enemy waves, permanent upgrade progression, gate events, and built-in in-browser test tools.
 
-## Play Online
-
-**[Play Lane Shooter](https://loolos.github.io/LaneShooter/)**
+## 🎮[Play Lane Shooter](https://loolos.github.io/LaneShooter/)**
 
 ## Run Locally
 
