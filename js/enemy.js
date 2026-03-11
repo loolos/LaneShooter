@@ -457,8 +457,13 @@ class SplinterEnemy extends Enemy {
             const D = 1 / 35;
             const tankHealth = Math.floor(A + B * level + C * level * level + D * level * level * level);
             this.maxHealth = Math.max(1, Math.floor(tankHealth / 3));
-            this.width = 44;
-            this.height = 44;
+            // Scale parent splinter size with total health, but keep it smaller than tank.
+            const level1Health = Math.max(1, Math.floor((A + B + C + D) / 3));
+            const baseSize = 38;
+            const sizeMultiplier = Math.pow(this.maxHealth / level1Health, 0.26);
+            const scaledSize = Math.floor(baseSize * sizeMultiplier);
+            this.width = clamp(scaledSize, 34, 66);
+            this.height = this.width;
             // Tank-like score formula, scaled to 1/3
             this.scoreValue = (CONFIG.SCORE_PER_ENEMY * (5 + (level - 1) * 1)) / 3;
 
@@ -491,10 +496,30 @@ class SplinterEnemy extends Enemy {
      */
     updateColor() {
         const healthPercent = Math.max(0, Math.min(1, this.health / this.maxHealth));
-        const r = Math.floor(140 + 70 * healthPercent);
-        const g = Math.floor(30 + 40 * healthPercent);
-        const b = Math.floor(170 + 60 * healthPercent);
-        this.color = `rgb(${r}, ${g}, ${b})`;
+        this.color = this.getSplinterColor(healthPercent);
+    }
+
+    /**
+     * Blend splinter color toward grayscale as health drops (tank-like damage readability)
+     * @param {number} healthPercent
+     * @returns {string}
+     */
+    getSplinterColor(healthPercent) {
+        const clampedHealth = Math.max(0, Math.min(1, healthPercent));
+
+        // High-health base tint: bright violet crystal.
+        const baseR = Math.floor(120 + 110 * clampedHealth);
+        const baseG = Math.floor(40 + 80 * clampedHealth);
+        const baseB = Math.floor(140 + 90 * clampedHealth);
+
+        // At low health, aggressively desaturate toward dark grayscale.
+        const grayscale = Math.floor(55 + 145 * clampedHealth);
+        const grayscaleMix = Math.pow(1 - clampedHealth, 0.8);
+
+        const r = Math.floor(baseR * (1 - grayscaleMix) + grayscale * grayscaleMix);
+        const g = Math.floor(baseG * (1 - grayscaleMix) + grayscale * grayscaleMix);
+        const b = Math.floor(baseB * (1 - grayscaleMix) + grayscale * grayscaleMix);
+        return `rgb(${r}, ${g}, ${b})`;
     }
 
     /**
@@ -606,10 +631,7 @@ class SplinterEnemy extends Enemy {
      */
     getUnitColor(unit) {
         const healthPercent = unit.health / unit.maxHealth;
-        const r = Math.floor(140 + 70 * healthPercent);
-        const g = Math.floor(30 + 40 * healthPercent);
-        const b = Math.floor(170 + 60 * healthPercent);
-        return `rgb(${r}, ${g}, ${b})`;
+        return this.getSplinterColor(healthPercent);
     }
 
     /**
