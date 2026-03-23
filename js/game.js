@@ -69,6 +69,7 @@ class Game {
         // UI elements
         this.scoreElement = document.getElementById('score');
         this.scoreToNextElement = document.getElementById('scoreToNext');
+        this.scoreToNextBarElement = document.getElementById('scoreToNextBar');
         this.levelElement = document.getElementById('level');
         this.timeElement = document.getElementById('time');
         this.upgradePanel = document.getElementById('upgradePanel');
@@ -2144,7 +2145,7 @@ class Game {
      * Calculate score needed to reach next level
      * @returns {number} Score needed to reach next level
      */
-    getScoreToNextLevel() {
+    getScoreToNextLevelProgress() {
         // Calculate current score-based level
         let scoreBasedLevel = 1;
         let totalRequired = 0;
@@ -2168,13 +2169,21 @@ class Game {
             }
         }
 
-        // Calculate score needed for next level
-        const nextLevel = scoreBasedLevel + 1;
-        const requiredForNext = Math.floor(A + B * nextLevel + C * nextLevel * nextLevel + D * nextLevel * nextLevel * nextLevel + E * nextLevel * nextLevel * nextLevel * nextLevel);
+        // Calculate score needed for current score-based level to advance
+        const requiredForNext = Math.floor(
+            A +
+            B * scoreBasedLevel +
+            C * scoreBasedLevel * scoreBasedLevel +
+            D * scoreBasedLevel * scoreBasedLevel * scoreBasedLevel +
+            E * scoreBasedLevel * scoreBasedLevel * scoreBasedLevel * scoreBasedLevel
+        );
         const totalForNext = totalRequired + requiredForNext;
         const scoreNeeded = Math.max(0, totalForNext - this.score);
 
-        return scoreNeeded;
+        return {
+            scoreNeeded,
+            totalForThisLevel: requiredForNext
+        };
     }
 
     /**
@@ -2205,8 +2214,12 @@ class Game {
 
         // Update score to next level
         if (this.scoreToNextElement) {
-            const scoreToNext = this.getScoreToNextLevel();
-            this.scoreToNextElement.textContent = Math.floor(scoreToNext);
+            const { scoreNeeded, totalForThisLevel } = this.getScoreToNextLevelProgress();
+            const progress = totalForThisLevel > 0 ? Math.max(0, Math.min(1, scoreNeeded / totalForThisLevel)) : 0;
+            this.scoreToNextElement.textContent = `${Math.floor(scoreNeeded)} pts`;
+            if (this.scoreToNextBarElement) {
+                this.scoreToNextBarElement.style.width = `${progress * 100}%`;
+            }
         }
 
         // Update time display
