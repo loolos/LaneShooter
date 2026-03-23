@@ -243,16 +243,43 @@ body {
 }
 
 .score-panel .score,
-.score-panel .score-to-next,
 .score-panel .level,
 .score-panel .time {
     display: block;
 }
 
 .score-to-next {
-    font-size: 14px;
+    width: 180px;
     color: #ffd700;
-    opacity: 0.9;
+    opacity: 0.95;
+}
+
+.score-to-next-label {
+    font-size: 12px;
+    margin-bottom: 3px;
+    letter-spacing: 0.3px;
+}
+
+.score-to-next-track {
+    width: 100%;
+    height: 8px;
+    border: 1px solid rgba(255, 215, 0, 0.55);
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.score-to-next-bar {
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ffd700 0%, #ff9f1c 100%);
+    transition: width 0.15s linear;
+}
+
+.score-to-next-value {
+    margin-top: 2px;
+    font-size: 11px;
 }
 
 .game-info {
@@ -667,5 +694,4 @@ body {
 .touch-area {
     display: none;
 }
-
 
